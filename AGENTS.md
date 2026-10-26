@@ -23,7 +23,7 @@ Overall summary of the project: [DOCS/README.md](DOCS/README.md).
 - **Maximum automation:** Do not make the user type CLI commands or click through a web GUI when it
   can be done for them automatically.
 - **Secrets:** Do not use `dotnet user-secrets`. Put local data in `appsettings` or in Azure Key
-  Vault (`kv-poshared`, secrets prefixed `PoRedoMedia--`).
+  Vault (`kv-poshared2`, secrets prefixed `PoRedoMedia--`).
 - **Build version:** The app shows its deployment build version as `YYMMDD` in the bottom-right
   corner. `Directory.Build.targets` derives it from the Git commit date (today's date when there is
   no commit); never type it by hand.

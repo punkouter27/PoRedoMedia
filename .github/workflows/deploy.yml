@@ -17,7 +17,7 @@ permissions:
   id-token: write
 
 env:
-  WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || 'app-poredomedia' }}
+  WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || 'app-poredomedia2' }}
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'PoRedoMedia' }}
 
 jobs:

@@ -50,7 +50,7 @@ the config keys present (e.g. `Google:ApiKey` enables Gemini images, Veo, Lyria,
 are looked at by one `IVisionService` (Gemini, else Azure OpenAI; no user-facing picker); a description written by the
 browser's own model (`Vision.description`) replaces that call.
 `Mocks:UseMockAi` (Test environment only; Development uses the real keys) swaps every provider for a mock and skips Key Vault. Read config only
-through `Shared/ConfigKeys`. Key Vault `kv-poshared` loads only `PoRedoMedia--*` secrets (`--` → `:`); in Development
+through `Shared/ConfigKeys`. Key Vault `kv-poshared2` loads only `PoRedoMedia--*` secrets (`--` → `:`); in Development
 the vault's Storage secret is skipped so local runs stay on Azurite.
 
 **Storage.** One account; names live in `Common/Storage/StorageNames`. Table rows use the user as PartitionKey.

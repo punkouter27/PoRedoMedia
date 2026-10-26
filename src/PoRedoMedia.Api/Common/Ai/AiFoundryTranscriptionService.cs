@@ -25,7 +25,7 @@ public sealed partial class AiFoundryTranscriptionService : ITranscriptionServic
 
     // Whisper is reached on the deployment path with an api-version. Every other call in this app
     // uses the resource's /openai/v1 path, but that path answered DeploymentNotFound for a whisper
-    // deployment the deployment path served at once (checked 2026-10-05, po-aiservices-shared).
+    // deployment the deployment path served at once (checked 2026-10-05, po-aiservices-shared2).
     private const string ApiVersion = "2024-06-01";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(5) };
 
