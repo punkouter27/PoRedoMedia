@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -85,9 +86,14 @@ if (!app.Environment.IsDevOrTest())
     app.UseHsts();
 }
 
+// The commit this build came from (SDK-stamped as "<version>+<sha>"), so a deploy can prove which
+// build is answering: CI checks /health/live for X-Commit equal to the pushed sha.
+var commit = typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+    ?.InformationalVersion.Split('+') is [_, var sha, ..] ? sha : "unknown";
 app.Use((context, next) =>
 {
     var headers = context.Response.Headers;
+    headers["X-Commit"] = commit;
     headers.XContentTypeOptions = "nosniff";
     headers.XFrameOptions = "DENY";
     headers["Referrer-Policy"] = "no-referrer";

@@ -10,6 +10,7 @@
     <!-- Diagnostics only: trim-unsafe patterns break the build, but no assembly is trimmed. -->
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <!-- A vulnerable package must break the build, not pass silently. -->
+    <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
