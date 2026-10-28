@@ -57,6 +57,21 @@ jobs:
             exit 1
           fi
 
+      # Same pair in every Po web repo: keep the live build, and put it back if anything fails once the
+      # new package is live (see "Roll back to the previous build" at the end of this job).
+      - name: Back up the live site
+        id: backup
+        run: |
+          token=$(az account get-access-token --query accessToken -o tsv)
+          if curl -fsS --max-time 300 -H "Authorization: Bearer $token" -o previous.zip \
+               "https://${{ vars.AZURE_WEBAPP_NAME }}.scm.azurewebsites.net/api/zip/site/wwwroot/" && [ -s previous.zip ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "Backed up $(du -h previous.zip | cut -f1) of the live site."
+          else
+            echo "::warning title=No backup::Could not download the live site, so this deploy cannot be rolled back."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # No WEBSITE_RUN_FROM_PACKAGE: the read-only mount would block the startup chmod fallback in
       # FFmpegProcess.
       #
@@ -64,6 +79,7 @@ jobs:
       # --async true: synchronous mode waits out the container recycle and gives up at 10 minutes,
       # which an F1 cold start can exceed. The health gate below is the real verification.
       - name: Deploy package
+        id: deploy
         run: >
           az webapp deploy --resource-group "$RESOURCE_GROUP" --name "$WEBAPP_NAME"
           --src-path package.zip --type zip --clean true --async true
@@ -104,3 +120,10 @@ jobs:
             sleep 15
           done
           echo "::error::/health never returned 200 (last: $code)"; exit 1
+
+      - name: Roll back to the previous build
+        if: failure() && steps.deploy.outcome == 'success' && steps.backup.outputs.ok == 'true'
+        run: |
+          az webapp deploy -g "${{ github.event.repository.name }}" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --src-path previous.zip --type zip --clean true
+          echo "::error title=Rolled back::${{ github.sha }} failed after it went live; the previous build is live again."
