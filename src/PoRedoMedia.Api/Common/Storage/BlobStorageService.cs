@@ -33,7 +33,7 @@ public sealed class BlobStorageService(StorageClients storage)
     {
         var slash = prefix.IndexOf('/');
         var container = storage.Container(prefix[..slash]);
-        await foreach (var blob in container.GetBlobsAsync(prefix: prefix[(slash + 1)..], cancellationToken: ct))
+        await foreach (var blob in container.GetBlobsAsync(BlobTraits.None, BlobStates.None, prefix[(slash + 1)..], ct))
             await container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: ct);
     }
 
@@ -49,7 +49,7 @@ public sealed class BlobStorageService(StorageClients storage)
     {
         var slash = prefix.IndexOf('/');
         var container = storage.Container(prefix[..slash]);
-        await foreach (var blob in container.GetBlobsAsync(prefix: prefix[(slash + 1)..], cancellationToken: ct))
+        await foreach (var blob in container.GetBlobsAsync(BlobTraits.None, BlobStates.None, prefix[(slash + 1)..], ct))
             yield return $"{prefix[..slash]}/{blob.Name}";
     }
 }
