@@ -69,6 +69,9 @@ public sealed class StorageClients(IConfiguration configuration)
         });
     }
 
+    /// <summary>One cheap round trip to the account, for the readiness probe.</summary>
+    public Task PingAsync(CancellationToken ct) => new BlobServiceClient(ConnectionString).GetPropertiesAsync(ct);
+
     /// <summary>Allows the browser to upload to and read from blob storage from the app's origins.</summary>
     public async Task AllowBrowserAccessAsync(string allowedOrigins, CancellationToken ct = default)
     {

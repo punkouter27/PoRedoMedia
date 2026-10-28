@@ -11,4 +11,13 @@ public sealed class HealthApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Readiness_probe_is_anonymous_and_reports_unreachable_storage_as_503()
+    {
+        // The Test host has no storage account, so readiness must fail loudly rather than redirect to sign-in.
+        var response = await factory.CreateNoRedirectClient().GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
 }
