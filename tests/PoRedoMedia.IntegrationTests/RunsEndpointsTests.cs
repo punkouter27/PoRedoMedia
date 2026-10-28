@@ -136,7 +136,7 @@ public sealed class RunsEndpointsTests(AzuriteFixture azurite) : IDisposable
 
         Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
         Assert.Contains("all 1 runs for today", await refused.Content.ReadAsStringAsync());
-        Assert.Equal(1, step.Executions);
+        Assert.Equal(1, step.ExecutionsFor(user));
     }
 
     [DockerFact]
@@ -209,7 +209,7 @@ public sealed class RunsEndpointsTests(AzuriteFixture azurite) : IDisposable
         Assert.Equal(2, (await runs.GetAsync(owner, interrupted.Id))!.Attempts);
         var failed = await WaitForAsync(client, hopeless.Id.Value, RunStatus.Failed);
         Assert.Contains("too many times", failed.Error);
-        Assert.Equal(1, step.Executions);
+        Assert.Equal(1, step.ExecutionsFor(owner.Value));
     }
 
     private static HubConnection Hub(AppFactory factory, string user) =>
@@ -226,12 +226,16 @@ public sealed class RunsEndpointsTests(AzuriteFixture azurite) : IDisposable
     /// <summary>A stand-in function: saves a copy of the current item as its output.</summary>
     private sealed class CopyStep(MediaFunction function, Task? waitFor = null) : IRunStep
     {
-        public int Executions { get; private set; }
+        // Counted per owner: the Azurite is shared, so at start the app also resumes runs other tests left unfinished.
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _owners = [];
+
+        public int ExecutionsFor(string user) => _owners.Count(o => o == user);
+
         public IReadOnlySet<MediaFunction> Handles { get; } = new HashSet<MediaFunction> { function };
 
         public async Task ExecuteAsync(RunContext context, CancellationToken ct)
         {
-            Executions++;
+            _owners.Enqueue(context.Run.Owner.Value);
             if (waitFor is not null)
                 await waitFor.WaitAsync(ct);
             await context.AddOutputAsync(context.Current with { Id = MediaId.New(), Origin = function.ToString(), ParentId = context.Current.Id });
