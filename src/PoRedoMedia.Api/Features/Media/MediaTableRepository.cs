@@ -27,6 +27,7 @@ public sealed class MediaTableRepository(StorageClients storage) : IMediaReposit
             ["CreatedAt"] = item.CreatedAt,
             ["Text"] = item.Text,
             ["Detail"] = item.Detail,
+            ["Summary"] = item.Summary,
         }, TableUpdateMode.Replace, ct);
 
     public async Task<MediaItem?> GetAsync(UserId owner, MediaId id, CancellationToken ct = default)
@@ -81,5 +82,6 @@ public sealed class MediaTableRepository(StorageClients storage) : IMediaReposit
         CreatedAt = row.GetDateTimeOffset("CreatedAt") ?? row.Timestamp ?? default,
         Text = row.GetString("Text"),
         Detail = row.GetString("Detail"),
+        Summary = row.GetString("Summary"),
     };
 }

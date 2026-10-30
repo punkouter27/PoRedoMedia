@@ -27,8 +27,10 @@ public sealed class RunExecutorTests
     private static Run NewRun(MediaItem source, params MediaFunction[] functions) =>
         new() { Owner = Owner, Id = RunId.New(), SourceId = source.Id, Functions = functions, CreatedAt = DateTimeOffset.UtcNow };
 
+    private IMediaSummarizer? _summarizer;
+
     private RunExecutor Executor(params IRunStep[] steps) =>
-        new(steps, _runs, _media, _notifier, _quota, NullLogger<RunExecutor>.Instance);
+        new(steps, _runs, _media, _notifier, _quota, NullLogger<RunExecutor>.Instance, _summarizer);
 
     private FakeStep Step(MediaFunction function, Func<RunContext, Task>? work = null) =>
         new([function], async context =>
@@ -39,8 +41,10 @@ public sealed class RunExecutorTests
         });
 
     [Fact]
-    public async Task Steps_run_in_the_fixed_order_each_works_on_the_previous_result_and_their_AI_spend_is_added_up()
+    public async Task Steps_run_in_the_fixed_order_each_works_on_the_previous_result_and_their_time_and_AI_spend_are_added_up()
     {
+        // Every result is named; one naming fails, and its result simply keeps its own title.
+        _summarizer = new NamingSummarizer();
         var meter = new AiMeter(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["AiPricing:Models:nano:Input"] = "1", ["AiPricing:Models:nano:CachedInput"] = "0.1", ["AiPricing:Models:nano:Output"] = "4",
@@ -75,7 +79,17 @@ public sealed class RunExecutorTests
         Assert.Equal(5.182m, run.AiCostUsd);
         Assert.Contains(run.Log, l => l.Contains("5 call(s), 1 unpriced", StringComparison.Ordinal));
         Assert.Equal(RunStatus.Complete, _notifier.Events[^1].Status);
-        Assert.Equal(3, _notifier.Events.Count(e => e.Output is not null));
+
+        // Each step's own seconds and share of the bill, in the order they ran.
+        Assert.Equal([Restyle, MemeCaption, PhotoToVideo], run.Steps.Select(s => s.Function));
+        Assert.Equal((5, 1_000_000L + 2_000_000 + 550, 5.182m), (run.Steps[0].AiCalls, run.Steps[0].Tokens, run.Steps[0].CostUsd));
+        Assert.All(run.Steps.Skip(1), s => Assert.Equal((0, 0L, (decimal?)null), (s.AiCalls, s.Tokens, s.CostUsd)));
+        Assert.Equal(run.Steps.Count, _notifier.Events[^1].Steps!.Length);
+
+        // Named after it was made, and sent again so the page shows the name; the failed one is not.
+        Assert.Equal(["Named Restyle", "MemeCaption", "Named PhotoToVideo"], run.OutputIds.Select(id => _media.All.Single(m => m.Id == id).Title));
+        Assert.Equal("About Restyle.", _media.All.Single(m => m.Id == restyled.Id).Summary);
+        Assert.Equal(5, _notifier.Events.Count(e => e.Output is not null));
     }
 
     [Fact]
@@ -214,6 +228,13 @@ public sealed class RunExecutorTests
         Assert.Contains("Picked up again after a server restart", run.Log);
     }
 
+    private sealed class NamingSummarizer : IMediaSummarizer
+    {
+        public Task<MediaSummary?> SummarizeAsync(MediaItem item, CancellationToken ct = default) => item.Origin == "MemeCaption"
+            ? throw new HttpRequestException("The naming model is down.")
+            : Task.FromResult<MediaSummary?>(new($"Named {item.Origin}", $"About {item.Origin}."));
+    }
+
     private sealed class FakeStep(MediaFunction[] handles, Func<RunContext, Task> work) : IRunStep
     {
         public IReadOnlySet<MediaFunction> Handles { get; } = handles.ToHashSet();
@@ -247,6 +268,7 @@ public sealed class RunExecutorTests
     private sealed class FakeMedia : IMediaRepository
     {
         private readonly Dictionary<MediaId, MediaItem> _rows = [];
+        public IEnumerable<MediaItem> All => _rows.Values;
         public MediaItem Add(MediaItem item) { _rows[item.Id] = item; return item; }
         public Task SaveAsync(MediaItem item, CancellationToken ct = default) { _rows[item.Id] = item; return Task.CompletedTask; }
         public Task<MediaItem?> GetAsync(UserId owner, MediaId id, CancellationToken ct = default) => Task.FromResult(_rows.GetValueOrDefault(id));

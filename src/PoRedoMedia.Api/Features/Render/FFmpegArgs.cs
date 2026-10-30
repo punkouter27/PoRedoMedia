@@ -329,6 +329,44 @@ internal static class FFmpegArgs
             _ => null
         };
 
+    /// <summary>A GIF covers the opening of the video only: longer ones run to tens of megabytes.</summary>
+    internal const int GifSeconds = 8;
+
+    /// <summary>One pass: 12 frames a second, 480 wide, on a 128-colour palette made from the clip itself.</summary>
+    internal static string GifArgs(string source, string output) =>
+        $"-v error -t {GifSeconds} -i \"{source}\" -filter_complex \"fps=12,scale=480:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer\" -loop 0 -y \"{output}\"";
+
+    /// <summary>
+    /// The output frame for each social aspect. 720 on the short side: what the feeds show anyway,
+    /// and what one render slot on the hosting plan encodes in about real time.
+    /// </summary>
+    internal static (int Width, int Height)? SocialFrame(string? aspect) => aspect switch
+    {
+        SocialExport.Vertical => (720, 1280),
+        SocialExport.Square => (720, 720),
+        SocialExport.Wide => (1280, 720),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The video re-framed to <paramref name="aspect"/> without cropping anything away: the whole
+    /// picture sits centred on a blurred, darkened, zoomed copy of itself that fills the frame, the
+    /// look the feeds use for footage of the wrong shape. Sound is kept when there is any.
+    /// Null for an aspect that is not offered.
+    /// </summary>
+    internal static string? SocialArgs(string source, string output, string? aspect)
+    {
+        if (SocialFrame(aspect) is not var (w, h))
+            return null;
+
+        return $"-v error -i \"{source}\" -filter_complex \""
+            + $"[0:v]split[a][b];"
+            + $"[a]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=20:2,eq=brightness=-0.08[bg];"
+            + $"[b]scale={w}:{h}:force_original_aspect_ratio=decrease:force_divisible_by=2[fg];"
+            + $"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p[v]\""
+            + $" -map \"[v]\" -map 0:a? -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -movflags +faststart -y \"{output}\"";
+    }
+
     internal static string SanitizeForDrawtext(string text)
     {
         // drawtext wraps the text in single quotes, so a literal apostrophe inside the caption

@@ -8,6 +8,9 @@ namespace PoRedoMedia.Api.Features.Runs;
 /// <summary>Run rows: partition = owner, row = run id.</summary>
 public sealed class RunTableRepository(StorageClients storage) : IRunRepository
 {
+    // Functions by name, so a reordered enum cannot relabel a stored step.
+    private static readonly JsonSerializerOptions StepJson = new() { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+
     private readonly Lazy<TableClient> _table = new(() => storage.Table(StorageNames.Tables.Runs));
 
     public Task SaveAsync(Run run, CancellationToken ct = default) =>
@@ -25,6 +28,7 @@ public sealed class RunTableRepository(StorageClients storage) : IRunRepository
             ["Attempts"] = run.Attempts,
             ["Notes"] = JsonSerializer.Serialize(run.Notes),
             ["Log"] = JsonSerializer.Serialize(run.Log),
+            ["Steps"] = JsonSerializer.Serialize(run.Steps, StepJson),
             ["CreatedAt"] = run.CreatedAt,
             // Tables have no decimal type; a double is ample for an estimate.
             ["AiCostUsd"] = run.AiCostUsd is { } cost ? (double)cost : null,
@@ -73,9 +77,23 @@ public sealed class RunTableRepository(StorageClients storage) : IRunRepository
         Attempts = row.GetInt32("Attempts") ?? 1,
         Notes = JsonSerializer.Deserialize<List<string>>(row.GetString("Notes") ?? "[]") ?? [],
         Log = JsonSerializer.Deserialize<List<string>>(row.GetString("Log") ?? "[]") ?? [],
+        Steps = ReadSteps(row.GetString("Steps")),
         CreatedAt = row.GetDateTimeOffset("CreatedAt") ?? default,
         AiCostUsd = row.GetDouble("AiCostUsd") is { } cost ? (decimal)cost : null,
     };
+
+    /// <summary>The stored step figures; none when a step names a function that has since been removed.</summary>
+    private static List<StepTelemetryDto> ReadSteps(string? json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<StepTelemetryDto>>(json ?? "[]", StepJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
 
     private static string[] Split(string? list) => (list ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
 }

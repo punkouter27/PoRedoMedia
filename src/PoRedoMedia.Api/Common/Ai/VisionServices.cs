@@ -40,7 +40,9 @@ public sealed class GeminiVisionService(IConfiguration configuration, IHttpClien
     public const string HttpClientName = "GeminiApi";
 
     // A "-latest" alias on purpose: Google retires dated model ids, and a retired id fails every call.
-    private readonly string _model = configuration[ConfigKeys.GoogleVisionModel] is { Length: > 0 } model ? model : "gemini-flash-lite-latest";
+    public const string DefaultModel = "gemini-flash-lite-latest";
+
+    private readonly string _model = configuration[ConfigKeys.GoogleVisionModel] is { Length: > 0 } model ? model : DefaultModel;
 
     public async Task<VisionResult> AnalyzeAsync(byte[] image, CancellationToken ct = default)
     {

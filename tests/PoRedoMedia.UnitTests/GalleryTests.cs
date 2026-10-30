@@ -12,19 +12,24 @@ namespace PoRedoMedia.UnitTests;
 
 public sealed class GalleryTests
 {
-    private static MediaDto Item(string title, MediaKind kind) => new(
-        Guid.NewGuid(), kind, title, "Upload", null, "x/y", 1, null, false, false, DateTimeOffset.UtcNow, "/content", "/thumb");
+    private static MediaDto Item(string title, MediaKind kind, string? summary = null) => new(
+        Guid.NewGuid(), kind, title, "Upload", null, "x/y", 1, null, false, false, DateTimeOffset.UtcNow, "/content", "/thumb", Summary: summary);
 
-    [Theory]
-    [InlineData("All", "", 3)]
-    [InlineData("Video", "", 1)]
-    [InlineData("All", "BEACH", 1)]
-    [InlineData("Image", "party", 0)]
-    public void The_filter_narrows_by_kind_and_by_title(string kind, string search, int expected)
+    [Fact]
+    public void The_filter_narrows_by_kind_and_searches_titles_and_summaries()
     {
-        MediaDto[] items = [Item("beach.jpg", MediaKind.Image), Item("party.mp4", MediaKind.Video), Item("Roast · dog", MediaKind.Audio)];
+        MediaDto[] items =
+        [
+            Item("beach.jpg", MediaKind.Image), Item("party.mp4", MediaKind.Video), Item("Roast · dog", MediaKind.Audio, "A dog gets roasted in rhyme."),
+        ];
 
-        Assert.Equal(expected, Gallery.Filter(items, kind, search).Count());
+        foreach (var (kind, search, expected) in new[]
+        {
+            ("All", "", 3), ("Video", "", 1), ("All", "BEACH", 1), ("Image", "party", 0), ("All", "rhyme", 1),
+        })
+        {
+            Assert.Equal(expected, Gallery.Filter(items, kind, search).Count());
+        }
     }
 
     [Fact]

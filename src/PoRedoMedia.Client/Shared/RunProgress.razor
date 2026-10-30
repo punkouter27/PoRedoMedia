@@ -3,6 +3,7 @@
 @implements IDisposable
 @inject RunTracker Tracker
 @inject IJSRuntime JS
+@inject AppSettings Settings
 
 <RadzenStack Gap="0.75rem">
     @* The run as an orb: one blob per function, drawn into the core as each finishes (js/fx/reactor.js). *@
@@ -14,6 +15,10 @@
             <li class="run-step @state">
                 <RadzenIcon Icon="@IconOf(state)" aria-hidden="true" />
                 <span>@FunctionStack.Label(function)</span>
+                @if (Stats(function) is { } stats)
+                {
+                    <span class="run-step-stats" title="Time taken, and the AI calls it made (an estimate from list prices)">@stats</span>
+                }
             </li>
         }
     </ol>
@@ -135,6 +140,27 @@
         if (index < at)
             return "done";
         return index > at ? "waiting" : Run.Status == RunStatus.Failed ? "failed" : "now";
+    }
+
+    /// <summary>
+    /// One finished step in a few words: its seconds always; its tokens and estimated cost only
+    /// with Settings → Cost estimates on, like every other cost figure.
+    /// </summary>
+    private string? Stats(MediaFunction function)
+    {
+        if (Run.Steps.FirstOrDefault(s => s.Function == function) is not { } step)
+            return null;
+
+        var parts = new List<string> { $"{step.Seconds:0.0} s" };
+        if (Settings[AppSettings.CostEstimates])
+        {
+            if (step.Tokens > 0)
+                parts.Add(step.Tokens >= 1000 ? $"{step.Tokens / 1000.0:0.#}k tokens" : $"{step.Tokens} tokens");
+            if (step.CostUsd is { } cost)
+                parts.Add($"${cost:0.0000}");
+        }
+
+        return string.Join(" · ", parts);
     }
 
     private static string IconOf(string state) => state switch

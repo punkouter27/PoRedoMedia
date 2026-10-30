@@ -175,14 +175,15 @@
         }
     }
 
-    /// <summary>Matches the kind, and the search against the title, where it came from and its words.</summary>
+    /// <summary>Matches the kind, and the search against the title, where it came from, its words and its summary.</summary>
     public static IEnumerable<MediaDto> Filter(IEnumerable<MediaDto> items, string kind, string search)
     {
         var words = search.Trim();
         return items.Where(m => kind == "All" || m.Kind.ToString() == kind)
             .Where(m => m.Title.Contains(words, StringComparison.OrdinalIgnoreCase)
                 || m.Origin.Contains(words, StringComparison.OrdinalIgnoreCase)
-                || m.Text?.Contains(words, StringComparison.OrdinalIgnoreCase) == true);
+                || m.Text?.Contains(words, StringComparison.OrdinalIgnoreCase) == true
+                || m.Summary?.Contains(words, StringComparison.OrdinalIgnoreCase) == true);
     }
 
     private static IEnumerable<MediaDto> Order(IEnumerable<MediaDto> items, string sort) => sort switch

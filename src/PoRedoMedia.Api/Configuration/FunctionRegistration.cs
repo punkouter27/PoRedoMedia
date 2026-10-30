@@ -8,7 +8,6 @@ using PoRedoMedia.Api.Features.MemeCaption;
 using PoRedoMedia.Api.Features.PhotoToVideo;
 using PoRedoMedia.Api.Features.RapRoast;
 using PoRedoMedia.Api.Features.Render;
-using PoRedoMedia.Api.Features.Sounds;
 using PoRedoMedia.Api.Features.Restyle;
 
 namespace PoRedoMedia.Api.Configuration;
@@ -47,6 +46,8 @@ public static class FunctionRegistration
             services.AddSingleton<ICaptionWriter, MockCaptionWriter>();
             services.AddSingleton<IRunStep, MemeCaptionStep>();
             services.AddSingleton<IChatClient, MockChatClient>();
+            services.AddSingleton<IMediaSummarizer, MockMediaSummarizer>();
+            services.AddSingleton<IRoastCritic, MockRoastCritic>();
             services.AddSingleton<IImageGenerationService, MockImageGenerationService>();
             services.AddSingleton<ReproductionPromptWriter>();
             services.AddSingleton<IRunStep, RestyleStep>();
@@ -60,18 +61,29 @@ public static class FunctionRegistration
             return services;
         }
 
-        // Free-form text: Azure OpenAI.
+        // Free-form text: Azure OpenAI. With a Google key too, Gemini answers what it fails.
         var chat = ChatClients.AzureOpenAi(configuration);
+        var geminiChat = ProviderFallback.GeminiChat(configuration);
 
         // Looking at pictures: Gemini gives real sentences cheaply; Azure OpenAI is the fallback.
         var canSeeImages = Has(ConfigKeys.GoogleApiKey) || chat is not null;
         if (canSeeImages)
             services.AddSingleton<IVisionService>(s => Vision(s, configuration));
 
+        // Every result gets a title and a one-line summary, from whichever chat model there is.
+        if (chat is not null || geminiChat is not null)
+            services.AddSingleton<IMediaSummarizer>(s => new ChatMediaSummarizer(
+                chat is null ? Instrument(geminiChat!, s, "summary") : s.GetRequiredService<IChatClient>(), s.GetRequiredService<BlobStorageService>()));
+
         if (chat is not null)
         {
-            services.AddSingleton(s => Instrument(chat, s, "chat"));
+            services.AddSingleton(s => geminiChat is null
+                ? Instrument(chat, s, "chat")
+                : new FallbackChatClient(
+                    Instrument(chat, s, "chat"), ProviderFallback.AzureOpenAi, Instrument(geminiChat, s, "chat-fallback"), ProviderFallback.Gemini,
+                    s.GetRequiredService<ILogger<FallbackChatClient>>()));
             services.AddSingleton<AiJudge>();
+            services.AddSingleton<IRoastCritic, ChatRoastCritic>();
             services.AddSingleton<ICaptionWriter, ChatCaptionWriter>();
             if (canSeeImages)
                 services.AddSingleton<IRunStep, MemeCaptionStep>();
@@ -156,13 +168,21 @@ public static class FunctionRegistration
         services.AddSingleton<IRunStep, RapRoastStep>();
     }
 
-    /// <summary>The one vision provider, with its answers cached by picture.</summary>
+    /// <summary>
+    /// The one vision provider, with its answers cached by picture: Gemini, else Azure OpenAI. With
+    /// both configured, Azure OpenAI answers what Gemini fails (and the answer is cached as Gemini's).
+    /// </summary>
     private static CachingVisionService Vision(IServiceProvider services, IConfiguration configuration)
     {
-        var (scope, provider) = string.IsNullOrWhiteSpace(configuration[ConfigKeys.GoogleApiKey])
-            ? ("azure-openai", (IVisionService)new ChatVisionService(Instrument(ChatClients.AzureOpenAi(configuration)!, services, "vision")))
-            : ("gemini", new GeminiVisionService(configuration, services.GetRequiredService<IHttpClientFactory>()));
-        return new CachingVisionService(provider, services.GetRequiredService<HybridCache>(), scope);
+        var azure = ChatClients.AzureOpenAi(configuration) is { } chat ? new ChatVisionService(Instrument(chat, services, "vision")) : null;
+        if (string.IsNullOrWhiteSpace(configuration[ConfigKeys.GoogleApiKey]))
+            return new CachingVisionService(azure!, services.GetRequiredService<HybridCache>(), "azure-openai");
+
+        IVisionService gemini = new GeminiVisionService(configuration, services.GetRequiredService<IHttpClientFactory>());
+        if (azure is not null)
+            gemini = new FallbackVisionService(
+                gemini, ProviderFallback.Gemini, azure, ProviderFallback.AzureOpenAi, services.GetRequiredService<ILogger<FallbackVisionService>>());
+        return new CachingVisionService(gemini, services.GetRequiredService<HybridCache>(), "gemini");
     }
 
     /// <summary>A chat client with OpenTelemetry spans (gen_ai.*) and usage metering around it.</summary>

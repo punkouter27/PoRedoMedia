@@ -10,12 +10,11 @@ using PoRedoMedia.Api.Features.Video;
 using PoRedoMedia.Api.Features.Housekeeping;
 using PoRedoMedia.Api.Features.Media;
 using PoRedoMedia.Api.Features.MemeCaption;
+using PoRedoMedia.Api.Features.Preferences;
 using PoRedoMedia.Api.Features.Quota;
 using PoRedoMedia.Api.Features.Render;
 using PoRedoMedia.Api.Features.Runs;
 using PoRedoMedia.Api.Features.Sharing;
-using PoRedoMedia.Api.Features.Sounds;
-using Radzen;
 
 // CLI verb: dotnet run --project src/PoRedoMedia.Api -- seed-sounds [--seeds-dir <path>]
 // Fills the sound library and exits, without starting the web host.
@@ -43,7 +42,6 @@ builder.AddPoTelemetry();
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents()
     .AddAuthenticationStateSerialization();
-builder.Services.AddRadzenComponents();
 builder.Services.AddSingleton<StorageClients>();
 builder.Services.AddSingleton<BlobStorageService>();
 builder.Services.AddSingleton<BlobDelivery>();
@@ -52,6 +50,7 @@ builder.Services.AddSingleton<IMediaRepository, MediaTableRepository>();
 builder.Services.AddSingleton<Thumbnails>();
 builder.Services.AddSingleton<MediaOutputs>();
 builder.Services.AddSingleton<ShareLinkStore>();
+builder.Services.AddSingleton<PreferencesRepository>();
 builder.Services.AddSingleton<IShareLinks>(services => services.GetRequiredService<ShareLinkStore>());
 builder.Services.AddFunctions(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton(TimeProvider.System);
@@ -136,6 +135,7 @@ app.MapMemeTemplates();
 app.MapBulkPrompts();
 app.MapExports();
 app.MapSharing();
+app.MapPreferences();
 app.MapClientErrors();
 app.MapHub<RunHub>(RunHub.Path);
 app.MapStaticAssets().AllowAnonymous();

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,6 +63,102 @@ public sealed class ImageAiTests
             Calls++;
             return Task.FromResult(new VisionResult(description, [], 1));
         }
+    }
+
+    /// <summary>A provider that is down: every call fails, after honouring cancellation.</summary>
+    private sealed class DownProvider : IVisionService, IChatClient
+    {
+        public Task<VisionResult> AnalyzeAsync(byte[] image, CancellationToken ct = default) => Fail<VisionResult>(ct);
+
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            Fail<ChatResponse>(cancellationToken);
+
+        private static Task<T> Fail<T>(CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            throw new HttpRequestException("503 Service Unavailable");
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public async Task A_failed_vision_or_chat_call_is_asked_once_of_the_other_provider_and_the_run_log_says_so()
+    {
+        var tally = AiMeter.Begin();
+        var vision = new FallbackVisionService(
+            new DownProvider(), ProviderFallback.Gemini, new CountingVision("seen by Azure"), ProviderFallback.AzureOpenAi, NullLogger<FallbackVisionService>.Instance);
+        using var chat = new FallbackChatClient(
+            new DownProvider(), ProviderFallback.AzureOpenAi, new StubChat("from Gemini"), ProviderFallback.Gemini, NullLogger<FallbackChatClient>.Instance);
+        using var healthy = new FallbackChatClient(
+            new StubChat("from Azure"), ProviderFallback.AzureOpenAi, new DownProvider(), ProviderFallback.Gemini, NullLogger<FallbackChatClient>.Instance);
+
+        Assert.Equal("seen by Azure", (await vision.AnalyzeAsync(Image)).Description);
+        Assert.Equal("from Gemini", (await chat.GetResponseAsync("hi", new ChatOptions { ModelId = "gpt-5.4-nano" })).Text);
+        Assert.Equal("from Azure", (await healthy.GetResponseAsync("hi")).Text);
+        Assert.Equal(
+            ["Gemini vision failed; Azure OpenAI answered instead", "Azure OpenAI chat failed; Gemini answered instead"], tally.TakeFallbacks());
+        Assert.Empty(tally.TakeFallbacks());
+
+        // A cancelled call is the caller's choice, not a provider failure: nothing else is asked.
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => vision.AnalyzeAsync(Image, cancelled.Token));
+        Assert.Empty(tally.TakeFallbacks());
+    }
+
+    [Fact]
+    public async Task A_weak_roast_is_rewritten_once_with_the_critique_and_a_strong_or_unjudged_one_is_kept()
+    {
+        var rewrites = 0;
+        Task<string?> Rewrite(RoastCritique critique, CancellationToken ct)
+        {
+            rewrites++;
+            return Task.FromResult<string?>($"sharper, after: {critique.Critique}");
+        }
+
+        Task<(string Text, RoastCritique? Critique, bool Rewritten)> Improve(IRoastCritic? critic, Func<RoastCritique, CancellationToken, Task<string?>>? rewrite = null) =>
+            RoastQuality.ImproveOnceAsync(critic, "A roast", "draft", rewrite ?? Rewrite, NullLogger.Instance, default);
+        ChatRoastCritic Critic(string reply) => new(new StubChat(reply), NullLogger<ChatRoastCritic>.Instance);
+
+        var weak = await Improve(Critic("""{"score":3,"critique":"Line 2 only describes the room."}"""));
+        Assert.Equal(("sharper, after: Line 2 only describes the room.", 3.0, true), (weak.Text, weak.Critique!.Score, weak.Rewritten));
+        var strong = await Improve(Critic("""{"score":8,"critique":"Lands."}"""));
+        Assert.Equal(("draft", false), (strong.Text, strong.Rewritten));
+
+        // No verdict, no critic, or a rewrite that fails or comes back empty: the draft stands.
+        Assert.Equal("draft", (await Improve(Critic("I refuse."))).Text);
+        Assert.Equal("draft", (await Improve(null)).Text);
+        Assert.Equal("draft", (await Improve(Critic("""{"score":2,"critique":"x"}"""), (_, _) => throw new HttpRequestException("down"))).Text);
+        Assert.Equal("draft", (await Improve(Critic("""{"score":2,"critique":"x"}"""), (_, _) => Task.FromResult<string?>(" "))).Text);
+        Assert.Equal(1, rewrites);
+
+        // The mock critic passes every draft, so a mock run never rewrites.
+        Assert.True((await new MockRoastCritic().CritiqueAsync("A roast", "draft"))!.Score >= RoastQuality.PassScore);
+    }
+
+    [Fact]
+    public async Task A_result_is_named_in_at_most_six_words_from_what_the_step_kept_and_a_useless_answer_names_nothing()
+    {
+        var blobs = new BlobStorageService(new StorageClients(new ConfigurationBuilder().Build()));
+        var roast = new MediaItem
+        {
+            Owner = new UserId("dev|a"), Id = MediaId.New(), Kind = PoRedoMedia.Shared.Enums.MediaKind.Audio, Status = MediaStatus.Ready,
+            Origin = "RapRoast", Title = "Roast · dog", ContentType = "audio/mpeg", Extension = ".mp3", CreatedAt = DateTimeOffset.UtcNow,
+            Text = "[Verse] You sat on the remote", Detail = "A dog on a sofa",
+        };
+        var chat = new StubChat("""{"title":"\"The Dog Who Sat On The Remote Again.\"","summary":" A stand-up roast of a dog hogging the sofa. "}""");
+
+        var named = await new ChatMediaSummarizer(chat, blobs).SummarizeAsync(roast);
+
+        Assert.Equal(new MediaSummary("The Dog Who Sat On The", "A stand-up roast of a dog hogging the sofa."), named);
+        Assert.Contains(chat.Seen, m => m.Text.Contains("Its words: [Verse] You sat on the remote") && m.Text.Contains("What the AI saw: A dog on a sofa"));
+        Assert.Null(await new ChatMediaSummarizer(new StubChat("""{"title":" ","summary":"Something."}"""), blobs).SummarizeAsync(roast));
     }
 
     [Theory]

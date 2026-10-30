@@ -61,6 +61,8 @@ public sealed class RapRoastStep(
             await context.ReportAsync(attempt == 1 ? "Writing the roast" : "Softening the roast");
             if (attempt > 1 || lyrics is null)
                 lyrics = await lyricsWriter.WriteAsync(scene.Text, tags, Intensity, softened: attempt > 1, ExplicitLanguage, ct);
+            if (attempt == 1)
+                lyrics = await PolishAsync(context, lyrics, scene.Text, ct);
 
             await context.ReportAsync("Performing it");
             track = await music.GenerateAsync(lyrics.Text, StandUpPrompt, ct);
@@ -87,6 +89,20 @@ public sealed class RapRoastStep(
             track.ContentType.Contains("wav", StringComparison.OrdinalIgnoreCase) ? ".wav" : ".mp3", ct, text: lyrics.Text,
             detail: scene.Snapshot.HasSubstance ? scene.Snapshot.ToProse() : scene.Text);
         await context.AddOutputAsync(item);
+    }
+
+    /// <summary>The critic's pass over the first draft, said in the run's log.</summary>
+    private async Task<RoastLyrics> PolishAsync(RunContext context, RoastLyrics draft, string sceneText, CancellationToken ct)
+    {
+        var (lyrics, critique) = await lyricsWriter.PolishAsync(draft, sceneText, ExplicitLanguage, ct);
+        if (critique is not null)
+        {
+            await context.ReportAsync(lyrics.Text == draft.Text
+                ? $"The critic scored the roast {critique.Score:0}/10"
+                : $"The critic scored the first draft {critique.Score:0}/10, so it was rewritten");
+        }
+
+        return lyrics;
     }
 
     private const string StoredSceneName = "roast-scene";

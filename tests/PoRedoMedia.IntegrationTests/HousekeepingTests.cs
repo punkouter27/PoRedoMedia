@@ -15,7 +15,7 @@ namespace PoRedoMedia.IntegrationTests;
 public sealed class HousekeepingTests(AzuriteFixture azurite)
 {
     [DockerFact]
-    public async Task One_sweep_recovers_a_lost_run_and_deletes_only_what_is_expired_and_unpinned()
+    public async Task One_sweep_recovers_a_lost_run_deletes_only_what_is_expired_and_unpinned_and_drops_retired_storage()
     {
         using var factory = new AppFactory(azurite.ConnectionString);
         var services = factory.Services;
@@ -44,6 +44,12 @@ public sealed class HousekeepingTests(AzuriteFixture azurite)
         var pinned = await AddAsync(ageDays: 400, pinned: true);
         var recent = await AddAsync(ageDays: 1);
 
+        // Storage older versions wrote and nothing reads any more.
+        var storage = services.GetRequiredService<StorageClients>();
+        var script = $"{MediaBlobPaths.Prefix(recent.Id)}script.json";
+        await blobs.UploadAsync(script, "{}"u8.ToArray(), "application/json");
+        storage.Table(HousekeepingService.RetiredFavoritesTable);
+
         // Saved after the dispatcher's own recovery, so only the sweep below can find it.
         await services.GetRequiredService<RunDispatcher>().Recovered;
 
@@ -57,7 +63,7 @@ public sealed class HousekeepingTests(AzuriteFixture azurite)
         await runs.SaveAsync(lost);
 
         var sweeper = new HousekeepingService(
-            runs, media, blobs, links, quota, services.GetRequiredService<RunDispatcher>(), services.GetRequiredService<StorageClients>(),
+            runs, media, blobs, links, quota, services.GetRequiredService<RunDispatcher>(), storage,
             new ConfigurationBuilder().Build(), TimeProvider.System, NullLogger<HousekeepingService>.Instance);
         await sweeper.SweepAsync(default);
 
@@ -72,5 +78,9 @@ public sealed class HousekeepingTests(AzuriteFixture azurite)
         Assert.Equal(HttpStatusCode.NotFound, (await factory.CreateClient().GetAsync($"/v/{token}")).StatusCode);
         Assert.NotNull(await media.GetAsync(owner, pinned.Id));
         Assert.NotNull(await media.GetAsync(owner, recent.Id));
+
+        Assert.False(await blobs.ExistsAsync(script));
+        Assert.True(await blobs.ExistsAsync(recent.SourcePath));
+        Assert.False(await storage.DeleteTableIfExistsAsync(HousekeepingService.RetiredFavoritesTable));
     }
 }

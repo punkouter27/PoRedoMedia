@@ -36,7 +36,10 @@ public sealed record Run
     /// <summary>The estimated AI spend of the run's last attempt, in USD; null until it ends.</summary>
     public decimal? AiCostUsd { get; init; }
 
+    /// <summary>What each finished step took, in the order they ran.</summary>
+    public IReadOnlyList<StepTelemetryDto> Steps { get; init; } = [];
+
     public RunDto ToDto() => new(
         Id.Value, SourceId.Value, [.. Functions], Status, CurrentStep, Error,
-        [.. OutputIds.Select(o => o.Value)], [.. Notes], CreatedAt, new(Options), [.. Log]);
+        [.. OutputIds.Select(o => o.Value)], [.. Notes], CreatedAt, new(Options), [.. Log], [.. Steps]);
 }

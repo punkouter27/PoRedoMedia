@@ -19,28 +19,33 @@ public sealed class GeminiImageServiceTests
         Assert.Equal(("image/jpeg", ".jpg"), (image.ContentType, image.Extension));
     }
 
-    [Theory]
-    [InlineData("""{"candidates":[{"finishReason":"SAFETY"}]}""", "safety filter")]
-    [InlineData("""{"candidates":[{"content":{"parts":[{"text":"REFUSE: I cannot draw that."}]}}]}""", "declined: I cannot draw that.")]
-    [InlineData("""{"candidates":[{"content":{"parts":[]}}]}""", "returned no picture")]
-    [InlineData("""{"promptFeedback":{"blockReason":"OTHER"}}""", "declined this request")]
-    public void A_refusal_becomes_a_failure_the_user_can_read(string response, string reasonContains)
+    [Fact]
+    public void A_refusal_becomes_a_failure_the_user_can_read()
     {
-        var error = Assert.Throws<RunStepException>(() => GeminiImageService.Read(Json(response)));
+        foreach (var (response, reasonContains) in new[]
+        {
+            ("""{"candidates":[{"finishReason":"SAFETY"}]}""", "safety filter"),
+            ("""{"candidates":[{"content":{"parts":[{"text":"REFUSE: I cannot draw that."}]}}]}""", "declined: I cannot draw that."),
+            ("""{"candidates":[{"content":{"parts":[]}}]}""", "returned no picture"),
+            ("""{"promptFeedback":{"blockReason":"OTHER"}}""", "declined this request"),
+        })
+        {
+            var error = Assert.Throws<RunStepException>(() => GeminiImageService.Read(Json(response)));
 
-        Assert.Contains(reasonContains, error.Message);
+            Assert.Contains(reasonContains, error.Message);
+        }
     }
 
-    [Theory]
-    [InlineData(800, 600, "4:3")]
-    [InlineData(600, 800, "3:4")]
-    [InlineData(1000, 1000, "1:1")]
-    [InlineData(1920, 1080, "16:9")]
-    public void The_new_picture_is_asked_for_in_the_nearest_supported_shape(int width, int height, string expected)
+    [Fact]
+    public void The_new_picture_is_asked_for_in_the_nearest_supported_shape()
     {
-        using var image = new SKBitmap(width, height);
+        foreach (var (width, height, expected) in new[] { (800, 600, "4:3"), (600, 800, "3:4"), (1000, 1000, "1:1"), (1920, 1080, "16:9") })
+        {
+            using var image = new SKBitmap(width, height);
 
-        Assert.Equal(expected, GeminiImageService.AspectRatioOf(ImageBytes.ToPng(image)));
+            Assert.Equal(expected, GeminiImageService.AspectRatioOf(ImageBytes.ToPng(image)));
+        }
+
         Assert.Null(GeminiImageService.AspectRatioOf([1, 2, 3]));
     }
 }

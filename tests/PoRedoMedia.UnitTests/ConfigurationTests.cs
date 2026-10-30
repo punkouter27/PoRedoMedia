@@ -9,31 +9,31 @@ namespace PoRedoMedia.UnitTests;
 
 public sealed class ConfigurationTests
 {
-    [Theory]
-    [InlineData("true", "Development", false)]
-    [InlineData("true", "Test", true)]
-    [InlineData("true", "Production", false)]
-    [InlineData("false", "Test", false)]
-    public void Mock_AI_is_enabled_only_in_Test(string flag, string environment, bool expected)
+    [Fact]
+    public void Mock_AI_is_enabled_only_in_Test()
     {
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Mocks:UseMockAi"] = flag }).Build();
-        var env = Substitute.For<IWebHostEnvironment>();
-        env.EnvironmentName.Returns(environment);
+        foreach (var (flag, environment, expected) in new[]
+        {
+            ("true", "Development", false), ("true", "Test", true), ("true", "Production", false), ("false", "Test", false),
+        })
+        {
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Mocks:UseMockAi"] = flag }).Build();
+            var env = Substitute.For<IWebHostEnvironment>();
+            env.EnvironmentName.Returns(environment);
 
-        Assert.Equal(expected, MockAi.IsEnabled(config, env));
+            Assert.Equal(expected, MockAi.IsEnabled(config, env));
+        }
     }
 
-    [Theory]
-    [InlineData("PoRedoMedia--AiFoundry--Key", true, "AiFoundry:Key")]
-    [InlineData("AzureAd--ClientId", false, null)]
-    [InlineData("PoMemeVideo--AiFoundry--Key", false, null)]
-    public void Only_this_apps_secrets_are_loaded(string secretName, bool loaded, string? configKey)
+    [Fact]
+    public void Only_this_apps_secrets_are_loaded()
     {
         var manager = new PrefixKeyVaultSecretManager("PoRedoMedia");
 
-        Assert.Equal(loaded, manager.Load(SecretModelFactory.SecretProperties(name: secretName)));
-        if (loaded)
-            Assert.Equal(configKey, manager.GetKey(new KeyVaultSecret(secretName, "value")));
+        Assert.True(manager.Load(SecretModelFactory.SecretProperties(name: "PoRedoMedia--AiFoundry--Key")));
+        Assert.Equal("AiFoundry:Key", manager.GetKey(new KeyVaultSecret("PoRedoMedia--AiFoundry--Key", "value")));
+        Assert.False(manager.Load(SecretModelFactory.SecretProperties(name: "AzureAd--ClientId")));
+        Assert.False(manager.Load(SecretModelFactory.SecretProperties(name: "PoMemeVideo--AiFoundry--Key")));
 
         // A developer's machine never takes the deployed app's storage account from the vault.
         var storage = SecretModelFactory.SecretProperties(name: "PoRedoMedia--Storage--ConnectionString");

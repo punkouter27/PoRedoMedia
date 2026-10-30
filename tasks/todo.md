@@ -32,9 +32,22 @@
 - [x] Rap roast has no options: always stand-up, Nuclear, strong language allowed.
 - [x] Bulk styles: Clear button; empty prompt boxes are skipped and not listed.
 
+## Done: server round, items 5–50 (2026-10-30)
+
+- [x] 5 Social export: `POST/GET /api/media/{id}/export/social?aspect=9x16|1x1|16x9` (blur-fill, `FFmpegArgs.SocialArgs`), offered in the Library's More menu.
+- [x] 31 Auto title and summary: `IMediaSummarizer` names each output (≤ 6 words + one sentence, stored as `Title`/`Summary`); Library search matches the summary; failures are logged and skipped.
+- [x] 36 Telemetry: `StepTelemetryDto` (seconds, AI calls, tokens, cost) per step on the run and in progress events; shown per step in RunProgress (cost and tokens only with Cost estimates on).
+- [x] 37 Provider fallback: Gemini ⇄ Azure OpenAI for vision and chat when both are configured; the run log says when it fell back.
+- [x] 38 Roast quality check: `IRoastCritic` scores rap-roast lyrics and video roast jokes; under 6/10 is rewritten once with the critique.
+- [x] 41 Retired storage dropped: the first housekeeping sweep per process deletes the `SoundFavorites` table and `media/*/script.json` blobs.
+- [x] 43 `Features/Sounds` moved into `Features/Video` (namespace too).
+- [x] 47 Unit tests folded from row-heavy theories into table-driven facts (same cases asserted): 97 → 80 with the new tests.
+- [x] 48 Unused packages removed: `Radzen.Blazor` from the Api (the client ships it), `NSubstitute` from IntegrationTests, `coverlet.collector` everywhere. `OpenAI`, `Microsoft.Extensions.AI` and `Microsoft.Extensions.Caching.Hybrid` are used directly and stay.
+- [x] 49 Dead endpoints: every mapped route has a caller in the client, tests or scripts; none removed.
+- [x] 50 (server half) `GET/PUT /api/preferences` with `PreferencesDto`, antiforgery-protected, 16 KB cap, integration-tested.
+
 ## Open
 
 - [ ] Run `scripts/package.sh` once on Linux/WSL, or watch the next deploy, to confirm the moved packaging steps.
-- [ ] Decide whether recipes and settings should follow the account (they are per browser).
+- [ ] Wire the client's settings and recipes to `/api/preferences` so they follow the account (server side done).
 - [ ] Old recipes in a browser that include Upscale or Cutout no longer load (the whole recipe list reads as empty there).
-- [ ] Old `SoundFavorites` table and `media/{id}/script.json` blobs are no longer read; drop them from storage when convenient.

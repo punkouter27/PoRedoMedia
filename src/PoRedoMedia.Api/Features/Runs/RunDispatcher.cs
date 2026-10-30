@@ -191,8 +191,11 @@ public sealed partial class RunDispatcher(
 /// <summary>Runs the steps of one run in the fixed order and records what happened.</summary>
 public sealed class RunExecutor(
     IEnumerable<IRunStep> steps, IRunRepository runs, IMediaRepository media, IRunNotifier notifier, IRenderQuota quota,
-    ILogger<RunExecutor> logger)
+    ILogger<RunExecutor> logger, IMediaSummarizer? summarizer = null)
 {
+    /// <summary>Longest a result waits to be named before it keeps the title its step gave it.</summary>
+    internal static readonly TimeSpan TitleTimeout = TimeSpan.FromSeconds(30);
+
     /// <summary>
     /// The log is stored in one table property, which holds 32,000 characters. These keep it well
     /// inside that however chatty a step is; lines past the limit are still sent live.
@@ -237,6 +240,8 @@ public sealed class RunExecutor(
         var done = new HashSet<MediaFunction>();
         var log = new List<string>(run.Log);
         var logged = log.Sum(l => l.Length);
+        // Results being named in the background; the run ends only once they are.
+        var titling = new List<Task>();
 
         // A run picked up again after a restart skips the steps it had finished, and carries on
         // from the picture it had reached. The step it was in starts over.
@@ -252,6 +257,8 @@ public sealed class RunExecutor(
         var context = new RunContext(run, source, OnOutputAsync, OnMessageAsync, working);
         // Every AI call the steps make from here is added to this run's bill.
         var tally = AiMeter.Begin();
+        // A resumed run keeps the figures of the steps it does not repeat.
+        var stats = run.Steps.Where(s => done.Contains(s.Function)).ToList();
 
         foreach (var function in ordered)
         {
@@ -266,25 +273,27 @@ public sealed class RunExecutor(
 
             using var activity = PoTelemetry.Source.StartActivity($"step {function}");
             var started = Stopwatch.GetTimestamp();
+            var usageBefore = tally.Snapshot();
             try
             {
                 await step.ExecuteAsync(context, ct);
-                Measure("ok");
+                await MeasureAsync("ok");
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                Measure("cancelled");
+                PoTelemetry.StepSeconds.Record(Stopwatch.GetElapsedTime(started).TotalSeconds, new("function", function.ToString()), new("outcome", "cancelled"));
                 throw;
             }
             catch (Exception ex)
             {
-                Measure("failed");
+                await MeasureAsync("failed");
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 // Outputs made by earlier steps stay in the gallery; the run says where it stopped.
                 if (ex is not RunStepException)
                     logger.LogError(ex, "Run {RunId} failed in {Function}", run.Id, function);
                 // A render that overran its time limit carries a message written for the user too.
                 var reason = ex is RunStepException or TimeoutException ? ex.Message : $"{FunctionStack.Label(function)} failed unexpectedly.";
+                await Task.WhenAll(titling);
                 await ReportCostAsync();
                 await FailAsync(run with { Status = RunStatus.Failed, Error = reason, Notes = [.. context.Notes], Log = [.. log], AiCostUsd = tally.Usd }, ct);
                 return;
@@ -292,11 +301,20 @@ public sealed class RunExecutor(
 
             done.UnionWith(step.Handles);
 
-            void Measure(string outcome) => PoTelemetry.StepSeconds.Record(
-                Stopwatch.GetElapsedTime(started).TotalSeconds,
-                new("function", function.ToString()), new("outcome", outcome));
+            // The step's seconds and its share of the AI bill, and any provider that stood in for another.
+            async Task MeasureAsync(string outcome)
+            {
+                var seconds = Stopwatch.GetElapsedTime(started).TotalSeconds;
+                PoTelemetry.StepSeconds.Record(seconds, new("function", function.ToString()), new("outcome", outcome));
+                var used = tally.Snapshot() - usageBefore;
+                stats.Add(new StepTelemetryDto(function, Math.Round(seconds, 1), used.Calls, used.Tokens, used.CostUsd));
+                run = run with { Steps = [.. stats] };
+                foreach (var fallback in tally.TakeFallbacks())
+                    await OnMessageAsync(fallback);
+            }
         }
 
+        await Task.WhenAll(titling);
         await ReportCostAsync();
         await FinishAsync(run with { Status = RunStatus.Complete, CurrentStep = null, Notes = [.. context.Notes], Log = [.. log], AiCostUsd = tally.Usd }, ct);
 
@@ -312,7 +330,7 @@ public sealed class RunExecutor(
                 logged += log[^1].Length;
             }
 
-            return notifier.ProgressAsync(new(run.Id.Value, RunStatus.Running, run.CurrentStep, Percent(), message), ct);
+            return notifier.ProgressAsync(new(run.Id.Value, RunStatus.Running, run.CurrentStep, Percent(), message, Steps: [.. run.Steps]), ct);
         }
 
         async Task OnOutputAsync(MediaItem output, bool becomesCurrent)
@@ -326,8 +344,38 @@ public sealed class RunExecutor(
             await runs.SaveAsync(run, ct);
             await notifier.ProgressAsync(
                 new(run.Id.Value, RunStatus.Running, run.CurrentStep, Percent(), "Result ready", output.ToDto()), ct);
+            if (summarizer is not null)
+                titling.Add(TitleAsync(output));
+        }
+
+        /// <summary>
+        /// Gives a result an AI-written title and summary, then sends it again so the page shows them.
+        /// Never throws: a result without a summary is still the result, so a failure is logged and skipped.
+        /// </summary>
+        async Task TitleAsync(MediaItem output)
+        {
+            try
+            {
+                using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                limit.CancelAfter(TitleTimeout);
+                if (await summarizer!.SummarizeAsync(output, limit.Token) is not { } summary
+                    || await media.GetAsync(output.Owner, output.Id, ct) is not { } latest)
+                {
+                    return;
+                }
+
+                var titled = latest with { Title = summary.Title, Summary = summary.Summary };
+                await media.SaveAsync(titled, ct);
+                await notifier.ProgressAsync(new(run.Id.Value, RunStatus.Running, run.CurrentStep, Percent(), $"Named “{summary.Title}”", titled.ToDto(), [.. run.Steps]), ct);
+            }
+            catch (Exception ex)
+            {
+                if (!ct.IsCancellationRequested)
+                    logger.LogWarning(ex, "Result {MediaId} of run {RunId} could not be titled; it keeps its own title", output.Id, run.Id);
+            }
         }
     }
+
 
     /// <summary>Ends a run that was stopped from outside its steps: cancelled by its owner.</summary>
     public async Task AbandonAsync(Run run, string reason)
@@ -355,6 +403,6 @@ public sealed class RunExecutor(
         await runs.SaveAsync(run, ct);
         PoTelemetry.RunsFinished.Add(1, new("status", run.Status.ToString()), new("functions", string.Join(',', run.Functions)));
         await notifier.ProgressAsync(
-            new(run.Id.Value, run.Status, run.CurrentStep, run.Status == RunStatus.Complete ? 100 : 0, run.Error ?? "Done"), ct);
+            new(run.Id.Value, run.Status, run.CurrentStep, run.Status == RunStatus.Complete ? 100 : 0, run.Error ?? "Done", Steps: [.. run.Steps]), ct);
     }
 }

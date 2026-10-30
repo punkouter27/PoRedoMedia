@@ -12,8 +12,33 @@ namespace PoRedoMedia.Api.Features.RapRoast;
 /// Backed by <see cref="IChatCompletionService"/> (Azure OpenAI) with a deterministic heuristic
 /// fallback — so the feature still works when no chat provider is configured.
 /// </remarks>
-public sealed class RoastLyricsWriter(IChatCompletionService chat, ILogger<RoastLyricsWriter> logger)
+public sealed class RoastLyricsWriter(IChatCompletionService chat, ILogger<RoastLyricsWriter> logger, IRoastCritic? critic = null)
 {
+    internal const string CritiqueTask = "A stand-up roast set about the person in a photo, written as [Verse] and [Chorus]";
+
+    /// <summary>
+    /// The quality pass: a critic scores the model's set for punch and specificity, and one under
+    /// <see cref="RoastQuality.PassScore"/> is rewritten once with the critique. Stock bars and the
+    /// softened retry are left alone: the first has no model to ask, the second was already a rewrite.
+    /// </summary>
+    public async Task<(RoastLyrics Lyrics, RoastCritique? Critique)> PolishAsync(
+        RoastLyrics lyrics, string sceneText, bool explicitLanguage, CancellationToken ct = default)
+    {
+        if (critic is null || !chat.IsConfigured || lyrics.FallbackReason is not null || lyrics.Softened)
+            return (lyrics, null);
+
+        var (text, critique, rewritten) = await RoastQuality.ImproveOnceAsync(
+            critic, CritiqueTask, lyrics.Text,
+            async (verdict, token) =>
+            {
+                var user = $"Photo description: {sceneText}\nDelivery: {StandUpDelivery}\n{ToneDirection(RoastIntensity.Nuclear)}\n\n"
+                    + RoastQuality.RewriteBrief(verdict, lyrics.Text);
+                return Sanitize((await chat.CompleteAsync(SystemPrompt(explicitLanguage), user, ct: token)).Content);
+            },
+            logger, ct);
+        return (rewritten ? lyrics with { Text = text } : lyrics, critique);
+    }
+
     /// <summary>
     /// What the roast may aim at. Fixed — no dial, no toggle, no intensity moves this.
     /// </summary>

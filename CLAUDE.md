@@ -33,7 +33,10 @@ Wire enums travel as strings over both HTTP and SignalR.
 function, and `Video/` for the one step that runs Meme-ify, Insult roast and Auto-captions together); each exposes
 `MapX(this IEndpointRouteBuilder)` called from `Program.cs`. `Common/` holds cross-slice contracts, strongly typed IDs,
 storage, AI providers (`Common/Ai`, including the video vision and speech clients) and `ImageBytes` (all still-image
-decode/encode, on SkiaSharp). Exports of a result live under `/api/media/{id}/export/{gif|srt|roast}`.
+decode/encode, on SkiaSharp). Exports of a result live under `/api/media/{id}/export/{gif|social|srt|roast}`
+(`social?aspect=9x16|1x1|16x9` re-frames a video on a blurred fill; gif and social are made once by a POST that
+costs a run, then kept beside the video). `Features/Preferences` serves `GET/PUT /api/preferences` (one per-user
+string map, 16 KB cap, not yet read by the client).
 `Configuration/FunctionRegistration.AddFunctions` registers AI providers and run steps.
 
 **Run pipeline** (`Features/Runs/`). `POST /api/runs` validates with `FunctionStack.Validate`, checks each function
@@ -42,13 +45,20 @@ then queues on `RunDispatcher` (a BackgroundService over a Channel, one run at a
 orders functions by `FunctionStack.InRunOrder` (enum declaration order, not the user's order) and finds the
 `IRunStep` that handles each. Steps chain through `RunContext.Current`: `AddOutputAsync(output, becomesCurrent: true)`
 feeds the next step. Throw `RunStepException` for a message the user should see; a failed run with no outputs is
-refunded. Progress goes out over SignalR (`RunHub` at `/hubs/run`); `HousekeepingService` recovers runs cut short by
-a restart. The queue, upload rate limit and Veo job waits are in-process only (marked `ponytail:`).
+refunded. Each finished step is recorded as a `StepTelemetryDto` (seconds, AI calls, tokens and cost from the
+`AiTally` snapshot around it) on the run and in every progress event. Each output is then named in the background by
+`IMediaSummarizer` (title of at most six words plus a one-sentence `Summary` on the media row, which Library search
+matches); naming never fails a run. Progress goes out over SignalR (`RunHub` at `/hubs/run`); `HousekeepingService`
+recovers runs cut short by a restart, and its first sweep per process drops retired storage (`SoundFavorites`,
+`media/*/script.json`). The queue, upload rate limit and Veo job waits are in-process only (marked `ponytail:`).
 
 **Functions only exist when configured.** A function is runnable only if its step was registered, which depends on
 the config keys present (e.g. `Google:ApiKey` enables Gemini images, Veo, Lyria, BulkStyles, PhotoToVideo). Pictures
 are looked at by one `IVisionService` (Gemini, else Azure OpenAI; no user-facing picker); a description written by the
-browser's own model (`Vision.description`) replaces that call.
+browser's own model (`Vision.description`) replaces that call. With both Gemini and Azure OpenAI configured, a failed
+vision or chat call is asked once of the other provider (`Common/Ai/ProviderFallback`; Gemini chat goes through its
+OpenAI-compatible endpoint) and the run log says so. Both roasts get a critic pass (`IRoastCritic`): a draft scoring
+under 6/10 is rewritten once with the critique.
 `Mocks:UseMockAi` (Test environment only; Development uses the real keys) swaps every provider for a mock and skips Key Vault. Read config only
 through `Shared/ConfigKeys`. Key Vault `kv-poshared2` loads only `PoRedoMedia--*` secrets (`--` → `:`); in Development
 the vault's Storage secret is skipped so local runs stay on Azurite.

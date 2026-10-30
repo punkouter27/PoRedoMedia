@@ -69,6 +69,20 @@ public sealed class StorageClients(IConfiguration configuration)
         });
     }
 
+    /// <summary>Drops a whole table. True when it existed. Never creates one, unlike <see cref="Table"/>.</summary>
+    public async Task<bool> DeleteTableIfExistsAsync(string name, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await new TableServiceClient(ConnectionString).DeleteTableAsync(name, ct);
+            return response.Status != 404;
+        }
+        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+        {
+            return false;
+        }
+    }
+
     /// <summary>One cheap round trip to the account, for the readiness probe.</summary>
     public Task PingAsync(CancellationToken ct) => new BlobServiceClient(ConnectionString).GetPropertiesAsync(ct);
 

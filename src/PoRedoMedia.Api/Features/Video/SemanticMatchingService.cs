@@ -1,6 +1,6 @@
 using System.Numerics.Tensors;
 
-namespace PoRedoMedia.Api.Features.Sounds;
+namespace PoRedoMedia.Api.Features.Video;
 
 /// <summary>
 /// Ranks the sound library against a vision label.
