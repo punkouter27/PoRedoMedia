@@ -94,14 +94,18 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
     [LocalAiFact]
     public async Task The_on_device_model_describes_the_picture_and_the_run_completes()
     {
-        var page = await SignedInPageAsync("/", "po.adv.device-ai", "po.adv.costs");
+        var page = await SignedInPageAsync("/settings", "po.adv.device-ai", "po.adv.costs");
         var log = new List<string>();
         page.Console += (_, m) => { if (m.Type is "error" or "warning") log.Add($"{m.Type}: {m.Text}"); };
+
+        // Local first: once the model is in the browser, Create uses it without being asked.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Get the model ready" }).ClickAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.GetByText("The on-device model is ready")).ToBeVisibleAsync(new() { Timeout = 600_000 });
+        await page.GotoAsync(BaseUrl + "/");
         await page.GetByRole(AriaRole.Button, new() { Name = "Use the camera" }).ClickAsync(new() { Timeout = 30_000 });
         await page.GetByRole(AriaRole.Button, new() { Name = "Take the photo" }).ClickAsync();
         await page.Locator("[data-fn=MemeCaption] input").CheckAsync(new() { Timeout = 30_000 });
 
-        await page.GetByText("On device (free)").ClickAsync();
         await Assertions.Expect(page.GetByText("Estimated cost: $0.00")).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Run", Exact = true }).ClickAsync();
 
@@ -110,6 +114,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
         await outcome.WaitForAsync(new() { Timeout = 600_000 });
         var shown = await outcome.InnerTextAsync();
         Assert.True(shown.Contains("Done. The results are in your gallery."), $"Shown: {shown}. Console: {string.Join(" | ", log.TakeLast(8))}");
+        await Assertions.Expect(page.GetByText("Picture described: On device")).ToBeVisibleAsync();
     }
 }
 

@@ -1,0 +1,107 @@
+.create-steps ol {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.create-steps li {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* A short rule between steps. */
+.create-steps li + li::before {
+    content: "";
+    width: 1.25rem;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--po-line);
+}
+
+.create-steps li.done + li::before,
+.create-steps li.done + li.current::before {
+    background: var(--rz-primary);
+}
+
+.create-steps button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 36px;
+    padding: 0.2rem 0.65rem 0.2rem 0.3rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: none;
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--rz-text-secondary-color);
+    cursor: pointer;
+}
+
+.create-steps button:disabled {
+    cursor: default;
+}
+
+.create-steps button:not(:disabled):hover {
+    border-color: var(--po-line);
+    color: var(--rz-text-color);
+}
+
+.create-steps button:focus-visible {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: 2px;
+}
+
+.create-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+
+.create-step-number ::deep .rzi {
+    font-size: 1rem;
+}
+
+.create-steps li.current button {
+    color: var(--rz-primary);
+    font-weight: 600;
+    background: color-mix(in srgb, var(--rz-primary) 10%, transparent);
+}
+
+.create-steps li.current .create-step-number,
+.create-steps li.done .create-step-number {
+    border-color: var(--rz-primary);
+    background: var(--rz-primary);
+    color: var(--rz-on-primary, #fff);
+}
+
+.create-steps li.done button {
+    color: var(--rz-text-color);
+}
+
+/* A phone shows the numbers, and the name of the current step only. */
+@media (max-width: 520px) {
+    /* Still read out: the step's name stays its accessible name. */
+    .create-steps li:not(.current) button > span:last-child {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .create-steps li + li::before {
+        width: 0.75rem;
+    }
+}

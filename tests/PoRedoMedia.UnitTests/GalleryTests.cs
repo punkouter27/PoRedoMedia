@@ -50,12 +50,13 @@ public sealed class GalleryTests
         ctx.Services.AddScoped(services => new RunApi(
             new HttpClient(new StubHandler("[]")) { BaseAddress = new Uri("http://app/") }, services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()));
         ctx.Services.AddScoped<RunTracker>();
+        ctx.Services.AddScoped<Shortcuts>();
 
         var cut = ctx.Render<Gallery>();
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(["/t1", "/t2"], cut.FindAll("img.gallery-thumb").Select(i => i.GetAttribute("src")));
+            Assert.Equal(["/t1", "/t2"], cut.FindAll("img.library-thumb").Select(i => i.GetAttribute("src")));
             Assert.Contains("beach.jpg", cut.Markup);
             Assert.Contains("Video", cut.Markup);
         });

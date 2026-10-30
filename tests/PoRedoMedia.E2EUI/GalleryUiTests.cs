@@ -14,7 +14,7 @@ public sealed class GalleryUiTests : UiTestBase
         var page = await SignedInPageAsync("/gallery");
         await Assertions.Expect(page.GetByText("Nothing here yet")).ToBeVisibleAsync(new() { Timeout = 30_000 });
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add media" }).ClickAsync();
+        // An empty Library is its own drop zone: the file goes straight in, no Add media first.
         await page.SetInputFilesAsync("input[type=file]", new FilePayload { Name = "beach.png", MimeType = "image/png", Buffer = Png });
 
         var card = page.GetByRole(AriaRole.Button, new() { Name = "beach.png" });
@@ -33,7 +33,7 @@ public sealed class GalleryUiTests : UiTestBase
         var page = await SignedInPageAsync("/gallery");
         await Assertions.Expect(page.GetByText("Nothing here yet")).ToBeVisibleAsync(new() { Timeout = 30_000 });
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add media" }).ClickAsync();
+        // An empty Library is its own drop zone: the file goes straight in, no Add media first.
         await page.SetInputFilesAsync("input[type=file]", new FilePayload { Name = "notes.txt", MimeType = "text/plain", Buffer = "hello"u8.ToArray() });
 
         await Assertions.Expect(page.GetByText("That file type is not supported")).ToBeVisibleAsync();
@@ -44,7 +44,7 @@ public sealed class GalleryUiTests : UiTestBase
     {
         var page = await SignedInPageAsync("/gallery");
         await Assertions.Expect(page.GetByText("Nothing here yet")).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add media" }).ClickAsync();
+        // An empty Library is its own drop zone: the file goes straight in, no Add media first.
         await page.SetInputFilesAsync("input[type=file]", new FilePayload { Name = "beach.png", MimeType = "image/png", Buffer = Png });
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "beach.png" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
 

@@ -4,24 +4,29 @@
     padding: 0;
     display: flex;
     flex-direction: column;
+    gap: 0.5rem;
 }
 
-.runs-list li {
-    display: flex;
+/* A card: icon, then the words (which wrap, never widen the drawer), then the buttons. */
+.runs-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.25rem 0.6rem;
     min-height: 52px;
-    padding: 0.5rem 0;
-    border-top: 1px solid var(--po-line);
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--po-line);
+    border-radius: var(--po-radius-sm);
+    background: var(--rz-base-background-color);
 }
 
 .runs-text {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
-    flex: 1 1 auto;
     min-width: 0;
     font-size: 0.9rem;
+    overflow-wrap: anywhere;
 }
 
 .runs-text ::deep .runs-progress {
@@ -31,10 +36,54 @@
 
 .runs-actions {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 0.15rem;
-    flex-shrink: 0;
 }
 
 .runs-list ::deep .runs-complete { color: var(--rz-success); }
 .runs-list ::deep .runs-failed { color: var(--rz-danger); }
+
+.runs-skeleton-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+}
+
+.runs-skeleton-line {
+    display: block;
+    height: 0.9rem;
+    width: 75%;
+}
+
+.runs-skeleton-line.short {
+    width: 45%;
+}
+
+.runs-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2rem 1rem;
+    text-align: center;
+}
+
+.runs-empty ::deep .runs-empty-icon {
+    font-size: 2.5rem;
+    color: var(--rz-primary);
+    opacity: 0.8;
+}
+
+/* A phone: the buttons go under the words, across the card. */
+@media (max-width: 480px) {
+    .runs-card {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .runs-actions {
+        grid-column: 2;
+        justify-content: flex-start;
+    }
+}

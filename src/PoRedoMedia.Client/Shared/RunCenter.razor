@@ -15,49 +15,92 @@
         About $@Cost.Total.ToString("0.00") spent on AI in this tab.
     </RadzenText>
 }
-@if (Tracker.Runs.Count == 0)
+@if (!Tracker.Loaded && Tracker.Runs.Count == 0)
 {
-    <RadzenText class="rz-m-0">Nothing has been run yet. Pick a photo or a video on Create to start.</RadzenText>
+    @* Placeholders the shape of run cards, while the recent runs are read. *@
+    <ul class="runs-list" role="status" aria-label="Loading">
+        @for (var i = 0; i < 3; i++)
+        {
+            <li class="runs-card runs-skeleton" aria-hidden="true">
+                <span class="po-skeleton runs-skeleton-icon"></span>
+                <span class="runs-text">
+                    <span class="po-skeleton runs-skeleton-line"></span>
+                    <span class="po-skeleton runs-skeleton-line short"></span>
+                </span>
+            </li>
+        }
+    </ul>
 }
-<ul class="runs-list">
-    @foreach (var item in Tracker.Runs)
-    {
-        var run = item;
-        var what = string.Join(" + ", run.Run.Functions.Select(FunctionStack.Label));
-        <li @key="run.Run.Id">
-            <RadzenIcon Icon="@Icon(run)" class="@($"runs-{run.Status.ToString().ToLowerInvariant()}")" aria-hidden="true" />
-            <span class="runs-text">
-                <strong>@what</strong>
-                <span>@State(run) · @run.Run.CreatedAt.LocalDateTime.ToString("d MMM HH:mm")</span>
-                @if (!run.Finished)
-                {
-                    <RadzenProgressBar Value="run.Percent" Mode="@(run.Percent == 0 ? ProgressBarMode.Indeterminate : ProgressBarMode.Determinate)"
-                                       ShowValue="false" aria-label="@($"Progress of {what}")" class="runs-progress" />
-                }
-            </span>
-            <span class="runs-actions">
-                <RadzenButton Text="View" Size="ButtonSize.Small" Variant="Variant.Text" aria-label="@($"View the run from {run.Run.CreatedAt.LocalDateTime:HH:mm}")"
-                              Click="@(() => View(run))" />
-                @if (run.Finished)
-                {
-                    <RadzenButton Text="@(run.Status == RunStatus.Failed ? "Retry" : "Again")" Size="ButtonSize.Small" Variant="Variant.Outlined"
-                                  Disabled="_starting" aria-label="@($"Run it again: {what}")" Click="@(() => AgainAsync(run))" />
-                }
-                else
-                {
-                    <RadzenButton Icon="cancel" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
-                                  Disabled="@(_cancelling.Contains(run.Run.Id))" aria-label="@($"Cancel {what}")" title="Cancel the run" Click="@(() => CancelAsync(run))" />
-                }
-            </span>
-        </li>
-    }
-</ul>
+else if (Tracker.Runs.Count == 0)
+{
+    <div class="runs-empty">
+        <RadzenIcon Icon="history" aria-hidden="true" class="runs-empty-icon" />
+        <RadzenText class="rz-m-0"><strong>Nothing has been run yet.</strong></RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">Pick a photo or a video on Create, tick what should happen, and run it.</RadzenText>
+        <RadzenButton Text="Go to Create" Icon="auto_awesome" Click="GoToCreate" />
+    </div>
+}
+else
+{
+    @* One card per run: what it did and how it went on top, its buttons under that, so nothing
+       is wider than a phone. *@
+    <ul class="runs-list">
+        @foreach (var item in Tracker.Runs)
+        {
+            var run = item;
+            var what = string.Join(" + ", run.Run.Functions.Select(FunctionStack.Label));
+            <li @key="run.Run.Id" class="runs-card">
+                <RadzenIcon Icon="@Icon(run)" class="@($"runs-{run.Status.ToString().ToLowerInvariant()}")" aria-hidden="true" />
+                <span class="runs-text">
+                    <strong>@what</strong>
+                    <span>@State(run) · @run.Run.CreatedAt.LocalDateTime.ToString("d MMM HH:mm")</span>
+                    @if (!run.Finished)
+                    {
+                        <RadzenProgressBar Value="run.Percent" Mode="@(run.Percent == 0 ? ProgressBarMode.Indeterminate : ProgressBarMode.Determinate)"
+                                           ShowValue="false" aria-label="@($"Progress of {what}")" class="runs-progress" />
+                    }
+                </span>
+                <span class="runs-actions">
+                    <RadzenButton Text="View" Size="ButtonSize.Small" Variant="Variant.Text" aria-label="@($"View the run from {run.Run.CreatedAt.LocalDateTime:HH:mm}")"
+                                  Click="@(() => View(run))" />
+                    @if (run.Finished)
+                    {
+                        <RadzenButton Text="@(run.Status == RunStatus.Failed ? "Retry" : "Again")" Size="ButtonSize.Small" Variant="Variant.Outlined"
+                                      Disabled="_starting" aria-label="@($"Run it again: {what}")" Click="@(() => AgainAsync(run))" />
+                    }
+                    else
+                    {
+                        <RadzenButton Icon="cancel" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
+                                      Disabled="@(_cancelling.Contains(run.Run.Id))" aria-label="@($"Cancel {what}")" title="Cancel the run" Click="@(() => CancelAsync(run))" />
+                    }
+                </span>
+            </li>
+        }
+    </ul>
+}
 
 @code {
     private bool _starting;
     private readonly HashSet<Guid> _cancelling = [];
 
-    protected override void OnInitialized() => Tracker.Changed += OnChanged;
+    protected override async Task OnInitializedAsync()
+    {
+        Tracker.Changed += OnChanged;
+        try
+        {
+            await Tracker.LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            // The list is a convenience; a failed read shows it empty.
+        }
+    }
+
+    private void GoToCreate()
+    {
+        Dialogs.CloseSide();
+        Navigation.NavigateTo("");
+    }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 

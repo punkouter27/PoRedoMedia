@@ -49,7 +49,22 @@
         }
     </div>
 
-    @if (ShowRecent && _recent.Count > 0)
+    @if (ShowRecent && _recentLoaded && _recent.Count == 0)
+    {
+        @* No media yet: say where things go, and how to get going without a file to hand. *@
+        <div class="picker-first">
+            <RadzenIcon Icon="tips_and_updates" aria-hidden="true" />
+            <span>
+                <strong>Your library is empty.</strong>
+                Choose a photo or a video above to start. Everything you add, and everything a run makes, is kept in the Library.
+                @if (_hasCamera)
+                {
+                    <span> No file to hand? Use the camera.</span>
+                }
+            </span>
+        </div>
+    }
+    else if (ShowRecent && _recent.Count > 0)
     {
         <RadzenText TextStyle="TextStyle.Subtitle1" TagName="TagName.H2" class="rz-m-0">Or use something from your gallery</RadzenText>
         <div class="picker-recent">
@@ -87,13 +102,17 @@
     private bool _cameraOn;
     private bool _recording;
     private bool _rendered;
+    private bool _recentLoaded;
 
     private bool Busy => _percent is not null || _status is not null;
 
     protected override async Task OnInitializedAsync()
     {
         if (ShowRecent)
+        {
             _recent = [.. (await Api.ListAsync()).Where(m => m.Kind != MediaKind.Audio).Take(12)];
+            _recentLoaded = true;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

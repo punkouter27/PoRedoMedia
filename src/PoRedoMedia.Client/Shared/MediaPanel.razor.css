@@ -1,9 +1,5 @@
 .media-panel {
-    position: sticky;
-    top: 0.75rem;
     min-width: 0;
-    max-height: calc(100dvh - 6rem);
-    overflow: auto;
 }
 
 .panel-head {
@@ -61,24 +57,9 @@
     gap: 0.5rem;
 }
 
-/* On a narrow screen the details rise from the bottom as a sheet, over the grid. */
-@media (max-width: 1024px) {
-    .media-panel {
-        top: auto;
-        bottom: 0;
-        z-index: 20;
-        max-height: 70dvh;
-        margin: 0 -0.75rem;
-        box-shadow: 0 -8px 30px rgb(0 0 0 / 35%);
-        border-radius: var(--po-radius) var(--po-radius) 0 0;
-    }
-
-    .media-panel ::deep .rz-card {
-        border-radius: var(--po-radius) var(--po-radius) 0 0;
-        padding-bottom: calc(1rem + var(--po-safe-bottom));
-    }
-
+/* On a phone the drawer is the whole screen: the picture leaves room for the actions under it. */
+@media (max-width: 720px) {
     .media-panel ::deep .media-preview {
-        max-height: 28vh;
+        max-height: 34vh;
     }
 }

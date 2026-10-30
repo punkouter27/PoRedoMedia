@@ -1,2 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Runs in the browser too: trim- and AOT-unsafe code breaks the build (trim, AOT and
+         single-file analyzers), and the assembly is marked safe to trim. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
 </Project>

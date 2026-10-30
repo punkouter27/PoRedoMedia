@@ -22,6 +22,16 @@
             </li>
         }
     </ol>
+    @* Which one looked at the picture; only worth saying once the device is in play (Settings → On-device AI). *@
+    @if (AiCatalog.LooksAtPicture(Run.Run.Functions, Run.Run.Options)
+        && (Settings[AppSettings.OnDeviceAi] || AiCatalog.RunsInBrowser(Run.Run.Options?.GetValueOrDefault(RunOptions.VisionModel))))
+    {
+        var device = AiCatalog.RunsInBrowser(Run.Run.Options?.GetValueOrDefault(RunOptions.VisionModel));
+        <span class="run-looker" title="What described the picture for this run">
+            <RadzenIcon Icon="@(device ? "devices" : "cloud")" aria-hidden="true" />
+            <span>Picture described: <strong>@(device ? "On device" : "Server")</strong></span>
+        </span>
+    }
 
     @if (!Run.Finished)
     {

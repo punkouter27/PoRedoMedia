@@ -18,6 +18,15 @@ public static class AiCatalog
     public static bool RunsInBrowser(string? modelId) => modelId?.StartsWith(BrowserPrefix, StringComparison.Ordinal) == true;
 
     /// <summary>
+    /// Whether a run has a picture described before it works: Restyle, Rap roast, and a Meme caption
+    /// the AI writes. Only these can be described on the device instead of by the server.
+    /// </summary>
+    public static bool LooksAtPicture(IEnumerable<MediaFunction> functions, IReadOnlyDictionary<string, string>? options) =>
+        functions.Any(f => f is MediaFunction.Restyle or MediaFunction.RapRoast
+            || (f == MediaFunction.MemeCaption
+                && (options?.GetValueOrDefault(RunOptions.MemeMode) ?? RunOptions.MemeModeAi) == RunOptions.MemeModeAi));
+
+    /// <summary>
     /// An estimate, from list prices, of what one run costs. It is shown to the user as a guide
     /// and is not what was billed.
     /// </summary>

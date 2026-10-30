@@ -9,6 +9,8 @@
 
 .run-step {
     display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
     align-items: center;
     gap: 0.35rem;
     padding: 0.3rem 0.75rem 0.3rem 0.5rem;
@@ -16,6 +18,24 @@
     border-radius: 2rem;
     font-size: 0.9rem;
     transition: transform 220ms var(--po-spring);
+}
+
+/* Which one described the picture: this device or the server. */
+.run-looker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    align-self: flex-start;
+    padding: 0.15rem 0.6rem 0.15rem 0.4rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    background: color-mix(in srgb, var(--rz-primary) 10%, transparent);
+    color: var(--rz-text-color);
+}
+
+.run-looker ::deep .rzi {
+    font-size: 1rem;
+    color: var(--rz-primary);
 }
 
 .run-step-stats {
@@ -41,7 +61,8 @@
 
 .run-results {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    /* min(…, 100%): never wider than a phone. */
+    grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
     gap: 1rem;
 }
 
@@ -51,7 +72,8 @@
 
 .run-result ::deep .media-view {
     width: 100%;
-    max-height: 420px;
+    /* With the steps above it, a result still fits a laptop screen without scrolling. */
+    max-height: min(420px, 28vh);
     object-fit: contain;
     border-radius: var(--po-radius-sm);
     background: var(--rz-base-200);

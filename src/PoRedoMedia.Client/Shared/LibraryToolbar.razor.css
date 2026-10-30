@@ -1,0 +1,70 @@
+/* One row on a laptop: the title, a search that takes the spare room, the kinds, sort and Add. */
+.library-bar {
+    flex-wrap: nowrap;
+}
+
+.library-bar ::deep .library-title {
+    flex-shrink: 0;
+    margin-right: 0.25rem !important;
+    font-weight: 700;
+}
+
+.library-bar ::deep .library-sort {
+    text-transform: none;
+    flex-shrink: 0;
+}
+
+.library-bar ::deep .library-kinds,
+.library-bar ::deep .library-add {
+    flex-shrink: 0;
+}
+
+.library-bulk {
+    border-color: var(--rz-primary);
+    flex-wrap: wrap;
+}
+
+.library-bulk-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-left: auto;
+}
+
+/* Narrower: the bar may wrap, the search first on its own line. */
+@media (max-width: 860px) {
+    .library-bar {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 720px) {
+    .library-bar ::deep .library-kinds {
+        flex: 1 1 auto;
+    }
+
+    .library-bar ::deep .library-kinds .rz-button {
+        flex: 1 1 0;
+        padding-inline: 0.4rem;
+    }
+
+    /* The icon says it; the name is still read out (it is in the aria-label). */
+    .library-bar ::deep .library-sort .rz-button-text {
+        display: none;
+    }
+
+    .library-bulk-actions {
+        margin-left: 0;
+    }
+
+    /* On a phone the tab bar already says where this is: the title stays for screen readers and
+       gives its row to the content. */
+    .library-bar ::deep .library-title {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}

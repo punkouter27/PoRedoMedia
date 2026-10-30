@@ -66,8 +66,17 @@ public sealed class RunApi(HttpClient http, NavigationManager navigation)
             await onGap();
         };
         hub.Closed += _ => onClosed();
-        await hub.StartAsync();
-        await hub.InvokeAsync("JoinRun", runId.ToString());
-        return hub;
+        try
+        {
+            await hub.StartAsync();
+            await hub.InvokeAsync("JoinRun", runId.ToString());
+            return hub;
+        }
+        catch
+        {
+            // A connection that never joined is the caller's to forget, so it is closed here.
+            await hub.DisposeAsync();
+            throw;
+        }
     }
 }

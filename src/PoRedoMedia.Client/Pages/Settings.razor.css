@@ -55,3 +55,13 @@
     font-size: 0.85rem;
     opacity: 0.8;
 }
+
+/* Under the On-device AI switch: whether its model is in this browser yet. */
+.settings-device {
+    padding-left: 3.25rem;
+    flex-wrap: wrap;
+}
+
+.settings-device ::deep .settings-ready {
+    color: var(--rz-success);
+}

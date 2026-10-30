@@ -1,126 +1,33 @@
 @page "/gallery"
 @page "/library"
-@* The Library: the user's own uploads and results, with search, filters, bulk actions and the
-   details panel. *@
-@implements IAsyncDisposable
+@* The Library: the user's own uploads and results, one toolbar (LibraryToolbar), the cards
+   (LibraryGrid) and the open item's details in a slide-out drawer (MediaDrawer). *@
+@implements IDisposable
 @inject MediaApi Api
 @inject RunTracker Tracker
 @inject NotificationService Notifications
 @inject DialogService Dialogs
 @inject ContextMenuService Menus
 @inject NavigationManager Navigation
+@inject Shortcuts Keys
 @inject IJSRuntime JS
 
 <PageTitle>Library · PoRedoMedia</PageTitle>
 
-<RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0 library-title">Library</RadzenText>
+<PageBoundary OnRetry="ReloadAsync">
+    <RadzenStack Gap="0.75rem">
+        <LibraryToolbar Search="@_search" Kind="@_kind" Sort="@_sort"
+                        SearchChanged="@(v => SetAsync(search: v))" KindChanged="@(v => SetAsync(kind: v))" SortChanged="@(v => SetAsync(sort: v))"
+                        Add="AddAsync" Picked="_picked.Count" Working="_working" ClearPicked="@(() => _picked = [])"
+                        SelectAll="@(() => _picked = [.. Visible.Select(m => m.Id)])" Pin="PinPickedAsync" Download="DownloadPickedAsync" Delete="DeletePickedAsync" />
 
-<RadzenStack Gap="0.75rem">
-    @* One bar: what is shown, or, once anything is ticked, what to do with the ticked items. *@
-    @if (Picking)
-    {
-        <div class="po-page-bar gallery-bulk" role="toolbar" aria-label="Actions for the selected items">
-            <RadzenButton Icon="close" Variant="Variant.Text" ButtonStyle="ButtonStyle.Base" aria-label="Clear the selection" title="Clear the selection (Esc)"
-                          Click="@(() => _picked = [])" />
-            <RadzenText class="rz-m-0 gallery-bulk-count" aria-live="polite">@_picked.Count selected</RadzenText>
-            <RadzenButton Text="Select all" Size="ButtonSize.Small" Variant="Variant.Text" Click="@(() => _picked = [.. Visible.Select(m => m.Id)])" />
-            <span class="gallery-bulk-actions">
-                <RadzenButton Text="Pin" Icon="push_pin" Size="ButtonSize.Small" Variant="Variant.Outlined" Disabled="_working" Click="@(() => PinPickedAsync(true))" />
-                <RadzenButton Text="Unpin" Size="ButtonSize.Small" Variant="Variant.Outlined" Disabled="_working" Click="@(() => PinPickedAsync(false))" />
-                <RadzenButton Text="Download" Icon="download" Size="ButtonSize.Small" Variant="Variant.Outlined" Disabled="_working" Click="DownloadPickedAsync" />
-                <RadzenButton Text="Delete" Icon="delete" Size="ButtonSize.Small" Variant="Variant.Outlined" ButtonStyle="ButtonStyle.Danger" Disabled="_working" Click="DeletePickedAsync" />
-            </span>
-        </div>
-    }
-    else
-    {
-        <div class="po-page-bar">
-            <div class="po-search">
-                <RadzenIcon Icon="search" aria-hidden="true" />
-                <RadzenTextBox Value="@_search" @oninput="@(e => SetAsync(search: e.Value?.ToString() ?? ""))" data-po-search
-                               Placeholder="Search titles and words" aria-label="Search titles and words" title="Search (/)" />
-            </div>
-            <RadzenSelectBar Value="_kind" TValue="string" Change="@(v => SetAsync(kind: v))" Size="ButtonSize.Small" aria-label="Filter by kind" class="gallery-kinds">
-                <Items>
-                    <RadzenSelectBarItem Text="All" Value="@("All")" />
-                    <RadzenSelectBarItem Text="Images" Value="@("Image")" />
-                    <RadzenSelectBarItem Text="Videos" Value="@("Video")" />
-                    <RadzenSelectBarItem Text="Audio" Value="@("Audio")" />
-                </Items>
-            </RadzenSelectBar>
-            <RadzenButton Icon="sort" Text="@_sort" Variant="Variant.Text" ButtonStyle="ButtonStyle.Base" aria-label="@($"Sort: {_sort}")" title="Sort"
-                          aria-haspopup="menu" Click="OpenSortMenu" class="gallery-sort" />
-            <RadzenButton Text="Add media" Icon="add" Click="AddAsync" class="gallery-add po-phone-hide-text" />
-        </div>
-    }
-
-    @if (_items is null)
-    {
-        <div class="gallery-grid" role="status" aria-label="Loading">
-            @for (var i = 0; i < 12; i++)
-            {
-                <div class="po-skeleton gallery-skeleton"></div>
-            }
-        </div>
-    }
-    else if (_items.Count == 0)
-    {
-        <RadzenText>Nothing here yet. Add a photo or a video to get started.</RadzenText>
-    }
-    else
-    {
-        <div class="gallery-split @(Selected is not null ? "has-panel" : "") @(Picking ? "picking" : "")">
-            <div class="gallery-grid">
-                @foreach (var media in Visible)
-                {
-                    var item = media;
-                    var picked = _picked.Contains(item.Id);
-                    var on = Picking ? picked : item.Id == _selectedId;
-                    <div class="gallery-card @(on ? "selected" : "")" data-id="@item.Id" @key="item.Id">
-                        <button type="button" class="gallery-open" aria-pressed="@(on ? "true" : "false")" @onclick="@(() => ClickAsync(item))"
-                                @oncontextmenu="@(e => OpenMenu(e, item))" @oncontextmenu:preventDefault>
-                            @if (item.Kind == MediaKind.Audio)
-                            {
-                                <span class="gallery-thumb gallery-audio" aria-hidden="true"><RadzenIcon Icon="music_note" /></span>
-                            }
-                            else
-                            {
-                                <img class="gallery-thumb" src="@item.ThumbUrl" alt="" loading="lazy" />
-                            }
-                            <span class="gallery-title">@item.Title</span>
-                            <span class="gallery-meta">
-                                <RadzenBadge Text="@item.Kind.ToString()" BadgeStyle="BadgeStyle.Base" Shade="Shade.Darker" />
-                                @if (item.Pinned)
-                                {
-                                    <RadzenIcon Icon="push_pin" title="Pinned" aria-label="Pinned" />
-                                }
-                                @if (item.Shared)
-                                {
-                                    <RadzenIcon Icon="link" title="Shared by link" aria-label="Shared by link" />
-                                }
-                            </span>
-                        </button>
-                        @* Ticking starts a selection; while there is one, a click on a card ticks it too. *@
-                        <input type="checkbox" class="gallery-pick" checked="@picked" aria-label="@($"Select {item.Title}")"
-                               @onchange="@(() => TogglePick(item.Id))" />
-                    </div>
-                }
-            </div>
-            @if (Selected is { } selected)
-            {
-                <MediaPanel @ref="_panel" @key="selected.Id" Media="selected" Family="_items"
-                            Changed="OnChanged" Deleted="OnDeleted" Selected="@(m => SetAsync(selected: m.Id))" Closed="@(() => SetAsync(clearSelected: true))" />
-            }
-        </div>
-        @if (!Visible.Any())
-        {
-            <RadzenText>Nothing matches. Clear the search or pick another kind.</RadzenText>
-        }
-    }
-</RadzenStack>
+        <LibraryGrid Items="_items" Visible="Visible" SelectedId="@(Picking ? null : _selectedId)" Picked="_picked"
+                     Clicked="ClickAsync" Menu="@(a => OpenMenu(a.Event, a.Item))" TogglePick="TogglePick" Added="OnAddedAsync"
+                     ClearFilters="@(() => SetAsync(kind: "All", search: ""))" />
+    </RadzenStack>
+</PageBoundary>
 
 @code {
-    private static readonly string[] Sorts = ["Newest", "Oldest", "Name", "Largest"];
     private const int MaxZipItems = 50;
     private const long MaxZipBytes = 1024L * 1024 * 1024;
 
@@ -137,21 +44,26 @@
     private Guid? _selectedId;
     private bool _working;
     private HashSet<Guid> _picked = [];
-    private MediaPanel? _panel;
-    private DotNetObjectReference<Gallery>? _self;
+    private readonly LibrarySelection _selection = new();
+    private bool _drawerOpen;
+    private bool _disposed;
+    private IDisposable? _keys;
 
     /// <summary>True while any card is ticked: clicks tick, and the bar shows the bulk actions.</summary>
     private bool Picking => _picked.Count > 0;
 
     private MediaDto? Selected => Picking ? null : _items?.FirstOrDefault(m => m.Id == _selectedId);
 
-    private IEnumerable<MediaDto> Visible => Order(Filter(_items ?? [], _kind, _search), _sort);
+    private List<MediaDto> Visible => [.. Order(Filter(_items ?? [], _kind, _search), _sort)];
 
     protected override async Task OnInitializedAsync()
     {
         Tracker.Finished += OnRunFinished;
+        _keys = Keys.Register(OnKeyAsync);
         _items = await Api.ListAsync();
     }
+
+    private async Task ReloadAsync() => _items = await Api.ListAsync();
 
     // A run that ends while the gallery is open puts its results at the top, without a refresh.
     private void OnRunFinished(TrackedRun run) => InvokeAsync(() =>
@@ -164,15 +76,48 @@
     });
 
     protected override void OnParametersSet() =>
-        (_kind, _search, _sort, _selectedId) = (Kind ?? "All", Q ?? "", Sorts.Contains(Sort) ? Sort! : "Newest", Item);
+        (_kind, _search, _sort, _selectedId) = (Kind ?? "All", Q ?? "", LibraryToolbar.Sorts.Contains(Sort) ? Sort! : "Newest", Item);
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    // The drawer follows what is open, after every render: it opens for an item (a click, the
+    // keys or a deep link), swaps when another is opened, and closes when none is.
+    protected override void OnAfterRender(bool firstRender)
     {
-        if (firstRender)
+        if (Selected is { } selected)
         {
-            _self = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("poMedia.shortcuts", _self);
+            _selection.Show(selected, _items!);
+            if (!_drawerOpen)
+                _ = OpenDrawerAsync();
         }
+        else if (_drawerOpen)
+        {
+            _drawerOpen = false;
+            Dialogs.CloseSide();
+        }
+    }
+
+    private async Task OpenDrawerAsync()
+    {
+        _drawerOpen = true;
+        await Dialogs.OpenSideAsync<MediaDrawer>("Details", new Dictionary<string, object?>
+        {
+            [nameof(MediaDrawer.Selection)] = _selection,
+            [nameof(MediaDrawer.Changed)] = EventCallback.Factory.Create<MediaDto>(this, OnChanged),
+            [nameof(MediaDrawer.Deleted)] = EventCallback.Factory.Create<MediaDto>(this, OnDeleted),
+            [nameof(MediaDrawer.Selected)] = EventCallback.Factory.Create<MediaDto>(this, m => SetAsync(selected: m.Id)),
+            [nameof(MediaDrawer.Closed)] = EventCallback.Factory.Create(this, () => SetAsync(clearSelected: true)),
+        }, new SideDialogOptions
+        {
+            Position = DialogPosition.Right, Width = "min(30rem, 100vw)", ShowTitle = false, ShowMask = false,
+            AutoFocusFirstElement = false, AriaLabel = "Details", CssClass = "po-drawer po-media-drawer-dialog",
+        });
+
+        // Closed by its own button or by leaving: the address stops naming the item, unless the
+        // page itself is gone or already moved on.
+        if (_disposed || !_drawerOpen)
+            return;
+
+        _drawerOpen = false;
+        await SetAsync(clearSelected: true);
     }
 
     /// <summary>Matches the kind, and the search against the title, where it came from, its words and its summary.</summary>
@@ -224,15 +169,6 @@
             _picked.Add(id);
     }
 
-    private void OpenSortMenu(MouseEventArgs e) =>
-        Menus.Open(e, [.. Sorts.Select(s => new ContextMenuItem { Text = s, Value = s, Icon = s == _sort ? "check" : "" })],
-            args => InvokeAsync(async () =>
-            {
-                Menus.Close();
-                await SetAsync(sort: args.Value as string);
-                StateHasChanged();
-            }));
-
     /// <summary>Opens the same picker Create uses, so the gallery takes drops, pastes and the camera too.</summary>
     private async Task AddAsync()
     {
@@ -241,11 +177,14 @@
             [nameof(MediaPicker.ShowRecent)] = false,
             [nameof(MediaPicker.ValueChanged)] = EventCallback.Factory.Create<MediaDto>(this, media => Dialogs.Close(media)),
         }, new DialogOptions { Width = "min(42rem, calc(100vw - 1rem))" });
-        if (added is not MediaDto media)
-            return;
+        if (added is MediaDto media)
+            await OnAddedAsync(media);
+    }
 
+    private Task OnAddedAsync(MediaDto media)
+    {
         _items!.Insert(0, media);
-        await SetAsync(selected: media.Id);
+        return SetAsync(selected: media.Id);
     }
 
     private void OnChanged(MediaDto updated)
@@ -370,14 +309,17 @@
             Notifications.Notify(NotificationSeverity.Error, "Some items were kept", $"{failed.Count} could not be deleted. An item with a run in progress cannot be.", 8000);
     }
 
-    /// <summary>Keyboard shortcuts, sent by the page script when no field has the focus.</summary>
-    [JSInvokable]
-    public async Task OnShortcut(string key)
+    /// <summary>The Library's keys, from the app's one listener (Shared/ShortcutKeys). False for a key it leaves to the app.</summary>
+    private async Task<bool> OnKeyAsync(string key)
     {
-        var visible = Visible.ToList();
+        var visible = Visible;
         var at = visible.FindIndex(m => m.Id == _selectedId);
+        var panel = Selected is not null ? _selection.Panel : null;
         switch (key)
         {
+            case "u" or "U":
+                await AddAsync();
+                break;
             case "ArrowRight" or "ArrowDown" when visible.Count > 0:
                 await MoveAsync(visible[Math.Min(visible.Count - 1, at + 1)]);
                 break;
@@ -393,18 +335,21 @@
             case "Enter" when Selected is { Kind: not MediaKind.Audio } source:
                 Navigation.NavigateTo($"?source={source.Id}");
                 break;
-            case "Delete" when _panel is not null && Selected is not null:
-                await _panel.DeleteAsync();
+            case "Delete" when panel is not null:
+                await panel.DeleteAsync();
                 break;
-            case "p" or "P" when _panel is not null && Selected is not null:
-                await _panel.TogglePinAsync();
+            case "p" or "P" when panel is not null:
+                await panel.TogglePinAsync();
                 break;
-            case "c" or "C" when _panel is not null:
-                _panel.ToggleCompare();
+            case "c" or "C" when panel is not null:
+                panel.ToggleCompare();
                 break;
+            default:
+                return false;
         }
 
         StateHasChanged();
+        return true;
     }
 
     private async Task MoveAsync(MediaDto item)
@@ -413,18 +358,12 @@
         await JS.InvokeVoidAsync("poMedia.scrollIntoView", $".gallery-card[data-id='{item.Id}']");
     }
 
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
+        _disposed = true;
         Tracker.Finished -= OnRunFinished;
-        try
-        {
-            await JS.InvokeVoidAsync("poMedia.releaseShortcuts");
-        }
-        catch (JSDisconnectedException)
-        {
-            // The page is going away, and its listeners with it.
-        }
-
-        _self?.Dispose();
+        _keys?.Dispose();
+        if (_drawerOpen)
+            Dialogs.CloseSide();
     }
 }

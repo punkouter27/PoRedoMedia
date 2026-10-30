@@ -1,8 +1,10 @@
 @inherits LayoutComponentBase
 @using System.Reflection
 @inject NavigationManager Navigation
+@inject PreferenceSync Preferences
 
 <RadzenComponents />
+<ShortcutKeys />
 
 @* An app shell the height of the screen: only the body scrolls, so the header, the page's own
    command bar and the phone tab bar stay where they are. *@
@@ -32,6 +34,7 @@
     <RadzenBody>
         <MockDataBanner />
         <main class="shell-main">
+            @* The last resort: each page has its own PageBoundary inside this one. *@
             <ErrorBoundary @ref="_boundary">
                 <ChildContent>@Body</ChildContent>
                 <ErrorContent>
@@ -56,15 +59,32 @@
     </AuthorizeView>
 </RadzenLayout>
 
-<span class="shell-build" title="Build version">@BuildStamp</span>
+<span class="shell-build" title="@BuildTitle">@Stamp("BuildStamp")</span>
 
 @code {
-    // Stamped from the commit date at build time; see Directory.Build.targets.
-    private static readonly string? BuildStamp = typeof(MainLayout).Assembly
+    // Stamped at build time from the commit; see Directory.Build.targets.
+    private static string? Stamp(string key) => typeof(MainLayout).Assembly
         .GetCustomAttributes<AssemblyMetadataAttribute>()
-        .FirstOrDefault(a => a.Key == "BuildStamp")?.Value;
+        .FirstOrDefault(a => a.Key == key)?.Value is { Length: > 0 } value ? value : null;
+
+    /// <summary>The stamp's tooltip: the commit it was built from and when it was built.</summary>
+    private static readonly string BuildTitle = string.Join(Environment.NewLine, new[]
+    {
+        "Build version",
+        Stamp("BuildCommit") is { } commit ? $"Commit {commit}" : null,
+        Stamp("BuildTime") is { } time ? $"Built {time} UTC" : null,
+    }.OfType<string>());
+
+    [CascadingParameter] private Task<AuthenticationState>? Auth { get; set; }
 
     private ErrorBoundary? _boundary;
+
+    // Signed in: the account's settings and recipes replace this browser's (Services/PreferenceSync).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Auth is not null && (await Auth).User.Identity?.IsAuthenticated == true)
+            await Preferences.PullAsync();
+    }
 
     // A page that failed must not keep the next page from showing.
     protected override void OnParametersSet() => _boundary?.Recover();

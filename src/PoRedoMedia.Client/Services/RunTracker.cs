@@ -49,6 +49,9 @@ public sealed class RunTracker(RunApi runs, MediaApi media) : IAsyncDisposable
 
     public int Active => _runs.Count(r => !r.Finished);
 
+    /// <summary>True once the recent runs were read (or the read gave up): until then lists show placeholders.</summary>
+    public bool Loaded => _loaded?.IsCompleted == true;
+
     /// <summary>Raised on any change to any run. Handlers switch to their own renderer.</summary>
     public event Action? Changed;
 
@@ -127,6 +130,13 @@ public sealed class RunTracker(RunApi runs, MediaApi media) : IAsyncDisposable
             tracked.Subscription = await runs.FollowAsync(tracked.Run.Id, p => OnProgressAsync(tracked, p), () => ResyncAsync(tracked),
                 // The connection is gone for good (a locked phone, a server restart): ask instead.
                 () => PollAsync(tracked));
+            // Disposed while the connection was being made: nothing else would ever close it.
+            if (_disposed)
+            {
+                await tracked.Subscription.DisposeAsync();
+                tracked.Subscription = null;
+                return;
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
         {

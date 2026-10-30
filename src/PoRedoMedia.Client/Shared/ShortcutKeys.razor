@@ -1,0 +1,52 @@
+@* The app's one keydown listener, held by the layout. A page's own keys go to the page (see
+   Services/Shortcuts); U with no page to take it opens Create, and ? lists every key. *@
+@implements IAsyncDisposable
+@inject Shortcuts Keys
+@inject DialogService Dialogs
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@code {
+    private DotNetObjectReference<ShortcutKeys>? _self;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _self = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("poMedia.attachKeys", _self);
+    }
+
+    [JSInvokable]
+    public async Task OnKey(string key)
+    {
+        if (await Keys.OfferAsync(key))
+            return;
+
+        switch (key)
+        {
+            case "?":
+                await Dialogs.OpenAsync<ShortcutsHelp>("Keyboard shortcuts", [], new DialogOptions { Width = "min(30rem, calc(100vw - 1rem))", CloseDialogOnEsc = true });
+                break;
+            case "u" or "U":
+                // On a page with nothing to add media to, the place that has it.
+                Navigation.NavigateTo("");
+                break;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("poMedia.detachKeys");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is going away, and its listener with it.
+        }
+
+        _self?.Dispose();
+    }
+}

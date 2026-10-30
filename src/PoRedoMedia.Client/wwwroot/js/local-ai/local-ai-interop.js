@@ -57,6 +57,21 @@ window.poLocalAiProbeDevice = async function () {
 };
 
 /**
+ * Whether the model's weights are already in this browser (transformers.js keeps every file it
+ * fetched in the Cache API), so describing a picture on the device starts without a download.
+ * Never throws: no cache means no.
+ */
+window.poLocalAiIsCached = async function (repoId) {
+    try {
+        if (!('caches' in self) || !(await caches.has('transformers-cache'))) return false;
+        const keys = await (await caches.open('transformers-cache')).keys();
+        return keys.some((request) => request.url.includes(repoId) && request.url.endsWith('.onnx'));
+    } catch {
+        return false;
+    }
+};
+
+/**
  * Runs ONE attempt at the given variant. C# owns retry/fallback, so any failure here is reported
  * straight back rather than being retried internally.
  *

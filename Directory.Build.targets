@@ -1,10 +1,13 @@
 <Project>
   <!-- The YYMMDD build version a project opts into with StampBuildVersion (the client shows it bottom-right): the
-       committer date of the commit being built, or today's outside a Git checkout. Exec runs
-       through cmd on Windows, where a literal % must be doubled. -->
+       committer date of the commit being built, or today's outside a Git checkout. Alongside it go the commit's
+       short hash (empty outside a checkout) and the UTC time of the build, which the stamp's tooltip shows.
+       Exec runs through cmd on Windows, where a literal % must be doubled. -->
   <PropertyGroup>
     <_GitDateFormat Condition="$([MSBuild]::IsOSPlatform('Windows'))">%25%25cs</_GitDateFormat>
     <_GitDateFormat Condition="!$([MSBuild]::IsOSPlatform('Windows'))">%25cs</_GitDateFormat>
+    <_GitHashFormat Condition="$([MSBuild]::IsOSPlatform('Windows'))">%25%25h</_GitHashFormat>
+    <_GitHashFormat Condition="!$([MSBuild]::IsOSPlatform('Windows'))">%25h</_GitHashFormat>
   </PropertyGroup>
 
   <Target Name="StampBuildVersion" BeforeTargets="GetAssemblyAttributes" Condition="'$(StampBuildVersion)' == 'true' and '$(DesignTimeBuild)' != 'true'">
@@ -12,14 +15,29 @@
           StandardOutputImportance="low" StandardErrorImportance="low" WorkingDirectory="$(MSBuildProjectDirectory)">
       <Output TaskParameter="ConsoleOutput" PropertyName="_GitDate" />
     </Exec>
+    <Exec Command="git log -1 --format=$(_GitHashFormat)" ConsoleToMSBuild="true" IgnoreExitCode="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low" WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitHash" />
+    </Exec>
     <PropertyGroup>
       <BuildStamp Condition="'$(BuildStamp)' == '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_GitDate)', '^\d{4}-\d\d-\d\d$'))">$(_GitDate.Substring(2).Replace('-', ''))</BuildStamp>
       <BuildStamp Condition="'$(BuildStamp)' == ''">$([System.DateTime]::UtcNow.ToString('yyMMdd'))</BuildStamp>
+      <BuildCommit Condition="'$(BuildCommit)' == '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_GitHash)', '^[0-9a-f]{7,12}$'))">$(_GitHash)</BuildCommit>
+      <!-- To the minute: the assembly is recompiled at most once a minute for this, not on every build. -->
+      <BuildTime Condition="'$(BuildTime)' == ''">$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm'))</BuildTime>
     </PropertyGroup>
     <ItemGroup>
       <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
         <_Parameter1>BuildStamp</_Parameter1>
         <_Parameter2>$(BuildStamp)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildCommit</_Parameter1>
+        <_Parameter2>$(BuildCommit)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildTime</_Parameter1>
+        <_Parameter2>$(BuildTime)</_Parameter2>
       </AssemblyAttribute>
     </ItemGroup>
   </Target>

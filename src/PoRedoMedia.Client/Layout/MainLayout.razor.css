@@ -127,7 +127,8 @@
     right: calc(0.5rem + var(--po-safe-right));
     bottom: calc(0.35rem + var(--po-safe-bottom));
     z-index: 1;
-    pointer-events: none;
+    /* Hovered for its tooltip (commit and build time); nothing else to click. */
+    cursor: help;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.04em;

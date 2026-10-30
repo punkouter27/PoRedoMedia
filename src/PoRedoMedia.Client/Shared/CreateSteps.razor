@@ -1,0 +1,39 @@
+@* Create's three steps as tabs: pick the media, tick the functions, watch the run. A step that is
+   done can be gone back to; one not reached yet cannot be skipped to. *@
+
+<nav class="create-steps" aria-label="Steps">
+    <ol>
+        @for (var i = 0; i < Names.Length; i++)
+        {
+            var step = i + 1;
+            var reachable = step == 1 || (step == 2 && CanFunctions) || (step == 3 && CanRun);
+            <li class="@(step == Current ? "current" : step < Current ? "done" : null)">
+                <button type="button" disabled="@(!reachable || step == Current)" aria-current="@(step == Current ? "step" : null)" aria-label="@($"Step {step}: {Names[i]}")"
+                        @onclick="@(() => Go.InvokeAsync(step))">
+                    <span class="create-step-number" aria-hidden="true">
+                        @if (step < Current)
+                        {
+                            <RadzenIcon Icon="check" />
+                        }
+                        else
+                        {
+                            @step
+                        }
+                    </span>
+                    <span>@Names[i]</span>
+                </button>
+            </li>
+        }
+    </ol>
+</nav>
+
+@code {
+    private static readonly string[] Names = ["Pick media", "Functions", "Run"];
+
+    /// <summary>1, 2 or 3.</summary>
+    [Parameter] public int Current { get; set; } = 1;
+
+    [Parameter] public bool CanFunctions { get; set; }
+    [Parameter] public bool CanRun { get; set; }
+    [Parameter] public EventCallback<int> Go { get; set; }
+}

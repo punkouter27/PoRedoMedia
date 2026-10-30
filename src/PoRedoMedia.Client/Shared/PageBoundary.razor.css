@@ -1,0 +1,31 @@
+.page-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    max-width: 40rem;
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, var(--rz-danger) 45%, transparent);
+    border-radius: var(--po-radius);
+    background: color-mix(in srgb, var(--rz-danger) 7%, var(--rz-base-background-color));
+}
+
+.page-error ::deep .page-error-icon {
+    font-size: 2rem;
+    color: var(--rz-danger);
+}
+
+.page-error-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.page-error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}

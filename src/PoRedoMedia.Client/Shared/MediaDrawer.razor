@@ -1,0 +1,30 @@
+@* The Library's slide-out drawer: the open item's details and exports (MediaPanel). Opened by the
+   Library page as a side dialog; it follows the page's LibrarySelection, so moving to another
+   item swaps what it shows without closing. *@
+@implements IDisposable
+
+<div class="po-media-drawer">
+    @if (Selection.Media is { } media)
+    {
+        <MediaPanel @ref="Selection.Panel" @key="media.Id" Media="media" Family="Selection.Family"
+                    Changed="Changed" Deleted="Deleted" Selected="Selected" Closed="Closed" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public LibrarySelection Selection { get; set; } = null!;
+    [Parameter] public EventCallback<MediaDto> Changed { get; set; }
+    [Parameter] public EventCallback<MediaDto> Deleted { get; set; }
+    [Parameter] public EventCallback<MediaDto> Selected { get; set; }
+    [Parameter] public EventCallback Closed { get; set; }
+
+    protected override void OnInitialized() => Selection.Changed += Refresh;
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Selection.Changed -= Refresh;
+        Selection.Panel = null;
+    }
+}

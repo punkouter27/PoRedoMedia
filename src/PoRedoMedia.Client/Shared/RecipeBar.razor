@@ -1,0 +1,76 @@
+@* Saved recipes on Create (Settings → Recipes): one tap applies a set of ticks and options, and the
+   ticks on screen can be saved as a new one. Recipes saved before a function was removed load
+   without that step (Services/RecipeBook). *@
+@inject UiStore Store
+
+@if (Names.Count > 0 || Functions.Count > 0)
+{
+    <div class="create-recipes" role="group" aria-label="Saved recipes">
+        <RadzenIcon Icon="bookmarks" aria-hidden="true" />
+        @foreach (var name in Names)
+        {
+            var recipe = name;
+            <RadzenButton Text="@recipe" Size="ButtonSize.Small" Variant="@(_applied == recipe ? Variant.Filled : Variant.Outlined)"
+                          aria-pressed="@(_applied == recipe ? "true" : "false")" Click="@(() => ApplyAsync(recipe))" class="create-recipe" />
+        }
+        @if (_applied is not null)
+        {
+            <RadzenButton Icon="delete" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
+                          aria-label="@($"Delete the recipe {_applied}")" title="Delete this recipe" Click="DeleteAsync" />
+        }
+        @if (Functions.Count > 0)
+        {
+            <details class="create-save">
+                <summary>Save these ticks as a recipe</summary>
+                <div class="create-recipe-row">
+                    <RadzenTextBox Value="@_name" @oninput="@(e => _name = e.Value?.ToString() ?? "")" MaxLength="40" Placeholder="Name the recipe" aria-label="Recipe name" class="po-grow" />
+                    <RadzenButton Text="Save" Variant="Variant.Outlined" Disabled="@string.IsNullOrWhiteSpace(_name)" Click="SaveAsync" />
+                </div>
+            </details>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public MediaKind Kind { get; set; }
+    [Parameter] public IReadOnlyList<MediaFunction> Functions { get; set; } = [];
+    [Parameter] public IReadOnlyDictionary<string, string> Options { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>Raised with the tapped recipe's functions and options.</summary>
+    [Parameter] public EventCallback<RunRequest> Applied { get; set; }
+
+    private Dictionary<string, RunRequest> _recipes = [];
+    private string? _applied;
+    private string _name = "";
+
+    /// <summary>Saved recipes that fit the picked media.</summary>
+    private List<string> Names => [.. _recipes.Where(r => r.Value.Functions.All(f => FunctionStack.KindOf(f) == Kind)).Select(r => r.Key).Order()];
+
+    protected override async Task OnInitializedAsync() => _recipes = RecipeBook.Parse(await Store.ReadRawAsync(UiStore.Recipes));
+
+    private Task ApplyAsync(string name)
+    {
+        _applied = name;
+        return _recipes.TryGetValue(name, out var recipe) ? Applied.InvokeAsync(recipe) : Task.CompletedTask;
+    }
+
+    private async Task SaveAsync()
+    {
+        // The words typed for this one picture, and the description of it, stay out of the recipe.
+        var kept = Options
+            .Where(o => o.Key is not (RunOptions.VisionDescription or RunOptions.VisionModel or RunOptions.VideoTrimStart or RunOptions.VideoTrimEnd)
+                && !o.Key.StartsWith("BulkStyles.prompt", StringComparison.Ordinal))
+            .ToDictionary(o => o.Key, o => o.Value);
+        _applied = _name.Trim();
+        _recipes[_applied] = new RunRequest(Guid.Empty, [.. Functions], kept);
+        _name = "";
+        await Store.WriteAsync(UiStore.Recipes, _recipes, WireJson.Default.DictionaryStringRunRequest);
+    }
+
+    private async Task DeleteAsync()
+    {
+        _recipes.Remove(_applied!);
+        _applied = null;
+        await Store.WriteAsync(UiStore.Recipes, _recipes, WireJson.Default.DictionaryStringRunRequest);
+    }
+}

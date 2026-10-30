@@ -10,28 +10,32 @@
 @inject HttpClient Http
 @inject UiStore Store
 @inject AppSettings Settings
+@inject Shortcuts Keys
+@inject NotificationService Notifications
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
 <PageTitle>PoRedoMedia</PageTitle>
 
+<PageBoundary>
 <div class="create-page">
-    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0 rz-mb-2">Create</RadzenText>
+    @* Three steps, one screen each: pick the media, tick the functions, watch the run. *@
+    <div class="create-head">
+        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">Create</RadzenText>
+        <CreateSteps Current="Step" CanFunctions="@(_source is not null)" CanRun="@(_run is not null)" Go="GoAsync" />
+    </div>
 
-    @if (_source is null && _run is null)
+    @if (_opening)
     {
-        @if (_opening)
-        {
-            <div class="po-skeleton create-skeleton" role="status" aria-label="Loading"></div>
-        }
-        else
-        {
-            @* Home: the drop zone and recent media, with today's allowance, runs and the feed beside them. *@
-            <div class="home">
-                <MediaPicker ValueChanged="PickAsync" TakeShared="@(Shared is not null)" />
-                <HomeOverview Quota="_quota" />
-            </div>
-        }
+        <div class="po-skeleton create-skeleton" role="status" aria-label="Loading"></div>
+    }
+    else if (Step == 1)
+    {
+        @* Home: the drop zone and recent media, with today's allowance and runs beside them. *@
+        <div class="home">
+            <MediaPicker ValueChanged="PickAsync" TakeShared="@(Shared is not null)" />
+            <HomeOverview Quota="_quota" />
+        </div>
     }
     else
     {
@@ -45,26 +49,17 @@
                 </RadzenCard>
             }
             <RadzenCard class="create-functions po-glass">
-                @if (_run is null && _source is not null)
+                @if (_run is not null)
+                {
+                    <RunView Run="_run" Source="_source" Quota="_quota" Problem="@_problem" Starting="_starting" Cancelling="@(_cancelling == _run.Run.Id)"
+                             Cancel="CancelRunAsync" Retry="RunAsync" BackToFunctions="BackToFunctions" StartOver="StartOver" />
+                }
+                else if (_source is not null)
                 {
                     <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mt-0 rz-mb-2">What should happen to this @_source.Kind.ToString().ToLowerInvariant()?</RadzenText>
-                    @if (Settings[AppSettings.Recipes] && RecipeNames.Count > 0)
+                    @if (Settings[AppSettings.Recipes])
                     {
-                        @* Saved recipes, one tap each. *@
-                        <div class="create-recipes" role="group" aria-label="Saved recipes">
-                            <RadzenIcon Icon="bookmarks" aria-hidden="true" />
-                            @foreach (var name in RecipeNames)
-                            {
-                                var recipe = name;
-                                <RadzenButton Text="@recipe" Size="ButtonSize.Small" Variant="@(_recipe == recipe ? Variant.Filled : Variant.Outlined)"
-                                              aria-pressed="@(_recipe == recipe ? "true" : "false")" Click="@(() => ApplyRecipe(recipe))" class="create-recipe" />
-                            }
-                            @if (_recipe is not null)
-                            {
-                                <RadzenButton Icon="delete" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
-                                              aria-label="@($"Delete the recipe {_recipe}")" title="Delete this recipe" Click="DeleteRecipeAsync" />
-                            }
-                        </div>
+                        <RecipeBar Kind="_source.Kind" Functions="_functions" Options="_options" Applied="ApplyRecipe" />
                     }
 
                     @* What to do on one side, how to do it on the other, once the screen is wide enough. *@
@@ -73,35 +68,8 @@
                             <FunctionPicker Kind="_source.Kind" Value="_functions" ValueChanged="OnFunctionsChanged" Available="_available" />
                         </div>
                         <div class="create-options">
-                            <FunctionOptions Functions="_functions" Options="_options" RoastVoices="_roastVoices" Duration="_source.DurationSeconds"
-                                             OnDevice="@Settings[AppSettings.OnDeviceAi]" Changed="StateHasChanged" />
-                            @if (Settings[AppSettings.OnDeviceAi] && _functions.Any(f => f is MediaFunction.MemeCaption or MediaFunction.Restyle or MediaFunction.RapRoast))
-                            {
-                                <RadzenFieldset Text="What looks at the picture" AllowCollapse="true" class="rz-mt-2">
-                                    <RadzenSelectBar TValue="string" Value="@(OnDeviceVision ? AiCatalog.BrowserVision : "")"
-                                                     Change="@((string v) => _options[RunOptions.VisionModel] = v)" aria-label="What looks at the picture">
-                                        <Items>
-                                            <RadzenSelectBarItem Text="Server" Value="@("")" />
-                                            <RadzenSelectBarItem Text="On device (free)" Value="@AiCatalog.BrowserVision" />
-                                        </Items>
-                                    </RadzenSelectBar>
-                                    @if (OnDeviceVision)
-                                    {
-                                        <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-2 rz-mb-0">Florence-2 in your browser: about 230 MB the first time, then free.</RadzenText>
-                                    }
-                                </RadzenFieldset>
-                            }
-                            @if (_functions.Count > 0 && Settings[AppSettings.Recipes])
-                            {
-                                <details class="create-save">
-                                    <summary>Save these ticks as a recipe</summary>
-                                    <div class="create-recipe-row">
-                                        <RadzenTextBox Value="@_recipeName" @oninput="@(e => _recipeName = e.Value?.ToString() ?? "")" MaxLength="40" Placeholder="Name the recipe" aria-label="Recipe name" class="po-grow" />
-                                        <RadzenButton Text="Save" Variant="Variant.Outlined" Disabled="@string.IsNullOrWhiteSpace(_recipeName)" Click="SaveRecipeAsync" />
-                                    </div>
-                                </details>
-                            }
-                            else if (_functions.Count == 0)
+                            <FunctionOptions Functions="_functions" Options="_options" RoastVoices="_roastVoices" Duration="_source.DurationSeconds" Changed="StateHasChanged" />
+                            @if (_functions.Count == 0)
                             {
                                 <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0 create-hint">Tick one or more functions. Their settings appear here.</RadzenText>
                             }
@@ -126,10 +94,17 @@
                             else
                             {
                                 <RadzenText class="rz-m-0"><strong>@_source.Title</strong> → @string.Join(", then ", _functions.Select(FunctionStack.Label))</RadzenText>
+                                @if (DeviceMayLook)
+                                {
+                                    @* Local first: with the model already in this browser, it describes the picture. *@
+                                    <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">
+                                        @(_deviceReady ? "The picture is described on this device, free; the server steps in if that fails." : "The picture is described by the server. Get the on-device model ready in Settings to do it here.")
+                                    </RadzenText>
+                                }
                                 @if (Settings[AppSettings.CostEstimates])
                                 {
                                     <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">
-                                        Estimated cost: $@(AiCatalog.EstimateCost(_functions, _options, _pricing).ToString("0.00"))
+                                        Estimated cost: $@(AiCatalog.EstimateCost(_functions, EstimateOptions, _pricing).ToString("0.00"))
                                     </RadzenText>
                                 }
                             }
@@ -139,64 +114,20 @@
                         {
                             <QuotaDial Quota="quota" />
                         }
-                        <RadzenButton Text="Run" Icon="play_arrow" IsBusy="_starting" Click="RunAsync"
-                                      Disabled="@(_functions.Count == 0 || _quota is { Unlimited: false, Remaining: 0 })" />
+                        <RadzenButton Text="Run" Icon="play_arrow" IsBusy="_starting" Click="RunAsync" Disabled="@(!Runnable)" title="Run (R)" />
                     </div>
-                }
-                else if (_run is not null)
-                {
-                    <RadzenStack Gap="0.75rem">
-                        <RadzenText class="rz-m-0">
-                            <strong>@(_source?.Title ?? "A deleted item")</strong> → @string.Join(", then ", _run.Run.Functions.Select(FunctionStack.Label))
-                        </RadzenText>
-                        <RunProgress @key="_run.Run.Id" Run="_run" />
-                        @if (!_run.Finished)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap">
-                                <RadzenButton Text="@(_cancelling == _run.Run.Id ? "Stopping…" : "Cancel the run")" Icon="cancel" Variant="Variant.Outlined" ButtonStyle="ButtonStyle.Danger"
-                                              Disabled="@(_cancelling == _run.Run.Id)" Click="CancelRunAsync" />
-                                @* The run goes on without this page; Runs in the header follows it. *@
-                                <RadzenButton Text="Start something else" Icon="add" Variant="Variant.Text" Click="StartOver" />
-                                <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">Results already made are kept. A run that made nothing is not charged.</RadzenText>
-                            </RadzenStack>
-                            @if (_problem is not null)
-                            {
-                                <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" class="rz-m-0">@_problem</RadzenAlert>
-                            }
-                        }
-                        @if (_run.Finished)
-                        {
-                            @QuotaLine
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" AlignItems="AlignItems.Center">
-                                @if (_source is not null)
-                                {
-                                    @if (_run.Status == RunStatus.Failed)
-                                    {
-                                        <RadzenButton Text="Retry" Icon="refresh" IsBusy="_starting" Click="RunAsync" />
-                                    }
-                                    <RadzenButton Text="Change the functions" Variant="Variant.Outlined" Disabled="_starting" Click="BackToFunctions" />
-                                }
-                                <RadzenButton Text="Start over" Variant="Variant.Outlined" Disabled="_starting" Click="StartOver" />
-                                <RadzenLink Path="gallery" Text="Open the library" />
-                            </RadzenStack>
-                            @if (_problem is not null)
-                            {
-                                <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" class="rz-m-0">@_problem</RadzenAlert>
-                            }
-                        }
-                    </RadzenStack>
                 }
             </RadzenCard>
         </div>
     }
 </div>
+</PageBoundary>
 
 @code {
     /// <summary>Options worth carrying from one run to the next. Text typed for one picture is not.</summary>
     private static readonly string[] Remembered =
     [
-        RunOptions.VisionModel, RunOptions.VideoAspect, RunOptions.VideoPersona, RunOptions.VideoRoastVoice,
-        RunOptions.RestyleStyle, RunOptions.MemeMode,
+        RunOptions.VideoAspect, RunOptions.VideoPersona, RunOptions.VideoRoastVoice, RunOptions.RestyleStyle, RunOptions.MemeMode,
     ];
 
     /// <summary>A gallery item to start from, set by "Use as source".</summary>
@@ -214,42 +145,49 @@
     private IReadOnlyCollection<MediaFunction> _available = [];
     private IReadOnlyList<string> _roastVoices = [];
     private AiPricingDto _pricing = new(0, 0, 0, 0, 0);
-    private Dictionary<string, RunRequest> _recipes = [];
     private Dictionary<string, string> _lastOptions = [];
-    private string? _recipe;
-    private string _recipeName = "";
     private string? _localStatus;
     private QuotaStatusDto? _quota;
     private TrackedRun? _run;
     private string? _problem;
     private bool _starting;
     private bool _opening;
+    private bool _deviceReady;
     private Guid? _openedSource;
     private Guid? _cancelling;
+    private IDisposable? _keys;
 
-    private bool OnDeviceVision => AiCatalog.RunsInBrowser(_options.GetValueOrDefault(RunOptions.VisionModel));
+    private int Step => _run is not null ? 3 : _source is not null ? 2 : 1;
+
+    private bool Runnable => _source is not null && _run is null && _functions.Count > 0 && !_starting && _quota is not { Unlimited: false, Remaining: 0 };
+
+    /// <summary>On-device AI is on and the ticked functions have the picture described.</summary>
+    private bool DeviceMayLook => Settings[AppSettings.OnDeviceAi] && AiCatalog.LooksAtPicture(_functions, _options);
+
+    /// <summary>The options as the run will likely go, for the estimate: free vision when the device will look.</summary>
+    private Dictionary<string, string> EstimateOptions => DeviceMayLook && _deviceReady
+        ? new(_options) { [RunOptions.VisionModel] = AiCatalog.BrowserVision }
+        : _options;
 
     private RenderFragment? QuotaLine => _quota is { Unlimited: false }
         ? @<RadzenText TextStyle="TextStyle.Caption" class="rz-m-0 create-quota">@_quota.Remaining of @_quota.Limit runs left today. A run costs one.</RadzenText>
         : null;
 
-    /// <summary>Saved recipes that fit the picked media.</summary>
-    private List<string> RecipeNames => _source is null
-        ? []
-        : [.. _recipes.Where(r => r.Value.Functions.All(f => FunctionStack.KindOf(f) == _source.Kind)).Select(r => r.Key).Order()];
-
     protected override async Task OnInitializedAsync()
     {
         Tracker.Changed += OnRunChanged;
         Tracker.Finished += OnRunFinished;
+        Settings.Changed += OnRunChanged;
+        _keys = Keys.Register(OnKeyAsync);
 
         var config = await Config.GetAsync();
         _available = config?.AvailableFunctions ?? [];
         _roastVoices = config?.RoastVoices ?? [];
         _pricing = config?.Pricing ?? _pricing;
         _quota = await Runs.GetQuotaAsync();
-        _recipes = await Store.ReadAsync(UiStore.Recipes, WireJson.Default.DictionaryStringRunRequest) ?? [];
         _lastOptions = await Store.ReadAsync(UiStore.LastOptions, WireJson.Default.DictionaryStringString) ?? [];
+        if (Settings[AppSettings.OnDeviceAi])
+            _deviceReady = await LocalAi.IsVisionReadyAsync();
     }
 
     // The address decides what the page shows, so back, forward and refresh all land where they were.
@@ -283,18 +221,29 @@
         else if (_run is not null || _openedSource is not null)
         {
             // The address went back to plain "/": the page goes back to choosing media.
-            (_source, _functions, _options, _run, _problem, _openedSource, _recipe) = (null, [], [], null, null, null, null);
+            (_source, _functions, _options, _run, _problem, _openedSource) = (null, [], [], null, null, null);
         }
     }
 
     private Task PickAsync(MediaDto media)
     {
-        (_source, _functions, _run, _problem, _recipe) = (media, [], null, null, null);
-        // A device choice remembered from when on-device AI was on does not carry over once it is off.
-        var device = Settings[AppSettings.OnDeviceAi];
-        _options = _lastOptions
-            .Where(o => Remembered.Contains(o.Key) && (device || o.Key != RunOptions.VisionModel))
-            .ToDictionary(o => o.Key, o => o.Value);
+        (_source, _functions, _run, _problem) = (media, [], null, null);
+        _options = _lastOptions.Where(o => Remembered.Contains(o.Key)).ToDictionary(o => o.Key, o => o.Value);
+        return Task.CompletedTask;
+    }
+
+    private Task GoAsync(int step)
+    {
+        switch (step)
+        {
+            case 1:
+                StartOver();
+                break;
+            case 2 when _source is not null && _run is not null:
+                BackToFunctions();
+                break;
+        }
+
         return Task.CompletedTask;
     }
 
@@ -308,35 +257,11 @@
 
     private void OnFunctionsChanged(IReadOnlyList<MediaFunction> functions) => (_functions, _problem) = (functions, null);
 
-    private void ApplyRecipe(string? name)
+    private void ApplyRecipe(RunRequest recipe)
     {
-        _recipe = name;
-        if (name is null || !_recipes.TryGetValue(name, out var recipe))
-            return;
-
         _functions = FunctionStack.InRunOrder(recipe.Functions.Where(_available.Contains));
         _options = new(recipe.Options ?? []);
         _problem = null;
-    }
-
-    private async Task SaveRecipeAsync()
-    {
-        // The words typed for this one picture, and the description of it, stay out of the recipe.
-        var kept = _options
-            .Where(o => o.Key is not (RunOptions.VisionDescription or RunOptions.VideoTrimStart or RunOptions.VideoTrimEnd)
-                && !o.Key.StartsWith("BulkStyles.prompt", StringComparison.Ordinal))
-            .ToDictionary(o => o.Key, o => o.Value);
-        _recipe = _recipeName.Trim();
-        _recipes[_recipe] = new RunRequest(Guid.Empty, [.. _functions], kept);
-        _recipeName = "";
-        await Store.WriteAsync(UiStore.Recipes, _recipes, WireJson.Default.DictionaryStringRunRequest);
-    }
-
-    private async Task DeleteRecipeAsync()
-    {
-        _recipes.Remove(_recipe!);
-        _recipe = null;
-        await Store.WriteAsync(UiStore.Recipes, _recipes, WireJson.Default.DictionaryStringRunRequest);
     }
 
     private async Task RunAsync()
@@ -348,20 +273,18 @@
         if (_problem is not null)
             return;
 
-        // A description left over from an earlier on-device attempt must not ride along with a
-        // server model: the server would use it and never look at the picture. And with on-device
-        // AI switched off, a remembered device choice does not count.
+        // What looks at the picture is decided afresh for every run: a description left over from
+        // an earlier one must not ride along, or the server would use it and never look.
         _options.Remove(RunOptions.VisionDescription);
-        if (!Settings[AppSettings.OnDeviceAi])
-            _options.Remove(RunOptions.VisionModel);
+        _options.Remove(RunOptions.VisionModel);
 
         _starting = true;
         try
         {
             // Asked here, on the click that starts something worth being told about.
             await JS.InvokeVoidAsync("poMedia.askNotify");
-            if (AiCatalog.RunsInBrowser(_options.GetValueOrDefault(RunOptions.VisionModel)) && !await DescribeOnDeviceAsync())
-                return;
+            if (DeviceMayLook && await LocalAi.IsVisionReadyAsync())
+                await DescribeOnDeviceAsync();
 
             var estimate = AiCatalog.EstimateCost(_functions, _options, _pricing);
             // Options of functions that were ticked and then unticked stay in the form; they are not sent.
@@ -391,15 +314,15 @@
     }
 
     /// <summary>
-    /// Runs the on-device vision model on the picked image and puts what it wrote into the run's
-    /// options. A failure is shown as it is and stops the run: quietly using a paid model in its
-    /// place would be a charge the user did not choose.
+    /// Local first: the on-device model describes the picked picture and the run carries what it
+    /// wrote, so the server never looks (and nothing is charged for looking). When the device
+    /// fails, the run goes ahead with the server looking instead, and says so.
     /// </summary>
-    private async Task<bool> DescribeOnDeviceAsync()
+    private async Task DescribeOnDeviceAsync()
     {
         try
         {
-            _localStatus = "Fetching the picture…";
+            _localStatus = "Looking at the picture on your device…";
             StateHasChanged();
             var image = await Http.GetByteArrayAsync(_source!.Url);
             var outcome = await LocalAi.DescribeImageAsync(image, prompt: null, new Progress<LocalInferenceStatus>(status =>
@@ -407,22 +330,36 @@
                 _localStatus = status.LoadPercent is { } percent ? $"Getting the on-device model ready: {percent}%" : "Looking at the picture on your device…";
                 InvokeAsync(StateHasChanged);
             }));
+            _options[RunOptions.VisionModel] = AiCatalog.BrowserVision;
             _options[RunOptions.VisionDescription] = outcome.Text;
-            return true;
         }
-        catch (LocalInferenceException ex)
+        catch (Exception ex) when (ex is LocalInferenceException or HttpRequestException)
         {
-            _problem = LocalAiErrorClassifier.Describe(ex.Failure);
-            return false;
-        }
-        catch (HttpRequestException)
-        {
-            _problem = "The picture could not be fetched for the on-device model.";
-            return false;
+            var why = ex is LocalInferenceException local ? LocalAiErrorClassifier.Describe(local.Failure) : "The picture could not be fetched for it.";
+            Notifications.Notify(NotificationSeverity.Info, "The server looks at this one", $"The on-device model did not finish. {why}", 8000);
         }
         finally
         {
             _localStatus = null;
+        }
+    }
+
+    /// <summary>Create's keys, from the app's one listener: U chooses a file, R runs. False for a key it leaves to the app.</summary>
+    private async Task<bool> OnKeyAsync(string key)
+    {
+        switch (key)
+        {
+            case "u" or "U" when Step == 1 && !_opening:
+                return await JS.InvokeAsync<bool>("poMedia.chooseFile");
+            case "r" or "R" when Runnable:
+                await RunAsync();
+                StateHasChanged();
+                return true;
+            case "r" or "R":
+                // Not runnable here: nothing to do, and nothing for the app to do either.
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -443,7 +380,7 @@
 
     private void StartOver()
     {
-        (_source, _functions, _options, _run, _problem, _openedSource, _recipe) = (null, [], [], null, null, null, null);
+        (_source, _functions, _options, _run, _problem, _openedSource) = (null, [], [], null, null, null);
         Navigation.NavigateTo("", replace: true);
     }
 
@@ -451,5 +388,7 @@
     {
         Tracker.Changed -= OnRunChanged;
         Tracker.Finished -= OnRunFinished;
+        Settings.Changed -= OnRunChanged;
+        _keys?.Dispose();
     }
 }

@@ -2,13 +2,19 @@
 @attribute [AllowAnonymous]
 @* Who is signed in, how the app looks and sounds in this browser, the advanced switches, and
    sign out. Open before sign-in too, where only the look and sound show. *@
+@implements IDisposable
 @inject IJSRuntime JS
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject AppSettings Switches
+@inject PreferenceSync Preferences
+@inject NotificationService Notifications
+@inject LocalAiService LocalAi
+@using PoRedoMedia.Client.LocalAi
 
 <PageTitle>Settings · PoRedoMedia</PageTitle>
 
+<PageBoundary>
 <div class="settings-page">
     <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">Settings</RadzenText>
 
@@ -68,11 +74,28 @@
                             <span class="settings-hint">@setting.Hint</span>
                         </span>
                     </div>
+                    @if (setting == AppSettings.OnDeviceAi && Switches[setting])
+                    {
+                        @* Local first: once the model is in this browser, Create describes pictures with it on its own. *@
+                        <div class="settings-row settings-device">
+                            @if (_deviceReady)
+                            {
+                                <RadzenIcon Icon="check_circle" aria-hidden="true" class="settings-ready" />
+                                <span class="settings-hint">The on-device model is ready. Pictures are described here first, and by the server if that fails.</span>
+                            }
+                            else
+                            {
+                                <RadzenButton Text="Get the model ready" Icon="download" Variant="Variant.Outlined" Size="ButtonSize.Small" IsBusy="@(_warming is not null)" Click="WarmUpAsync" />
+                                <span class="settings-hint" aria-live="polite">@(_warming ?? "About 230 MB, once. Until then the server describes pictures.")</span>
+                            }
+                        </div>
+                    }
                 }
             </section>
         </RadzenCard>
     </AuthorizeView>
 </div>
+</PageBoundary>
 
 @code {
     private bool _dark;
@@ -80,18 +103,30 @@
     private int _volume = 50;
     private string _theme = "studio";
     private bool _leaving;
+    private bool _deviceReady;
+    private string? _warming;
 
     public static string Initial(string name) => name.Length == 0 ? "?" : char.ToUpperInvariant(name[0]).ToString();
 
+    // The account's settings can arrive after the page is drawn (Services/PreferenceSync).
+    protected override void OnInitialized() => Switches.Changed += OnSwitchesChanged;
+
+    private void OnSwitchesChanged() => InvokeAsync(ReadAsync);
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender)
+            await ReadAsync();
+    }
 
+    private async Task ReadAsync()
+    {
         _dark = await JS.InvokeAsync<string>("poMedia.theme") == "dark";
         _sounds = !await JS.InvokeAsync<bool>("poSfx.muted");
         _volume = (int)Math.Round(await JS.InvokeAsync<double>("poSfx.volume") * 100);
         _theme = await JS.InvokeAsync<string?>("poSfx.theme") ?? "studio";
+        if (Switches[AppSettings.OnDeviceAi])
+            _deviceReady = await LocalAi.IsVisionReadyAsync();
         StateHasChanged();
     }
 
@@ -105,6 +140,7 @@
     {
         _sounds = on;
         await JS.InvokeVoidAsync("poSfx.setMuted", !on);
+        Preferences.Schedule();
         await JS.InvokeVoidAsync("poSfx.play", "tick");
     }
 
@@ -112,6 +148,7 @@
     {
         _volume = value;
         await JS.InvokeVoidAsync("poSfx.setVolume", value / 100.0);
+        Preferences.Schedule();
         await JS.InvokeVoidAsync("poSfx.play", "tick");
     }
 
@@ -120,13 +157,37 @@
     {
         _theme = theme;
         await JS.InvokeVoidAsync("poSfx.setTheme", theme);
+        Preferences.Schedule();
         await JS.InvokeVoidAsync("poSfx.play", "chime");
     }
 
     private async Task SetAsync(AppSetting setting, bool on)
     {
         await Switches.SetAsync(setting, on);
+        if (setting == AppSettings.OnDeviceAi && on)
+            _deviceReady = await LocalAi.IsVisionReadyAsync();
         await JS.InvokeVoidAsync("poSfx.play", "tick");
+    }
+
+    /// <summary>Downloads the on-device vision model and runs it once, so Create can use it straight away.</summary>
+    private async Task WarmUpAsync()
+    {
+        _warming = "Starting…";
+        try
+        {
+            await LocalAi.WarmUpAsync(new Progress<LocalInferenceStatus>(status =>
+            {
+                _warming = status.LoadPercent is { } percent ? $"Downloading: {percent}%" : "Loading the model…";
+                InvokeAsync(StateHasChanged);
+            }));
+            _deviceReady = true;
+            _warming = null;
+        }
+        catch (LocalInferenceException ex)
+        {
+            _warming = null;
+            Notifications.Notify(NotificationSeverity.Error, "The model could not be readied", LocalAiErrorClassifier.Describe(ex.Failure), 8000);
+        }
     }
 
     // Sign-out is a POST with the antiforgery token; the page then leaves for /login itself.
@@ -144,4 +205,6 @@
 
         Navigation.NavigateTo("login", forceLoad: true);
     }
+
+    public void Dispose() => Switches.Changed -= OnSwitchesChanged;
 }

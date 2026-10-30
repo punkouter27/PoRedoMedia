@@ -1,0 +1,90 @@
+@* The Library's cards: placeholders while loading, an empty state that takes the first file, and
+   otherwise one card per item. A click opens an item; once any is ticked, a click ticks. *@
+
+@if (Items is null)
+{
+    <div class="library-grid" role="status" aria-label="Loading">
+        @for (var i = 0; i < 12; i++)
+        {
+            <div class="library-skeleton" aria-hidden="true">
+                <div class="po-skeleton library-skeleton-thumb"></div>
+                <div class="po-skeleton library-skeleton-line"></div>
+                <div class="po-skeleton library-skeleton-chip"></div>
+            </div>
+        }
+    </div>
+}
+else if (Items.Count == 0)
+{
+    @* Empty: the drop zone itself, so the first file needs no extra click. *@
+    <section class="library-empty" aria-labelledby="library-empty-title">
+        <RadzenIcon Icon="photo_library" aria-hidden="true" class="library-empty-icon" />
+        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0" id="library-empty-title">Nothing here yet</RadzenText>
+        <RadzenText class="rz-m-0">Add a photo or a video to get started. Everything you make lands here too.</RadzenText>
+        <MediaPicker ShowRecent="false" ValueChanged="Added" />
+    </section>
+}
+else
+{
+    <div class="library-grid @(Picking ? "picking" : "")">
+        @foreach (var media in Visible)
+        {
+            var item = media;
+            var picked = Picked.Contains(item.Id);
+            var on = Picking ? picked : item.Id == SelectedId;
+            <div class="library-card gallery-card @(on ? "selected" : "")" data-id="@item.Id" @key="item.Id">
+                <button type="button" class="library-open" aria-pressed="@(on ? "true" : "false")" @onclick="@(() => Clicked.InvokeAsync(item))"
+                        @oncontextmenu="@(e => Menu.InvokeAsync((e, item)))" @oncontextmenu:preventDefault>
+                    @if (item.Kind == MediaKind.Audio)
+                    {
+                        <span class="library-thumb library-audio" aria-hidden="true"><RadzenIcon Icon="music_note" /></span>
+                    }
+                    else
+                    {
+                        <img class="library-thumb" src="@item.ThumbUrl" alt="" loading="lazy" />
+                    }
+                    <span class="library-card-title">@item.Title</span>
+                    <span class="library-meta">
+                        <RadzenBadge Text="@item.Kind.ToString()" BadgeStyle="BadgeStyle.Base" Shade="Shade.Darker" />
+                        @if (item.Pinned)
+                        {
+                            <RadzenIcon Icon="push_pin" title="Pinned" aria-label="Pinned" />
+                        }
+                        @if (item.Shared)
+                        {
+                            <RadzenIcon Icon="link" title="Shared by link" aria-label="Shared by link" />
+                        }
+                    </span>
+                </button>
+                @* Ticking starts a selection; while there is one, a click on a card ticks it too. *@
+                <input type="checkbox" class="library-pick" checked="@picked" aria-label="@($"Select {item.Title}")"
+                       @onchange="@(() => TogglePick.InvokeAsync(item.Id))" />
+            </div>
+        }
+    </div>
+    @if (!Visible.Any())
+    {
+        <div class="library-nomatch">
+            <RadzenText class="rz-m-0">Nothing matches. Clear the search or pick another kind.</RadzenText>
+            <RadzenButton Text="Show everything" Icon="filter_alt_off" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="ClearFilters" />
+        </div>
+    }
+}
+
+@code {
+    /// <summary>Every item; null while loading.</summary>
+    [Parameter] public IReadOnlyList<MediaDto>? Items { get; set; }
+
+    /// <summary>The items the search, kind and sort leave, in order.</summary>
+    [Parameter] public IReadOnlyList<MediaDto> Visible { get; set; } = [];
+
+    [Parameter] public Guid? SelectedId { get; set; }
+    [Parameter] public IReadOnlySet<Guid> Picked { get; set; } = new HashSet<Guid>();
+    [Parameter] public EventCallback<MediaDto> Clicked { get; set; }
+    [Parameter] public EventCallback<(MouseEventArgs Event, MediaDto Item)> Menu { get; set; }
+    [Parameter] public EventCallback<Guid> TogglePick { get; set; }
+    [Parameter] public EventCallback<MediaDto> Added { get; set; }
+    [Parameter] public EventCallback ClearFilters { get; set; }
+
+    private bool Picking => Picked.Count > 0;
+}

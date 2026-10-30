@@ -14,7 +14,10 @@ public sealed class SettingsTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddRadzenComponents();
         ctx.Services.AddSingleton(new HttpClient());
+        ctx.Services.AddSingleton<PreferenceSync>();
         ctx.Services.AddSingleton<AppSettings>();
+        // An instance, so the sync-disposed container leaves its async-only Dispose alone.
+        ctx.Services.AddSingleton(new PoRedoMedia.Client.LocalAi.LocalAiService(ctx.JSInterop.JSRuntime, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance));
         return ctx;
     }
 

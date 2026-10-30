@@ -5,6 +5,7 @@
 
 <PageTitle>Sign in · PoRedoMedia</PageTitle>
 
+<PageBoundary>
 <RadzenStack AlignItems="AlignItems.Center" class="rz-mt-12">
     <RadzenCard class="po-narrow po-pop">
         <RadzenStack Gap="1rem">
@@ -25,6 +26,7 @@
         </RadzenStack>
     </RadzenCard>
 </RadzenStack>
+</PageBoundary>
 
 @code {
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }

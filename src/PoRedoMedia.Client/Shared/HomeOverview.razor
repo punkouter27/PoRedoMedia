@@ -71,6 +71,7 @@
     {
         Tracker.Changed += Refresh;
         Cost.Changed += Refresh;
+        Settings.Changed += Refresh;
     }
 
     private void Refresh() => InvokeAsync(StateHasChanged);
@@ -79,5 +80,6 @@
     {
         Tracker.Changed -= Refresh;
         Cost.Changed -= Refresh;
+        Settings.Changed -= Refresh;
     }
 }

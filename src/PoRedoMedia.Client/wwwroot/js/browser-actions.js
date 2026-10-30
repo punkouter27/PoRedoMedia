@@ -366,6 +366,18 @@ window.poMedia = {
         } catch { /* private mode: nothing is remembered */ }
     },
 
+    // Every 'po.' key this browser keeps, as JSON: what PreferenceSync sends to the account.
+    readAll() {
+        const all = {};
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('po.')) all[key] = localStorage.getItem(key);
+            }
+        } catch { /* private mode: nothing is remembered */ }
+        return JSON.stringify(all);
+    },
+
     theme() {
         return document.documentElement.dataset.theme || 'light';
     },
@@ -378,33 +390,50 @@ window.poMedia = {
         window.poBackdrop?.retint();
     },
 
-    // Gallery shortcuts. Keys typed into a field are left alone.
-    shortcuts(target) {
-        window.poMedia.releaseShortcuts();
+    // The app's one keyboard listener (Shared/ShortcutKeys.razor attaches it once, from the layout).
+    // Keys typed into a field, held with a modifier, or pressed while a modal dialog is open are
+    // left alone. '/' focuses the page's search here; every other key goes to .NET, which hands it
+    // to the page that asked for it or to the app-wide keys (U, ?).
+    attachKeys(target) {
+        window.poMedia.detachKeys();
+        const keys = ['/', '?', 'u', 'U', 'r', 'R', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Delete', 'p', 'P', 'c', 'C', 'Enter', 'Escape'];
         const handler = (e) => {
             const tag = (e.target.tagName || '').toLowerCase();
             const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
-            if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-            if (document.querySelector('.rz-dialog')) return;
-            const keys = ['/', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Delete', 'p', 'P', 'c', 'C', 'Enter', 'Escape'];
-            if (!keys.includes(e.key)) return;
-            // The grid's keys belong to the grid: on a video player, a list or a menu they are that
-            // control's own. Search and Escape work from anywhere.
-            const onGrid = e.target === document.body || Boolean(e.target.closest && e.target.closest('.gallery-card'));
-            if (!onGrid && e.key !== '/' && e.key !== 'Escape') return;
+            if (typing || e.ctrlKey || e.metaKey || e.altKey || !keys.includes(e.key)) return;
+            // A modal dialog owns the keyboard; a side drawer (Runs, a Library item) does not.
+            if (document.querySelector('.rz-dialog:not(.rz-dialog-side)')) return;
+            // The grid's keys belong to the grid and the open item: on a video player, a list or a
+            // menu they are that control's own. The app-wide keys work from anywhere.
+            const onGrid = e.target === document.body
+                || Boolean(e.target.closest && e.target.closest('.gallery-card, .po-media-drawer'));
+            const anywhere = ['/', '?', 'u', 'U', 'r', 'R', 'Escape'].includes(e.key);
+            if (!onGrid && !anywhere) return;
             // Enter on a button or a link is that control's own.
             if (e.key === 'Enter' && (tag === 'button' || tag === 'a')) return;
+            if (e.key === '/') {
+                const search = document.querySelector('[data-po-search] input, input[data-po-search]');
+                if (search) { e.preventDefault(); search.focus(); }
+                return;
+            }
             e.preventDefault();
-            if (e.key === '/') { document.querySelector('[data-po-search] input, input[data-po-search]')?.focus(); return; }
-            target.invokeMethodAsync('OnShortcut', e.key);
+            target.invokeMethodAsync('OnKey', e.key);
         };
         document.addEventListener('keydown', handler);
-        window.poMedia._shortcuts = handler;
+        window.poMedia._keys = handler;
     },
 
-    releaseShortcuts() {
-        if (window.poMedia._shortcuts) document.removeEventListener('keydown', window.poMedia._shortcuts);
-        window.poMedia._shortcuts = null;
+    detachKeys() {
+        if (window.poMedia._keys) document.removeEventListener('keydown', window.poMedia._keys);
+        window.poMedia._keys = null;
+    },
+
+    // Opens the file chooser of the first file picker on the page ('U' on Create).
+    chooseFile() {
+        const input = document.querySelector('.picker-drop input[type=file]');
+        if (!input || input.disabled) return false;
+        input.click();
+        return true;
     },
 
     scrollIntoView(selector) {

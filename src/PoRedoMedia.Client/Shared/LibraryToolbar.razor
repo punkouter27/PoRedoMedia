@@ -1,0 +1,71 @@
+@* The Library's one toolbar: search, kind, sort and Add media in a single row; once anything is
+   ticked, the same row holds what to do with the ticked items instead. *@
+@inject ContextMenuService Menus
+
+@if (Picked > 0)
+{
+    <div class="po-page-bar library-bar library-bulk" role="toolbar" aria-label="Actions for the selected items">
+        <RadzenButton Icon="close" Variant="Variant.Text" ButtonStyle="ButtonStyle.Base" aria-label="Clear the selection" title="Clear the selection (Esc)"
+                      Click="ClearPicked" />
+        <RadzenText class="rz-m-0 library-bulk-count" aria-live="polite">@Picked selected</RadzenText>
+        <RadzenButton Text="Select all" Size="ButtonSize.Small" Variant="Variant.Text" Click="SelectAll" />
+        <span class="library-bulk-actions">
+            <RadzenButton Text="Pin" Icon="push_pin" Size="ButtonSize.Small" Variant="Variant.Outlined" Disabled="Working" Click="@(() => Pin.InvokeAsync(true))" />
+            <RadzenButton Text="Unpin" Size="ButtonSize.Small" Variant="Variant.Outlined" Disabled="Working" Click="@(() => Pin.InvokeAsync(false))" />
+            <RadzenButton Text="Download" Icon="download" Size="ButtonSize.Small" Variant="Variant.Outlined" Disabled="Working" Click="Download" />
+            <RadzenButton Text="Delete" Icon="delete" Size="ButtonSize.Small" Variant="Variant.Outlined" ButtonStyle="ButtonStyle.Danger" Disabled="Working" Click="Delete" />
+        </span>
+    </div>
+}
+else
+{
+    <div class="po-page-bar library-bar">
+        <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" class="rz-m-0 library-title">Library</RadzenText>
+        <div class="po-search">
+            <RadzenIcon Icon="search" aria-hidden="true" />
+            <RadzenTextBox Value="@Search" @oninput="@(e => SearchChanged.InvokeAsync(e.Value?.ToString() ?? ""))" data-po-search
+                           Placeholder="Search titles and words" aria-label="Search titles and words" title="Search (/)" />
+        </div>
+        <RadzenSelectBar Value="Kind" TValue="string" Change="@(v => KindChanged.InvokeAsync(v))" Size="ButtonSize.Small" aria-label="Filter by kind" class="library-kinds">
+            <Items>
+                <RadzenSelectBarItem Text="All" Value="@("All")" />
+                <RadzenSelectBarItem Text="Images" Value="@("Image")" />
+                <RadzenSelectBarItem Text="Videos" Value="@("Video")" />
+                <RadzenSelectBarItem Text="Audio" Value="@("Audio")" />
+            </Items>
+        </RadzenSelectBar>
+        <RadzenButton Icon="sort" Text="@Sort" Variant="Variant.Text" ButtonStyle="ButtonStyle.Base" aria-label="@($"Sort: {Sort}")" title="Sort"
+                      aria-haspopup="menu" Click="OpenSortMenu" class="library-sort" />
+        <RadzenButton Text="Add media" Icon="add" Click="Add" title="Add media (U)" class="library-add po-phone-hide-text" />
+    </div>
+}
+
+@code {
+    public static readonly string[] Sorts = ["Newest", "Oldest", "Name", "Largest"];
+
+    [Parameter] public string Search { get; set; } = "";
+    [Parameter] public string Kind { get; set; } = "All";
+    [Parameter] public string Sort { get; set; } = "Newest";
+    [Parameter] public EventCallback<string> SearchChanged { get; set; }
+    [Parameter] public EventCallback<string> KindChanged { get; set; }
+    [Parameter] public EventCallback<string> SortChanged { get; set; }
+    [Parameter] public EventCallback Add { get; set; }
+
+    /// <summary>How many items are ticked. Above zero the bar shows the bulk actions.</summary>
+    [Parameter] public int Picked { get; set; }
+    [Parameter] public bool Working { get; set; }
+    [Parameter] public EventCallback ClearPicked { get; set; }
+    [Parameter] public EventCallback SelectAll { get; set; }
+    [Parameter] public EventCallback<bool> Pin { get; set; }
+    [Parameter] public EventCallback Download { get; set; }
+    [Parameter] public EventCallback Delete { get; set; }
+
+    private void OpenSortMenu(MouseEventArgs e) =>
+        Menus.Open(e, [.. Sorts.Select(s => new ContextMenuItem { Text = s, Value = s, Icon = s == Sort ? "check" : "" })],
+            args => InvokeAsync(async () =>
+            {
+                Menus.Close();
+                if (args.Value is string sort)
+                    await SortChanged.InvokeAsync(sort);
+            }));
+}

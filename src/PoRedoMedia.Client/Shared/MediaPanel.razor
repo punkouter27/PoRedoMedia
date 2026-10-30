@@ -1,4 +1,5 @@
-@* One gallery item in detail: what it is, where it came from, and what can be done with it. *@
+@* One gallery item in detail: what it is, where it came from, and what can be done with it.
+   Shown in the Library's slide-out drawer (MediaDrawer). *@
 @inject MediaApi Api
 @inject AppConfigService Config
 @inject DialogService Dialogs
@@ -7,8 +8,7 @@
 @inject IJSRuntime JS
 @inject AppSettings Settings
 
-<aside class="media-panel" aria-label="Details">
-<RadzenCard class="po-pop po-glass">
+<section class="media-panel" aria-label="Details">
     <RadzenStack Gap="0.75rem">
         <div class="panel-head">
             <RadzenFormField Text="Title" class="po-grow">
@@ -94,8 +94,7 @@
 
         <VersionTree Current="Media" Items="Family" Selected="Selected" />
     </RadzenStack>
-</RadzenCard>
-</aside>
+</section>
 
 @code {
     [Parameter, EditorRequired] public MediaDto Media { get; set; } = null!;

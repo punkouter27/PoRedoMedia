@@ -1,0 +1,62 @@
+@* Create's third step: the run under way or finished, with what can be done next. *@
+
+<RadzenStack Gap="0.75rem">
+    @if (Source is null)
+    {
+        @* With the source gone there is no preview beside this to say what the run started from. *@
+        <RadzenText class="rz-m-0">
+            <strong>A deleted item</strong> → @string.Join(", then ", Run.Run.Functions.Select(FunctionStack.Label))
+        </RadzenText>
+    }
+    <RunProgress @key="Run.Run.Id" Run="Run" />
+    @if (!Run.Finished)
+    {
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap">
+            <RadzenButton Text="@(Cancelling ? "Stopping…" : "Cancel the run")" Icon="cancel" Variant="Variant.Outlined" ButtonStyle="ButtonStyle.Danger"
+                          Disabled="Cancelling" Click="Cancel" />
+            @* The run goes on without this page; Runs in the header follows it. *@
+            <RadzenButton Text="Start something else" Icon="add" Variant="Variant.Text" Click="StartOver" />
+            <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">Results already made are kept. A run that made nothing is not charged.</RadzenText>
+        </RadzenStack>
+    }
+    else
+    {
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" AlignItems="AlignItems.Center">
+            @if (Source is not null)
+            {
+                @if (Run.Status == RunStatus.Failed)
+                {
+                    <RadzenButton Text="Retry" Icon="refresh" IsBusy="Starting" Click="Retry" />
+                }
+                <RadzenButton Text="Change the functions" Variant="Variant.Outlined" Disabled="Starting" Click="BackToFunctions" />
+            }
+            <RadzenButton Text="Start over" Variant="Variant.Outlined" Disabled="Starting" Click="StartOver" />
+            <RadzenLink Path="gallery" Text="Open the library" />
+            @QuotaLine
+        </RadzenStack>
+    }
+    @if (Problem is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" class="rz-m-0">@Problem</RadzenAlert>
+    }
+</RadzenStack>
+
+@code {
+    [Parameter, EditorRequired] public TrackedRun Run { get; set; } = null!;
+
+    /// <summary>What the run started from; null once it was deleted.</summary>
+    [Parameter] public MediaDto? Source { get; set; }
+
+    [Parameter] public QuotaStatusDto? Quota { get; set; }
+    [Parameter] public string? Problem { get; set; }
+    [Parameter] public bool Starting { get; set; }
+    [Parameter] public bool Cancelling { get; set; }
+    [Parameter] public EventCallback Cancel { get; set; }
+    [Parameter] public EventCallback Retry { get; set; }
+    [Parameter] public EventCallback BackToFunctions { get; set; }
+    [Parameter] public EventCallback StartOver { get; set; }
+
+    private RenderFragment? QuotaLine => Quota is { Unlimited: false } quota
+        ? @<RadzenText TextStyle="TextStyle.Caption" class="rz-m-0 create-quota">@quota.Remaining of @quota.Limit runs left today. A run costs one.</RadzenText>
+        : null;
+}

@@ -7,12 +7,23 @@ namespace PoRedoMedia.Client.Services;
 public sealed record AppSetting(string Key, string Label, string Hint);
 
 /// <summary>
-/// The switches under Settings → Advanced, remembered in this browser. Every one starts off, so the
-/// app first shows its simplest face; switching one on adds to the screen and takes nothing away.
+/// The switches under Settings → Advanced. Every one starts off, so the app first shows its
+/// simplest face; switching one on adds to the screen and takes nothing away. They live in this
+/// browser's storage, and follow a signed-in account through <see cref="PreferenceSync"/>.
 /// </summary>
-// ponytail: per browser, not per account, like UiStore.
-public sealed class AppSettings(IJSRuntime js)
+public sealed class AppSettings
 {
+    private readonly IJSRuntime _js;
+    private readonly PreferenceSync _sync;
+
+    public AppSettings(IJSRuntime js, PreferenceSync sync)
+    {
+        _js = js;
+        _sync = sync;
+        // The account's switches replaced this browser's: whatever they show or hide updates.
+        sync.Pulled += () => Changed?.Invoke();
+    }
+
     public static readonly AppSetting OnDeviceAi = new("po.adv.device-ai", "On-device AI",
         "Describe pictures in this browser, for free. Downloads about 230 MB the first time.");
 
@@ -36,14 +47,15 @@ public sealed class AppSettings(IJSRuntime js)
     public bool this[AppSetting setting] => Read(setting.Key) == "on";
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The result is a string, which trimming always keeps.")]
-    private string? Read(string key) => js is IJSInProcessRuntime local ? local.Invoke<string?>("poMedia.read", key) : null;
+    private string? Read(string key) => _js is IJSInProcessRuntime local ? local.Invoke<string?>("poMedia.read", key) : null;
 
     public async Task SetAsync(AppSetting setting, bool on)
     {
         if (setting == VisualEffects)
-            await js.InvokeVoidAsync("poFx.setEnabled", on);
+            await _js.InvokeVoidAsync("poFx.setEnabled", on);
         else
-            await js.InvokeVoidAsync("poMedia.write", setting.Key, on ? "on" : null);
+            await _js.InvokeVoidAsync("poMedia.write", setting.Key, on ? "on" : null);
+        _sync.Schedule();
         Changed?.Invoke();
     }
 }

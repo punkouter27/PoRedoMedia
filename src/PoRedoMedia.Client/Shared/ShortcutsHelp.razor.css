@@ -1,0 +1,39 @@
+.keys-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.keys-caption {
+    caption-side: bottom;
+    padding-top: 0.5rem;
+    text-align: left;
+    color: var(--rz-text-secondary-color);
+    font-size: 0.8rem;
+}
+
+.keys-table th,
+.keys-table td {
+    padding: 0.35rem 0.25rem;
+    border-top: 1px solid var(--po-line);
+    text-align: left;
+    vertical-align: top;
+}
+
+.keys-table th {
+    width: 6.5rem;
+    white-space: nowrap;
+    font-weight: normal;
+}
+
+kbd {
+    display: inline-block;
+    min-width: 1.6rem;
+    padding: 0.05rem 0.4rem;
+    border: 1px solid var(--po-line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--rz-base-background-color);
+    font: 600 0.8rem/1.4 ui-monospace, monospace;
+    text-align: center;
+}

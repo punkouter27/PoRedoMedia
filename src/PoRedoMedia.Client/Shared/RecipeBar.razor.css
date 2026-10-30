@@ -1,0 +1,34 @@
+.create-recipes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    color: var(--rz-text-secondary-color);
+}
+
+.create-recipes ::deep .create-recipe {
+    text-transform: none;
+}
+
+/* Saving sits at the end of the row, and opens under it. */
+.create-save summary {
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 0.4rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.create-save[open] {
+    flex: 1 1 100%;
+}
+
+.create-recipe-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}

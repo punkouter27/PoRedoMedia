@@ -1,0 +1,14 @@
+@* The "?" dialog: every keyboard shortcut, in one short table. *@
+
+<table class="keys-table">
+    <caption class="keys-caption">Not while typing in a box.</caption>
+    <tbody>
+        @foreach (var (key, what) in Shortcuts.Help)
+        {
+            <tr>
+                <th scope="row"><kbd>@key</kbd></th>
+                <td>@what</td>
+            </tr>
+        }
+    </tbody>
+</table>
