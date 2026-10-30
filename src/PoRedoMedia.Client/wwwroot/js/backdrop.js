@@ -99,7 +99,9 @@ window.poBackdrop = (() => {
     const still = matchMedia('(prefers-reduced-motion: reduce)');
     const panelData = new Float32Array(MAX_PANELS * 4);
 
-    const glassOn = () => Boolean(gl) && Boolean(window.poFx?.enabled());
+    // While the WebGPU fluid backdrop (fx/fluid.js) runs, this one rests and draws no glass.
+    const fluidOn = () => document.documentElement.classList.contains('po-fx-fluid');
+    const glassOn = () => Boolean(gl) && Boolean(window.poFx?.enabled()) && !fluidOn();
 
     function retint() {
         if (!gl) return;
@@ -163,7 +165,7 @@ window.poBackdrop = (() => {
 
     function loop(now) {
         draw(now);
-        frame = document.hidden || still.matches ? 0 : requestAnimationFrame(loop);
+        frame = document.hidden || still.matches || fluidOn() ? 0 : requestAnimationFrame(loop);
     }
 
     function start() {
@@ -203,8 +205,10 @@ window.poBackdrop = (() => {
     }
 
     // The stylesheet makes glass panels see-through only while the shader draws their glass.
+    // Also wakes the drawing when the fluid backdrop has stopped.
     function refresh() {
         document.documentElement.classList.toggle('po-fx-glass', glassOn());
+        if (gl && !frame && !fluidOn() && !still.matches && !document.hidden) frame = requestAnimationFrame(loop);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
@@ -212,8 +216,8 @@ window.poBackdrop = (() => {
 
     return {
         // 0 is the resting page, 1 is "something is happening".
-        pulse(level) { target = level; },
-        retint,
+        pulse(level) { target = level; window.poFluid?.pulse(level); },
+        retint() { retint(); window.poFluid?.retint(); },
         refresh,
     };
 })();

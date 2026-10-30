@@ -1,7 +1,7 @@
 /**
  * Vision worker — transformers.js / ONNX Runtime Web.
  *
- * Receives {repoId, dtype, device, prompt, imageBase64} and emits status/complete/error.
+ * Receives {repoId, dtype, device, prompt, image} (image: the picture's bytes, a Uint8Array) and emits status/complete/error.
  * It attempts exactly ONE dtype: the fallback chain is owned by C# (DtypeChain), so a failure here
  * is reported rather than retried.
  */
@@ -33,7 +33,7 @@ async function release(why) {
 }
 
 self.onmessage = async (event) => {
-    const { repoId, dtype, device, prompt, imageBase64 } = event.data || {};
+    const { repoId, dtype, device, prompt, image: bytes } = event.data || {};
     const key = `${repoId}|${dtype}|${device}`;
 
     try {
@@ -70,7 +70,8 @@ self.onmessage = async (event) => {
 
         post({ type: 'status', stage: 'Running', detail: 'Describing the image' });
 
-        const image = await RawImage.fromBlob(base64ToBlob(imageBase64));
+        if (!bytes) throw new Error('No picture was handed over');
+        const image = await RawImage.fromBlob(new Blob([bytes]));
         const task = prompt && prompt.trim() ? prompt : '<MORE_DETAILED_CAPTION>';
 
         // Florence-2 is driven by a task token, which the processor expands into the prompt the
@@ -95,11 +96,4 @@ self.onmessage = async (event) => {
 
 function post(message) {
     self.postMessage(message);
-}
-
-function base64ToBlob(base64) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new Blob([bytes]);
 }

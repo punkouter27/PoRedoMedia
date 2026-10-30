@@ -38,6 +38,18 @@
                 <RadzenSlider Name="settings-volume" TValue="int" Min="0" Max="100" Step="5" Value="_volume" Disabled="@(!_sounds)"
                               Change="SetVolumeAsync" aria-label="Volume" class="po-grow" />
             </div>
+            <div class="settings-row">
+                <RadzenLabel Component="settings-sound-theme" Text="Sound theme" />
+                @* The sets of interface sounds in js/sfx.js; Studio is the original. *@
+                <RadzenSelectBar Name="settings-sound-theme" TValue="string" Value="_theme" Disabled="@(!_sounds)" Change="SetThemeAsync"
+                                 Size="ButtonSize.Small" aria-label="Sound theme">
+                    <Items>
+                        <RadzenSelectBarItem Text="Studio" Value="@("studio")" />
+                        <RadzenSelectBarItem Text="Arcade" Value="@("arcade")" />
+                        <RadzenSelectBarItem Text="Soft" Value="@("soft")" />
+                    </Items>
+                </RadzenSelectBar>
+            </div>
         </section>
     </RadzenCard>
 
@@ -66,6 +78,7 @@
     private bool _dark;
     private bool _sounds;
     private int _volume = 50;
+    private string _theme = "studio";
     private bool _leaving;
 
     public static string Initial(string name) => name.Length == 0 ? "?" : char.ToUpperInvariant(name[0]).ToString();
@@ -78,6 +91,7 @@
         _dark = await JS.InvokeAsync<string>("poMedia.theme") == "dark";
         _sounds = !await JS.InvokeAsync<bool>("poSfx.muted");
         _volume = (int)Math.Round(await JS.InvokeAsync<double>("poSfx.volume") * 100);
+        _theme = await JS.InvokeAsync<string?>("poSfx.theme") ?? "studio";
         StateHasChanged();
     }
 
@@ -99,6 +113,14 @@
         _volume = value;
         await JS.InvokeVoidAsync("poSfx.setVolume", value / 100.0);
         await JS.InvokeVoidAsync("poSfx.play", "tick");
+    }
+
+    // A theme is heard straight away, by the sound it plays most: a run finishing.
+    private async Task SetThemeAsync(string theme)
+    {
+        _theme = theme;
+        await JS.InvokeVoidAsync("poSfx.setTheme", theme);
+        await JS.InvokeVoidAsync("poSfx.play", "chime");
     }
 
     private async Task SetAsync(AppSetting setting, bool on)

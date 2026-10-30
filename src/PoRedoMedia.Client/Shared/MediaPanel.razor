@@ -62,7 +62,7 @@
                 <RadzenButton Icon="download" Variant="Variant.Text" aria-label="Download" title="Download"
                               Click="@(() => JS.InvokeVoidAsync("poMedia.download", Media.Url + "?download=true"))" />
                 <RadzenButton Icon="link" Variant="@(_link is not null || Media.Shared ? Variant.Filled : Variant.Text)" Disabled="_busy"
-                              aria-label="Share" title="Share by link" aria-expanded="@(_link is not null ? "true" : "false")" Click="ToggleShareAsync" />
+                              aria-label="Share" title="Share by link" data-fx-burst="share" aria-expanded="@(_link is not null ? "true" : "false")" Click="ToggleShareAsync" />
                 <RadzenButton Icon="push_pin" Variant="@(Media.Pinned ? Variant.Filled : Variant.Text)" Disabled="_busy"
                               aria-label="@(Media.Pinned ? "Unpin" : "Pin")" title="@(Media.Pinned ? "Unpin: let it expire (P)" : "Pin: keep it past 30 days (P)")"
                               aria-pressed="@(Media.Pinned ? "true" : "false")" Click="TogglePinAsync" />
@@ -87,7 +87,7 @@
                 }
                 <div class="panel-share-actions">
                     <RadzenButton Text="Stop sharing" Size="ButtonSize.Small" Variant="Variant.Outlined" ButtonStyle="ButtonStyle.Danger" Disabled="_busy" Click="StopSharingAsync" />
-                    <RadzenButton Text="Copy" Icon="content_copy" Size="ButtonSize.Small" Click="@(() => JS.InvokeAsync<bool>("poMedia.copyText", _link.Url))" />
+                    <RadzenButton Text="Copy" Icon="content_copy" Size="ButtonSize.Small" data-fx-burst="copy" Click="@(() => JS.InvokeAsync<bool>("poMedia.copyText", _link.Url))" />
                 </div>
             </section>
         }

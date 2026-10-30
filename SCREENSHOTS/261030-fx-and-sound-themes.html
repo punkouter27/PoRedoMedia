@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Effects and sound themes</title>
+<style>
+  :root { --bg: #f6f6f8; --card: #fff; --ink: #16181d; --muted: #5b6070; --line: #e3e4ea; --accent: #4340d2; --new: #0f8a5f; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111217; --card: #1a1c23; --ink: #eceef4; --muted: #a2a7b6; --line: #2b2e38; --accent: #8b88ff; --new: #3ddc97; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1280px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .lede { color: var(--muted); margin: 0 0 28px; max-width: 75ch; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin: 0 0 22px; }
+  h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  h2 .tag { display: inline-block; font-size: 0.75rem; font-weight: 700; color: #fff; background: var(--accent); border-radius: 6px; padding: 1px 7px; margin-right: 8px; vertical-align: 2px; }
+  .what { margin: 0 0 14px; color: var(--muted); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  figure { margin: 0; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); }
+  figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+  figcaption b { color: var(--ink); }
+  figcaption b.new { color: var(--new); }
+  @media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Effects and sound themes (items 11–20)</h1>
+  <p class="lede">Captured headless with Playwright at 1100×640 on 2026-10-30, Development environment, a fresh dev user,
+    with Visual effects and Interface sounds switched on. "Before" runs without a WebGPU adapter, which is exactly the old
+    look (the glass backdrop) and is still what browsers without WebGPU get; the Sound theme row was taken out of that page
+    so the rest is identical. "After" runs with Chromium's software WebGPU adapter (SwiftShader). Sounds, haptics, the
+    download burst, the waveform and the card tilt do not show in a still picture.</p>
+
+  <section>
+    <h2><span class="tag">12 · 20</span>Settings: the fluid backdrop and the sound theme picker</h2>
+    <p class="what">Behind the page, the WebGPU fluid takes the glass gradient's place: dye drifts on a curl-noise flow and
+    the pointer stirs it (the streak on the right is where the pointer swept). Under Volume, a new <b>Sound theme</b> row
+    picks Studio (the original sounds, the default), Arcade or Soft; picking one plays the run-finished chime in it.</p>
+    <div class="pair">
+      <figure><img src="261030-fx-and-sound-themes/before-settings.png" alt="Before: Settings over the glass gradient backdrop, no sound theme row"><figcaption><b>Before</b>: glass gradient backdrop; Look and sound ends at Volume.</figcaption></figure>
+      <figure><img src="261030-fx-and-sound-themes/after-settings.png" alt="After: Settings over the fluid backdrop, with the Sound theme row"><figcaption><b class="new">After</b>: fluid backdrop stirred by the pointer; Sound theme (Studio / Arcade / Soft).</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">18 · 13</span>Run orb stages and the shader reveal</h2>
+    <p class="what">Left: the run orb while the AI looks at the picture (cool cyan) and while it draws (magenta); it is
+    amber while it writes, and returns to the brand colours when the run finishes. Right: a result being revealed, caught
+    early: the new picture burns in from the top left behind a glowing, heat-hazed edge. It used to fly in as pixel
+    particles, which is still the fallback without WebGL2.</p>
+    <figure><img src="261030-fx-and-sound-themes/after-orb-reveal.png" alt="Two run orbs, blue and magenta, and a picture mid-reveal with a glowing edge"><figcaption><b class="new">After</b>: the orb in its "looking" and "drawing" stages; a reveal in progress.</figcaption></figure>
+  </section>
+</main>
+</body>
+</html>

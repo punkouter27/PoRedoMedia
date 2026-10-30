@@ -9,6 +9,8 @@
         break;
     default:
         <audio src="@Media.Url" controls aria-label="@Media.Title"></audio>
+        @* Drawn by js/fx/waveform.js while the track plays. *@
+        <canvas class="po-wave po-fx-only" aria-hidden="true"></canvas>
         break;
 }
 

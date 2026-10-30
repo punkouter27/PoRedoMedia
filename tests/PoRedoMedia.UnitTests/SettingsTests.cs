@@ -32,6 +32,19 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public void Three_sound_themes_are_offered_and_Studio_is_the_default()
+    {
+        using var ctx = NewContext();
+        ctx.AddAuthorization();
+
+        var look = ctx.Render<Settings>().Find("section[aria-labelledby=settings-look]");
+        var themes = look.QuerySelectorAll(".rz-selectbar .rz-button");
+
+        Assert.Equal(["Studio", "Arcade", "Soft"], themes.Select(t => t.TextContent.Trim()));
+        Assert.Contains("rz-state-active", themes[0].ClassName ?? "");
+    }
+
+    [Fact]
     public void Before_sign_in_only_the_look_and_sound_show()
     {
         using var ctx = NewContext();

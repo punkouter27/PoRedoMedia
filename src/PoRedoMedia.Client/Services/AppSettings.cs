@@ -24,7 +24,7 @@ public sealed class AppSettings(IJSRuntime js)
 
     /// <summary>Kept under the key the effects layer reads (js/fx/fx-core.js), which also honours reduced motion.</summary>
     public static readonly AppSetting VisualEffects = new("po.fx", "Visual effects",
-        "Glass backdrop, particles, the run orb, picture reveals and confetti.");
+        "A moving backdrop, particles, the run orb, picture reveals, confetti and sparks, track waveforms and tilting cards.");
 
     public static readonly AppSetting[] Advanced = [OnDeviceAi, Recipes, CostEstimates, VisualEffects];
 

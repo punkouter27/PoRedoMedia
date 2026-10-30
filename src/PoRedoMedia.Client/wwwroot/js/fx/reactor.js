@@ -4,8 +4,25 @@
 // brighter as the run progresses. The AI's cue lines ("HIT #", "ROAST @") make it flare.
 // A failed run cracks, glitches and greys; a cancelled one implodes; a finished one flashes and
 // settles. Each finished step also plays the next note up (poSfx.step).
+//
+// Its colours say what kind of work is going on: cool cyan while the AI looks or listens, amber
+// while it writes, magenta while it draws or renders. The stage is read from the run's progress
+// line, and from the function at work while no line has said yet; colours glide between stages.
 window.poReactor = (() => {
     const MAX_BLOBS = 8;
+
+    const STAGES = {
+        vision: { test: /\b(look|studying|watch|sampl|listen|seeing|read)/i, colours: [[0.1, 0.72, 0.95], [0.32, 0.38, 1]] },
+        write: { test: /\b(writ|direct|script|caption|pick|choos|plan)/i, colours: [[1, 0.68, 0.18], [1, 0.32, 0.42]] },
+        render: { test: /\b(draw|render|making|perform|mix|encod|compos|voic|build)/i, colours: [[0.9, 0.24, 0.92], [0.46, 0.2, 1]] },
+    };
+    // Where a function starts, before its first progress line arrives.
+    const FIRST_STAGE = { Restyle: 'vision', MemeCaption: 'vision', RapRoast: 'vision', PhotoToVideo: 'render', BulkStyles: 'render', Memeify: 'vision', VideoRoast: 'vision', Captions: 'vision' };
+
+    function stageOf(line, step, previous) {
+        for (const [name, stage] of Object.entries(STAGES)) if (line && stage.test.test(line)) return name;
+        return previous ?? FIRST_STAGE[step] ?? null;
+    }
 
     const fragment = `#version 300 es
         precision highp float;
@@ -128,10 +145,10 @@ window.poReactor = (() => {
         for (const name of ['size', 'time', 'count', 'done', 'now', 'percent', 'flare', 'broken', 'implode', 'complete', 'a', 'b']) {
             uniforms[name] = gl.getUniformLocation(program, name);
         }
-        gl.uniform3fv(uniforms.a, window.poFx.colour('--po-brand-a', '#4340d2'));
-        gl.uniform3fv(uniforms.b, window.poFx.colour('--po-brand-b', '#7c3aed'));
+        const brand = [window.poFx.colour('--po-brand-a', '#4340d2'), window.poFx.colour('--po-brand-b', '#7c3aed')];
         return {
-            gl, uniforms,
+            gl, uniforms, brand, stage: null,
+            tint: brand.map((c) => [...c]),
             target: { count: 1, done: 0, now: 0, percent: 0, status: 'Queued', cancelled: false },
             shown: { done: 0, percent: 0, flare: 0, broken: 0, implode: 0, complete: 0 },
             cue: null, began: performance.now(), frame: 0, last: 0,
@@ -149,6 +166,11 @@ window.poReactor = (() => {
         ease('broken', target.status === 'Failed' && !target.cancelled ? 1 : 0, 3);
         ease('implode', target.status === 'Failed' && target.cancelled ? 1 : 0, 1.6);
         if (target.status === 'Complete') shown.complete = Math.max(0, shown.complete - dt * 0.8);
+        // A finished run goes back to the brand colours; a working one glides to its stage's.
+        const wanted = target.status !== 'Complete' && state.stage ? STAGES[state.stage].colours : state.brand;
+        state.tint.forEach((c, k) => c.forEach((v, i) => { c[i] = v + (wanted[k][i] - v) * Math.min(1, dt * 2.2); }));
+        gl.uniform3fv(uniforms.a, state.tint[0]);
+        gl.uniform3fv(uniforms.b, state.tint[1]);
 
         window.poFx.fit(canvas, 1.5);
         gl.viewport(0, 0, canvas.width, canvas.height);
@@ -188,9 +210,10 @@ window.poReactor = (() => {
         /**
          * The run's state, sent on every change: how many functions, how many are done, which
          * one is working (-1 for none), percent, status, whether it was cancelled, and the newest
-         * log line (a cue line makes the orb flare).
+         * log line (a cue line makes the orb flare), and the function at work, which with that
+         * line sets the orb's colours.
          */
-        update(canvas, count, done, now, percent, status, cancelled, latest) {
+        update(canvas, count, done, now, percent, status, cancelled, latest, step) {
             if (!canvas || !window.poFx.enabled()) return;
             canvas._poReactor ??= init(canvas);
             const state = canvas._poReactor;
@@ -210,6 +233,9 @@ window.poReactor = (() => {
                 state.shown.complete = first ? 0 : 1;
                 state.endedAt = performance.now();
             }
+            // A new function starts from its own first stage, not the last one's.
+            if (step !== state.step) { state.step = step; state.stage = null; }
+            state.stage = status === 'Failed' ? state.stage : stageOf(latest, step, state.stage);
             state.cue = latest ?? '';
             state.target = { count, done, now, percent, status, cancelled };
             loop(canvas);

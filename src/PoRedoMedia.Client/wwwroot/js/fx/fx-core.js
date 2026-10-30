@@ -21,6 +21,7 @@ window.poFx = (() => {
     function refresh() {
         const root = document.documentElement;
         root.classList.toggle('po-fx', enabled());
+        window.poFluid?.refresh?.();
         window.poBackdrop?.refresh?.();
     }
 

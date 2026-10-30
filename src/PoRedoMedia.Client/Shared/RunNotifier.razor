@@ -40,7 +40,8 @@
                 Notifications.Notify(NotificationSeverity.Error, "Run failed", run.Message, 8000);
         }
 
-        await JS.InvokeVoidAsync("poSfx.play", run.Status == RunStatus.Complete ? "success" : "fail");
+        // The run's chime, and a buzz on a phone (js/sfx.js).
+        await JS.InvokeVoidAsync("poSfx.runEnded", run.Status == RunStatus.Complete);
         if (run.Status == RunStatus.Complete)
         {
             // Confetti in the colours of what the run made.

@@ -107,7 +107,7 @@
         var done = Run.Status == RunStatus.Complete ? functions.Length : Math.Max(0, at);
         var cancelled = Run.Status == RunStatus.Failed && Run.Message.StartsWith("Cancelled", StringComparison.Ordinal);
         await JS.InvokeVoidAsync("poReactor.update", _reactor, functions.Length, done, Run.Finished ? -1 : at, Run.Percent,
-            Run.Status.ToString(), cancelled, Run.Log.LastOrDefault());
+            Run.Status.ToString(), cancelled, Run.Log.LastOrDefault(), Run.Step?.ToString());
 
         // A new picture is rebuilt, pixel by pixel, out of the one it was made from.
         foreach (var output in Run.Outputs)

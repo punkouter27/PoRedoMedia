@@ -71,12 +71,16 @@ only hides UI, never access. Switches live in `localStorage` (`po.adv.*`, `po.fx
 through in-process JS. Every function the server can run is always offered. E2E tests turn switches on with
 `SignedInPageAsync(path, "po.adv.device-ai", ...)`.
 
-**Client effects.** `wwwroot/js/fx/` holds the visual effects (glass backdrop, particles, pixel-flow reveal, run orb,
-confetti, roast concert); `sfx.js` synthesises every sound. Both are off until switched on in
-Settings (`po.fx = 'on'`, `po.sfx.muted = '0'`), and effects stay off for reduced motion. Elements that exist only
-for an effect carry `.po-fx-only`. Blazor never awaits an effect: the .NET-facing entry points (`poMorph.start`,
-`poConfetti.burst`) return nothing. On-device models (Florence-2 vision, Whisper speech) live in
-`Client/LocalAi` and `wwwroot/js/local-ai/` (`device-tasks.js` for speech).
+**Client effects.** `wwwroot/js/fx/` holds the visual effects (WebGPU fluid backdrop `fluid.js`, which stands in for
+the glass one in `js/backdrop.js` when it can run; particles; shader reveal `dissolve.js` with the pixel-flow
+`morph.js` as its fallback; run orb; confetti and download/share sparks; roast concert; track waveform
+`waveform.js`; Library card tilt `tilt.js`); `sfx.js` synthesises every sound, in three themes (`po.sfx.theme`). Both
+are off until switched on in Settings (`po.fx = 'on'`, `po.sfx.muted = '0'`), and effects stay off for reduced
+motion. Elements that exist only for an effect carry `.po-fx-only`; effects that need no element listen on the
+document instead of being called from pages. Blazor never awaits an effect: the .NET-facing entry points
+(`poMorph.start`, `poConfetti.burst`, `poSfx.runEnded`) return nothing. On-device models (Florence-2 vision, Whisper
+speech) live in `Client/LocalAi` and `wwwroot/js/local-ai/` (`device-tasks.js` for speech); a picture reaches the
+vision worker as bytes through `[JSImport]` (`LocalAiBytes`, hence `AllowUnsafeBlocks` in the client).
 
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,

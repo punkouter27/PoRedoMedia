@@ -1,5 +1,6 @@
 // The pixel-flow reveal: when a new picture arrives, the picture it was made from breaks into one
-// particle per pixel, and the particles fly into place as the new picture.
+// particle per pixel, and the particles fly into place as the new picture. The shader reveal in
+// dissolve.js now plays first; this runs only where that one cannot draw.
 //
 // Which source pixel becomes which result pixel: both pictures' pixels are sorted by brightness
 // (then hue) and paired rank for rank, a cheap stand-in for optimal transport, so light flows to
@@ -318,7 +319,9 @@ window.poMorph = (() => {
         play(figure, fromUrl, toUrl) {
             // A batch of results reveals its first few; the rest simply appear.
             if (running.size >= 3) return Promise.resolve();
-            const run = play(figure, fromUrl, toUrl);
+            // The shader reveal (dissolve.js) first; this pixel flow where it cannot draw.
+            const run = (window.poDissolve?.play(figure, fromUrl, toUrl) ?? Promise.resolve(false))
+                .then((shown) => shown || play(figure, fromUrl, toUrl));
             running.add(run);
             run.finally(() => running.delete(run));
             return run;

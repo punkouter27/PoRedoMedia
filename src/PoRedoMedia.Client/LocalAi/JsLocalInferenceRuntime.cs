@@ -41,8 +41,16 @@ public sealed class JsLocalInferenceRuntime(IJSRuntime js) : ILocalInferenceRunt
 
         try
         {
+            // The picture goes ahead on its own, as bytes; the run then picks it up by its id.
+            if (image is not null)
+            {
+                if (!OperatingSystem.IsBrowser())
+                    throw new PlatformNotSupportedException("On-device AI runs only in a browser.");
+                LocalAiBytes.Stage(runId, image);
+            }
+
             await js.InvokeVoidAsync(
-                "poLocalAiRun", ct, _selfRef, runId, BuildOptions(descriptor, variant, device, prompt, image));
+                "poLocalAiRun", ct, _selfRef, runId, BuildOptions(descriptor, variant, device, prompt));
 
             return await state.Completion.Task.WaitAsync(ct);
         }
@@ -59,15 +67,14 @@ public sealed class JsLocalInferenceRuntime(IJSRuntime js) : ILocalInferenceRunt
         }
     }
 
-    /// <summary>Builds the transformers.js worker payload.</summary>
+    /// <summary>Builds the transformers.js worker payload. The picture is staged separately (<see cref="LocalAiBytes"/>).</summary>
     private static object BuildOptions(
-        LocalModelDescriptor descriptor, DtypeVariant variant, LocalDevice device, string prompt, byte[]? image) => new
+        LocalModelDescriptor descriptor, DtypeVariant variant, LocalDevice device, string prompt) => new
         {
             repoId = descriptor.RepoId,
             dtype = LocalModelRegistry.TransformersDtype(variant),
             device = device.ToString(),
             prompt,
-            imageBase64 = image is null ? null : Convert.ToBase64String(image),
         };
 
     [JSInvokable]

@@ -29,7 +29,10 @@ the browser, not the account.
 | On-device AI | Describe pictures in the browser for free (about 230 MB the first time) |
 | Recipes | Save a set of ticked functions and reuse it in one tap |
 | Cost estimates | The estimated AI cost of a run, and the total for the tab (on Create and in Runs) |
-| Visual effects | Glass backdrop, particles, the run orb, picture reveals and confetti |
+| Visual effects | A fluid backdrop the pointer stirs (WebGPU; the glass backdrop elsewhere), particles, a run orb coloured by what the run is doing, burn-in picture reveals, confetti and sparks on download and share, a live waveform under playing tracks, tilting Library cards, and a buzz on phones when a run ends |
+
+Under Look and sound, **Sound theme** picks the interface sounds: Studio (the original), Arcade or
+Soft. A run that ends plays its own chime, one for done and one for failed.
 
 ## Configuration that decides what exists
 

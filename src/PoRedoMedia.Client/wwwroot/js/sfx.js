@@ -3,10 +3,20 @@
 // be placed left or right to match where it happened on screen. Each finished step of a run plays
 // the next note of a pentatonic scale, so a run climbs and resolves; while runs work, a soft pad
 // plays and opens up as they progress, and it all steps back while a roast is playing.
-// Muted and volume are remembered in this browser.
+// Muted, volume and the sound theme are remembered in this browser.
+//
+// Themes reshape the same few voices rather than swapping sound files: Studio is the FM bells as
+// designed, Arcade turns every bell into a dry square-wave blip, Soft takes the bite out (gentle
+// attacks, little FM, quiet noise). Every sound below plays in all three.
 window.poSfx = (() => {
     let context = null, master = null, bus = null, reverb = null, noiseBuffer = null;
     let pad = null, whoosh = null, whooshStop = 0;
+    const THEMES = ['studio', 'arcade', 'soft'];
+    const storedTheme = () => {
+        const stored = window.poMedia.read('po.sfx.theme');
+        return THEMES.includes(stored) ? stored : 'studio';
+    };
+    let theme = storedTheme();
 
     // Off until switched on in Settings: the simplest app is a quiet one.
     const muted = () => window.poMedia.read('po.sfx.muted') !== '0';
@@ -67,12 +77,15 @@ window.poSfx = (() => {
 
     // A quick attack and an exponential fade, so nothing clicks.
     function envelope(gain, at, length, level, attack = 0.008) {
+        if (theme === 'soft') attack = Math.max(0.025, attack * 4);
         gain.gain.setValueAtTime(0.0001, at);
         gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, level * 0.3), at + attack);
         gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
     }
 
     function tone(frequency, delay, length, { type = 'sine', level = 1, pan = 0, glide = 0, send = 0.4 } = {}) {
+        if (theme === 'arcade') { type = type === 'sine' ? 'triangle' : 'square'; send *= 0.2; }
+        else if (theme === 'soft' && type !== 'sine') { type = 'triangle'; level *= 0.8; }
         const at = context.currentTime + delay;
         const oscillator = context.createOscillator();
         const gain = context.createGain();
@@ -88,6 +101,13 @@ window.poSfx = (() => {
     // An FM bell: a sine whose pitch is wobbled by another sine; the wobble dies away first, so
     // the strike is bright and the tail is pure.
     function bell(frequency, delay, length, { level = 1, pan = 0, ratio = 3.5, index = 2.4, send = 0.6 } = {}) {
+        if (theme === 'arcade') {
+            // A chip-tune blip and its octave, short and dry.
+            tone(frequency, delay, Math.min(length, 0.22), { type: 'square', level: level * 0.32, pan, send: 0.4 });
+            tone(frequency * 2, delay + 0.03, Math.min(length, 0.12), { type: 'square', level: level * 0.12, pan, send: 0.4 });
+            return;
+        }
+        if (theme === 'soft') { index *= 0.25; level *= 0.75; send = Math.min(1, send + 0.2); }
         const at = context.currentTime + delay;
         const carrier = context.createOscillator();
         const modulator = context.createOscillator();
@@ -104,6 +124,8 @@ window.poSfx = (() => {
     }
 
     function noise(delay, length, { level = 1, pan = 0, filter = 'bandpass', frequency = 1200, q = 1, sweep = 0, send = 0.3 } = {}) {
+        if (theme === 'arcade') { level *= 0.6; send *= 0.2; }
+        else if (theme === 'soft') level *= 0.4;
         const at = context.currentTime + delay;
         const source = context.createBufferSource();
         source.buffer = noiseBuffer;
@@ -162,6 +184,19 @@ window.poSfx = (() => {
             noise(0, 0.05, { level: 0.9, filter: 'highpass', frequency: 1800, pan });
             tone(180, 0, 0.12, { level: 0.6, glide: 60, pan, send: 0.2 });
         },
+        // A run has finished: a rising major arpeggio that lands on a held, bright chord.
+        chime: (pan) => {
+            [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, i) => bell(f, i * 0.07, 0.6, { pan: pan + (i - 2) * 0.2, level: 0.8 }));
+            for (const f of [783.99, 1567.98]) bell(f, 0.42, 1.8, { pan, level: 0.45, index: 1 });
+            tone(261.63, 0.38, 1.2, { type: 'triangle', level: 0.35, pan, send: 0.5 });
+        },
+        // A run has failed: a clangy line falling a tritone (the bells' partials are out of tune
+        // on purpose), then a low thud and a sagging buzz.
+        chimeFail: (pan) => {
+            [659.25, 622.25, 587.33, 466.16].forEach((f, i) => bell(f, i * 0.13, 0.45, { pan, level: 0.7, ratio: 1.41, index: 3 }));
+            thump(0.52, 0.9, pan);
+            tone(116.54, 0.52, 0.9, { type: 'sawtooth', level: 0.3, glide: 87.31, pan });
+        },
         micdrop: (pan) => {
             thump(0, 1.4, pan);
             noise(0, 0.9, { level: 0.35, filter: 'lowpass', frequency: 1800, sweep: 120, pan, send: 0.9 });
@@ -186,6 +221,17 @@ window.poSfx = (() => {
     return {
         play,
         playAt(name, element) { play(name, panOf(element)); },
+
+        /**
+         * A run has ended: its chime, and on a phone a short buzz (two taps for done, one long
+         * one for failed) when sounds or effects are on. For .NET: returns nothing.
+         */
+        runEnded(ok) {
+            play(ok ? 'chime' : 'chimeFail');
+            const effects = window.poFx?.enabled?.() ?? false;
+            if ((muted() && !effects) || !navigator.vibrate) return;
+            try { navigator.vibrate(ok ? [30, 70, 30] : [160]); } catch { /* not allowed here */ }
+        },
 
         /** The next note up for the n-th finished step of a run (from 0). */
         step(n, pan = 0) {
@@ -281,6 +327,13 @@ window.poSfx = (() => {
 
         muted,
         volume,
+        /** The sound theme: 'studio' (the default), 'arcade' or 'soft'. */
+        theme: () => theme,
+        themes: () => [...THEMES],
+        setTheme(name) {
+            theme = THEMES.includes(name) ? name : 'studio';
+            window.poMedia.write('po.sfx.theme', theme === 'studio' ? null : theme);
+        },
         setMuted(on) {
             window.poMedia.write('po.sfx.muted', on ? '1' : '0');
             if (on) window.poSfx.pad(false);

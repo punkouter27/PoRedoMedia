@@ -7,7 +7,17 @@
  */
 
 const workers = {};
+const staged = new Map();
 const WORKER_SCRIPT = '/js/local-ai/transformers-worker.js';
+
+/**
+ * A run's picture, handed over before the run starts through [JSImport] (LocalAiBytes.cs) as a
+ * MemoryView over .NET memory. The view dies with the call, so it is copied here; the copy is
+ * then moved (not copied again) into the worker.
+ */
+window.poLocalAiStage = function (runId, view) {
+    staged.set(runId, view.slice());
+};
 
 /**
  * Probes the GPU so C# can prune the dtype chain before any weights are fetched.
@@ -54,6 +64,8 @@ window.poLocalAiProbeDevice = async function () {
  * @param runId      Correlates callbacks with the awaiting C# task.
  */
 window.poLocalAiRun = function (dotnetRef, runId, options) {
+    // Taken before terminate(), which drops whatever is staged for this id.
+    const image = staged.get(runId) ?? null;
     terminate(runId);
 
     let worker;
@@ -92,7 +104,7 @@ window.poLocalAiRun = function (dotnetRef, runId, options) {
         terminate(runId);
     };
 
-    worker.postMessage(options);
+    worker.postMessage({ ...options, image }, image ? [image.buffer] : []);
 };
 
 /** Cancels a run — also how C# releases GPU memory before trying the next variant. */
@@ -101,6 +113,7 @@ window.poLocalAiCancel = function (runId) {
 };
 
 function terminate(runId) {
+    staged.delete(runId);
     const existing = workers[runId];
     if (!existing) return;
     try {

@@ -1,7 +1,7 @@
 // Confetti for a finished run, in the colours of what it made: the result's main colours come
 // from k-means on a tiny copy of it, so every celebration looks different. Pieces are drawn as
 // GPU instances (WebGL2), each a card spinning in 3D: it narrows as it turns edge-on and shows a
-// darker back, and it flutters sideways as it falls. Phones also get a short buzz.
+// darker back, and it flutters sideways as it falls. (The phone's buzz is the run's, in sfx.js.)
 window.poConfetti = (() => {
     const vertex = `#version 300 es
         precision highp float;
@@ -152,9 +152,44 @@ window.poConfetti = (() => {
             });
         }
         window.poSfx?.play('pop', x / window.innerWidth * 1.6 - 0.8);
-        window.poFx.haptic([14, 40, 22]);
         if (!frame) frame = requestAnimationFrame(step);
     }
+
+    // Where the pointer last went down: a download started from a menu clicks a hidden link, so
+    // the burst comes from where the user pressed instead.
+    let pressed = null;
+    addEventListener('pointerdown', (e) => { pressed = [e.clientX, e.clientY]; }, { capture: true, passive: true });
+
+    /** A small ring of sparks thrown out from (x, y): a download or a share went off. */
+    function spark(x, y) {
+        if (!window.poFx.enabled() || !init()) return;
+        const colours = [window.poFx.colour('--po-brand-a'), window.poFx.colour('--po-brand-b'), [1, 0.82, 0.3], [1, 1, 1]];
+        for (let i = 0; i < 70; i++) {
+            const angle = (i / 70) * Math.PI * 2 + Math.random() * 0.2;
+            const speed = 260 + Math.random() * 480;
+            const size = 1.6 + Math.random() * 2.2;
+            pieces.push({
+                x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 120,
+                w: size, h: size, spin: 0, spinSpeed: (Math.random() - 0.5) * 6,
+                turn: Math.random() * 6.28, turnSpeed: 3 + Math.random() * 6,
+                wobble: 1, phase: Math.random() * 6.28,
+                colour: colours[i % colours.length], round: Math.random() < 0.6 ? 1 : 0,
+                age: 0, life: 0.6 + Math.random() * 0.5,
+            });
+        }
+        window.poSfx?.play('pop', x / window.innerWidth * 1.6 - 0.8);
+        if (!frame) frame = requestAnimationFrame(step);
+    }
+
+    // Downloads and shares: every <a download> (poMedia.download clicks one too) and anything
+    // marked data-fx-burst. Listening on the document keeps the pages free of effect calls.
+    document.addEventListener('click', (e) => {
+        const hit = e.target.closest?.('a[download], [data-fx-burst]');
+        if (!hit || !window.poFx.enabled()) return;
+        const r = hit.getBoundingClientRect();
+        const [x, y] = e.isTrusted && r.width > 0 ? [r.left + r.width / 2, r.top + r.height / 2] : pressed ?? [window.innerWidth / 2, window.innerHeight / 2];
+        spark(x, y);
+    }, true);
 
     return {
         /** Celebrates a finished run, in the colours of the picture at `imageUrl` when there is one. */

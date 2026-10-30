@@ -106,6 +106,46 @@ html:not(.po-fx) .po-fx-only {
     display: none !important;
 }
 
+/* The WebGPU fluid backdrop (js/fx/fluid.js) takes the glass backdrop's place while it runs. */
+#po-fluid {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+}
+
+html.po-fx-fluid #po-backdrop {
+    visibility: hidden;
+}
+
+/* A track's live waveform (js/fx/waveform.js), under its player. */
+.po-wave {
+    display: block;
+    width: 100%;
+    height: 48px;
+}
+
+/* Library cards lean toward the pointer and catch a light where it is (js/fx/tilt.js). */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+    html.po-fx .gallery-card.po-tilt {
+        position: relative;
+        transform: perspective(700px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateZ(6px);
+        transition: transform 90ms linear, border-color 120ms;
+    }
+
+    html.po-fx .gallery-card.po-tilt::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: radial-gradient(circle at var(--light-x, 50%) var(--light-y, 50%), rgb(255 255 255 / 30%), transparent 55%);
+        mix-blend-mode: soft-light;
+    }
+}
+
 /* ── Utilities that replace one-off inline styles ───────────────────────────────────── */
 .po-grow { flex: 1 1 12rem; }
 .po-fill { width: 100%; }
