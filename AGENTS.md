@@ -3,44 +3,46 @@
 Task list: [tasks/todo.md](tasks/todo.md).
 Overall summary of the project: [DOCS/README.md](DOCS/README.md).
 
-## 1. Branching & version control
+## 1. Git & workflow
 
-- **Master first:** Work only on the `master` branch. Use another branch only when explicitly asked to.
-- **Human-like commits:** When asked for a git sync, make a short commit whose message uses
-  non-technical American slang, so it reads as if a person wrote it, and push it.
+- **Stay on `master`:** Commit directly to `master`. Create branches only when specifically asked.
+- **Casual commits:** Write short, natural commit messages in informal American phrasing. On a sync,
+  commit and push without asking.
 
-## 2. Runtime, testing & quality
+## 2. Running, testing & clean code
 
 - **Startup verification:** After any code change, restart the app and verify it starts successfully.
-- **Targeted testing:** Do not run the full test suite. Run only the tests related to the change,
-  or none at all for a minor edit.
-- **Zero warnings:** Treat every compiler warning as an error and fix it right away.
+- **Run only related tests:** Test only what was touched. Skip tests for minor edits; never run the
+  whole test suite.
+- **Zero warnings:** Fix every build warning right away. Treat every warning as a failure.
 
-## 3. Architecture & configuration
+## 3. Architecture & setup
 
-- **Documentation check:** Read [DOCS/README.md](DOCS/README.md) first for architecture context.
-  Update it in the same change whenever dependencies, configuration keys or major endpoints change.
-- **Maximum automation:** Do not make the user type CLI commands or click through a web GUI when it
-  can be done for them automatically.
+- **Keep docs updated:** Read [DOCS/](DOCS/) and [DOCS/README.md](DOCS/README.md) first for a quick
+  overview. Update them in the same change whenever dependencies, configuration keys or major
+  endpoints change.
+- **Fully automated:** Run all builds, scripts and setup commands directly. Do not ask the user to
+  run terminal commands or click through a web GUI.
 - **Secrets:** Do not use `dotnet user-secrets`. Put local data in `appsettings` or in Azure Key
   Vault (`kv-poshared2`, secrets prefixed `PoRedoMedia--`).
 - **Build version:** The app shows its deployment build version as `YYMMDD` in the bottom-right
   corner. `Directory.Build.targets` derives it from the Git commit date (today's date when there is
   no commit); never type it by hand.
 
-## 4. UI changes & reporting
+## 4. UI & output rules
 
-- **Visual documentation:** For a UI change, capture the old and new states, annotate what changed,
-  save them in `SCREENSHOTS/YYMMDD-feature-name.html`, and give the full valid path.
-- **TL;DR:** End any answer longer than 100 words with a TL;DR of about 20 words.
-- **3-tier diff summary:** For every code change over 20 lines, add a TL;DR with exactly one line per tier:
-  1. Toddler: one sentence of simple, conceptual intuition.
-  2. Child: one sentence on what it does.
-  3. Adult: one sentence on the technical or architectural change.
+- **UI previews:** For a visual change, save before-and-after HTML mockups to
+  `SCREENSHOTS/{YYMMDD}-{feature}.html`, and also one PNG that shows the annotated before and after
+  side by side with notes. Give the full valid paths.
+- **Clarifying questions:** After changing more than 100 lines, when no questions are already
+  pending, list 3 key follow-up questions about future direction or logic.
 - **Big removals:** If a prompt removes more than 100 lines of code overall, say so.
-- **Direction questions:** After a code change over 100 lines, when the prompt asked no other
-  questions, ask 3 optional high-level questions about the direction of the app's purpose that
-  could lead to further changes.
+- **Required footers:**
+  - **Short recap:** If a response is over 100 words, end it with a recap under 20 words.
+  - **3-level summary:** If a code change is over 20 lines, add exactly one sentence per level:
+    1. Toddler: explain the idea simply.
+    2. Child: explain what the app actually does now.
+    3. Adult: explain how it was built.
 
 ## Running things
 
