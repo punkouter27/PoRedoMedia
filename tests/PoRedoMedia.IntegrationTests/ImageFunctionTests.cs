@@ -80,22 +80,29 @@ public sealed class ImageFunctionTests(AzuriteFixture azurite) : IDisposable
         Assert.True(white > 100, "the saved image has no caption drawn on it");
     }
 
-    [DockerTheory]
-    [InlineData(MediaFunction.MemeCaption, "MemeCaption.mode=text", "Type the top or the bottom text")]
-    [InlineData(MediaFunction.MemeCaption, "MemeCaption.mode=template;MemeCaption.template=drake;MemeCaption.zone0=only one", "needs 2 lines")]
-    [InlineData(MediaFunction.PhotoToVideo, null, "Describe what should happen")]
-    [InlineData(MediaFunction.Restyle, "Restyle.style=no-such-style", "Pick a style")]
-    public async Task Options_a_step_would_refuse_are_refused_up_front_and_cost_nothing(MediaFunction function, string? options, string reason)
+    [DockerFact]
+    public async Task Options_a_step_would_refuse_are_refused_up_front_and_cost_nothing()
     {
         var user = $"dev|{Guid.NewGuid()}";
         var client = await _factory.Value.SignedInAsync(user);
         var source = await AddImageAsync(user);
-        var sent = (options ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries).Select(o => o.Split('=')).ToDictionary(o => o[0], o => o[1]);
 
-        var response = await client.PostAsJsonAsync("/api/runs", new RunRequest(source.Id.Value, [function], sent), WireJson.Default.RunRequest);
+        foreach (var (function, options, reason) in new (MediaFunction, string?, string)[]
+        {
+            (MediaFunction.MemeCaption, "MemeCaption.mode=text", "Type the top or the bottom text"),
+            (MediaFunction.MemeCaption, "MemeCaption.mode=template;MemeCaption.template=drake;MemeCaption.zone0=only one", "needs 2 lines"),
+            (MediaFunction.PhotoToVideo, null, "Describe what should happen"),
+            (MediaFunction.Restyle, "Restyle.style=no-such-style", "Pick a style"),
+        })
+        {
+            var sent = (options ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries).Select(o => o.Split('=')).ToDictionary(o => o[0], o => o[1]);
 
-        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains(reason, await response.Content.ReadAsStringAsync());
+            var response = await client.PostAsJsonAsync("/api/runs", new RunRequest(source.Id.Value, [function], sent), WireJson.Default.RunRequest);
+
+            Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains(reason, await response.Content.ReadAsStringAsync());
+        }
+
         Assert.Equal(0, (await client.GetFromJsonAsync("/api/quota", WireJson.Default.QuotaStatusDto))!.Used);
     }
 
@@ -141,11 +148,15 @@ public sealed class ImageFunctionTests(AzuriteFixture azurite) : IDisposable
         Assert.True(sent.Status == RunStatus.Complete, sent.Error);
         Assert.Equal(3, sent.OutputIds.Length);
         Assert.Single(saved.OutputIds);
+        // The run carries what its one step took, stored with it.
+        Assert.Equal(MediaFunction.BulkStyles, Assert.Single(sent.Steps!).Function);
         var gallery = (await client.GetFromJsonAsync("/api/media", WireJson.Default.ListMediaDto))!;
         Assert.Equal(
             ["Comic · beach", "Mine · beach", "The Old West Wanted Poster · beach", "Vase · beach"],
             gallery.Where(m => m.Origin == "BulkStyles").Select(m => m.Title).Order());
         Assert.All(gallery.Where(m => m.Origin == "BulkStyles"), m => Assert.Equal(source.Id.Value, m.ParentId));
+        // Every result is summarised after the run makes it (the mock keeps the step's own title).
+        Assert.All(gallery.Where(m => m.Origin == "BulkStyles"), m => Assert.StartsWith("A mock summary of ", m.Summary));
         Assert.Equal(["Mine: only this one"], await client.GetFromJsonAsync("/api/bulk-prompts", WireJson.Default.ListString));
     }
 

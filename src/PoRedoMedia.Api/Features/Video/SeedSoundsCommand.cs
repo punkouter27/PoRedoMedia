@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace PoRedoMedia.Api.Features.Sounds;
+namespace PoRedoMedia.Api.Features.Video;
 
 /// <summary>
 /// CLI seeder: dotnet run -- seed-sounds [--seeds-dir &lt;path&gt;]

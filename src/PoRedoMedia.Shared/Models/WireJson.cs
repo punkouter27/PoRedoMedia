@@ -24,4 +24,5 @@ namespace PoRedoMedia.Shared.Models;
 [JsonSerializable(typeof(FramesResult))]
 [JsonSerializable(typeof(ShareLinkDto))]
 [JsonSerializable(typeof(ClientErrorDto))]
+[JsonSerializable(typeof(PreferencesDto))]
 public sealed partial class WireJson : JsonSerializerContext;

@@ -63,6 +63,13 @@ public sealed class MediaApi(HttpClient http)
         return response.IsSuccessStatusCode ? null : await ReasonAsync(response);
     }
 
+    /// <summary>Re-frames the video for a feed (<see cref="SocialExport"/>) if not done yet, which uses one run. Returns the reason when it could not.</summary>
+    public async Task<string?> MakeSocialAsync(Guid id, string aspect)
+    {
+        using var response = await http.PostAsync($"api/media/{id}/export/social?aspect={aspect}", null);
+        return response.IsSuccessStatusCode ? null : await ReasonAsync(response);
+    }
+
     public async Task<string?> StopSharingAsync(Guid id)
     {
         using var response = await http.DeleteAsync($"api/media/{id}/share");

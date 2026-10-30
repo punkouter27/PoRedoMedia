@@ -5,7 +5,8 @@ namespace PoRedoMedia.Api.Features.Housekeeping;
 
 /// <summary>
 /// The periodic sweep. It recovers runs a restart cut short, removes uploads that never finished,
-/// and deletes items past their retention unless they are pinned.
+/// and deletes items past their retention unless they are pinned. The first sweep of a process
+/// also removes storage that older versions wrote and nothing reads any more.
 /// </summary>
 /// <remarks>
 /// Done in the app, not with a storage lifecycle rule, because a rule cannot honour pins or remove
@@ -20,7 +21,14 @@ public sealed class HousekeepingService(
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan AbandonedUploadAge = TimeSpan.FromHours(24);
 
+    /// <summary>The sound favourites table, dropped with the Sounds page.</summary>
+    internal const string RetiredFavoritesTable = "SoundFavorites";
+
+    /// <summary>The director script once kept beside each video (<c>media/{id}/script.json</c>).</summary>
+    internal const string RetiredScriptBlob = "/script.json";
+
     private readonly DateTimeOffset _startedAt = time.GetUtcNow();
+    private bool _retiredRemoved;
 
     public enum Verdict
     {
@@ -86,5 +94,35 @@ public sealed class HousekeepingService(
             await blobs.DeletePrefixAsync(MediaBlobPaths.Prefix(item.Id), ct);
             await media.DeleteAsync(item.Owner, item.Id, ct);
         }
+
+        if (!_retiredRemoved)
+        {
+            await RemoveRetiredStorageAsync(ct);
+            _retiredRemoved = true;
+        }
+    }
+
+    /// <summary>
+    /// Deletes what older versions stored and this one never reads. Cheap once it has run: the
+    /// table is gone and no blob matches, so later processes only list the container.
+    /// </summary>
+    // ponytail: once every deployed account has been swept, this and the two names above can go.
+    internal async Task RemoveRetiredStorageAsync(CancellationToken ct)
+    {
+        if (await storage.DeleteTableIfExistsAsync(RetiredFavoritesTable, ct))
+            logger.LogInformation("Dropped the retired {Table} table", RetiredFavoritesTable);
+
+        var scripts = 0;
+        await foreach (var path in blobs.ListBlobsByPrefixAsync($"{StorageNames.Containers.Media}/", ct))
+        {
+            if (path.EndsWith(RetiredScriptBlob, StringComparison.Ordinal))
+            {
+                await storage.Blob(path).DeleteIfExistsAsync(cancellationToken: ct);
+                scripts++;
+            }
+        }
+
+        if (scripts > 0)
+            logger.LogInformation("Deleted {Count} retired script.json blob(s)", scripts);
     }
 }

@@ -18,6 +18,13 @@
     transition: transform 220ms var(--po-spring);
 }
 
+.run-step-stats {
+    font-size: 0.8rem;
+    font-weight: 400;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+}
+
 .run-step.done ::deep .rzi { color: var(--rz-success); }
 .run-step.failed ::deep .rzi { color: var(--rz-danger); }
 

@@ -43,6 +43,9 @@ public static class MediaAnalysisPaths
     /// <summary>The looping GIF made from a video the first time it is asked for.</summary>
     public static string Gif(Guid mediaId) => $"{Prefix(mediaId)}export.gif";
 
+    /// <summary>The video re-framed for posting, one per aspect (<c>SocialExport</c>), made the first time it is asked for.</summary>
+    public static string Social(Guid mediaId, string aspect) => $"{Prefix(mediaId)}export-{aspect}.mp4";
+
     /// <summary>A model's read of the item's picture, kept so the next run on it is free (<see cref="AiReadStore"/>).</summary>
     public static string AiRead(Guid mediaId, string name) => $"{Prefix(mediaId)}ai/{name}.json";
 

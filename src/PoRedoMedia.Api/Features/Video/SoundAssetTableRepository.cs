@@ -1,7 +1,7 @@
 using Azure.Data.Tables;
 using Microsoft.Extensions.Caching.Hybrid;
 
-namespace PoRedoMedia.Api.Features.Sounds;
+namespace PoRedoMedia.Api.Features.Video;
 
 public sealed class SoundAssetTableRepository : ISoundAssetRepository
 {

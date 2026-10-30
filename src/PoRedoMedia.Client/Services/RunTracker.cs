@@ -19,6 +19,9 @@ public sealed class TrackedRun(RunDto run)
     /// </summary>
     public List<string> Log { get; } = [.. run.Log ?? []];
     public IReadOnlyList<string> Notes { get; internal set; } = run.Notes;
+
+    /// <summary>What each finished step took: seconds, and its AI calls as the server metered them.</summary>
+    public IReadOnlyList<StepTelemetryDto> Steps { get; internal set; } = run.Steps ?? [];
     public bool Finished => Status is RunStatus.Complete or RunStatus.Failed;
 
     internal IAsyncDisposable? Subscription { get; set; }
@@ -159,8 +162,17 @@ public sealed class RunTracker(RunApi runs, MediaApi media) : IAsyncDisposable
         (tracked.Status, tracked.Step, tracked.Percent, tracked.Message) = (progress.Status, progress.Step, progress.Percent, progress.Message);
         if (tracked.Log.Count < MaxLog && tracked.Log.LastOrDefault() != progress.Message)
             tracked.Log.Add(progress.Message);
-        if (progress.Output is { } output && tracked.Outputs.All(o => o.Id != output.Id))
-            tracked.Outputs.Add(output);
+        if (progress.Steps is { } steps)
+            tracked.Steps = steps;
+        // A result is sent again once it has been named; the newer copy replaces the one shown.
+        if (progress.Output is { } output)
+        {
+            var at = tracked.Outputs.FindIndex(o => o.Id == output.Id);
+            if (at < 0)
+                tracked.Outputs.Add(output);
+            else
+                tracked.Outputs[at] = output;
+        }
         Changed?.Invoke();
     }
 
@@ -184,6 +196,7 @@ public sealed class RunTracker(RunApi runs, MediaApi media) : IAsyncDisposable
 
         tracked.Run = current;
         tracked.Notes = current.Notes;
+        tracked.Steps = current.Steps ?? tracked.Steps;
         if (current.Log is { } stored && stored.Length >= tracked.Log.Count)
         {
             tracked.Log.Clear();

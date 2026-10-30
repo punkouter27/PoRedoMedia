@@ -26,13 +26,22 @@ public sealed record RunDto(
     string[] Notes,
     DateTimeOffset CreatedAt,
     Dictionary<string, string>? Options = null,
-    string[]? Log = null);
+    string[]? Log = null,
+    StepTelemetryDto[]? Steps = null);
 
-/// <summary>One progress event for a run, pushed over the hub.</summary>
+/// <summary>
+/// What one step of a run took: wall-clock seconds, and the AI calls it made as the meter saw
+/// them. <c>Tokens</c> counts only token-billed calls; <c>CostUsd</c> is an estimate from list
+/// prices, null when nothing it called had a price.
+/// </summary>
+public sealed record StepTelemetryDto(MediaFunction Function, double Seconds, int AiCalls, long Tokens, decimal? CostUsd);
+
+/// <summary>One progress event for a run, pushed over the hub. <c>Steps</c> holds the steps finished so far.</summary>
 public sealed record RunProgressDto(
     Guid RunId,
     RunStatus Status,
     MediaFunction? Step,
     int Percent,
     string Message,
-    MediaDto? Output = null);
+    MediaDto? Output = null,
+    StepTelemetryDto[]? Steps = null);

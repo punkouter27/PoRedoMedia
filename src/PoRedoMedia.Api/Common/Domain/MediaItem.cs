@@ -40,13 +40,16 @@ public sealed record MediaItem
 
     /// <summary>What the AI saw in the picture this was made from, when the function keeps it.</summary>
     public string? Detail { get; init; }
+
+    /// <summary>One sentence on what a result is, written by AI after the run made it. Searched by the Library.</summary>
+    public string? Summary { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
 
     public string SourcePath => MediaBlobPaths.Source(Id, Extension);
 
     public MediaDto ToDto() => new(
         Id.Value, Kind, Title, Origin, ParentId?.Value, ContentType, SizeBytes, DurationSeconds, Pinned,
-        ShareToken is not null, CreatedAt, $"/api/media/{Id}/content", $"/api/media/{Id}/thumb", Text, Detail);
+        ShareToken is not null, CreatedAt, $"/api/media/{Id}/content", $"/api/media/{Id}/thumb", Text, Detail, Summary);
 }
 
 /// <summary>

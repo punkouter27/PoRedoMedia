@@ -59,7 +59,7 @@ public sealed partial class AiMeter(IConfiguration configuration, ILogger<AiMete
     {
         var cost = TokenCost(model, inputTokens, cachedInputTokens, outputTokens) ?? Flat(fallbackPrice);
         LogTokens(stage, Step, model, inputTokens, cachedInputTokens, outputTokens, elapsedMs, cost);
-        Count(stage, model, cost);
+        Count(stage, model, cost, inputTokens + outputTokens);
         return cost;
     }
 
@@ -96,9 +96,9 @@ public sealed partial class AiMeter(IConfiguration configuration, ILogger<AiMete
 
     private static string Step => Current.Value?.Step ?? "-";
 
-    private static void Count(string stage, string model, decimal? cost)
+    private static void Count(string stage, string model, decimal? cost, long tokens = 0)
     {
-        Current.Value?.Add(cost);
+        Current.Value?.Add(cost, tokens);
         var tags = new TagList { { "stage", stage }, { "model", model } };
         Calls.Add(1, tags);
         if (cost is { } usd)
@@ -110,9 +110,11 @@ public sealed partial class AiMeter(IConfiguration configuration, ILogger<AiMete
 public sealed class AiTally
 {
     private readonly Lock _lock = new();
+    private readonly List<string> _fallbacks = [];
     private decimal _usd;
     private int _calls;
     private int _unpriced;
+    private long _tokens;
 
     /// <summary>The step being run, for the usage log.</summary>
     public string? Step { get; set; }
@@ -124,15 +126,41 @@ public sealed class AiTally
     /// <summary>Calls nothing put a price on; the total leaves them out.</summary>
     public int Unpriced { get { lock (_lock) return _unpriced; } }
 
-    internal void Add(decimal? usd)
+    internal void Add(decimal? usd, long tokens = 0)
     {
         lock (_lock)
         {
             _calls++;
+            _tokens += tokens;
             if (usd is { } value)
                 _usd += value;
             else
                 _unpriced++;
+        }
+    }
+
+    /// <summary>The running totals, so a step's share is the difference between two of these.</summary>
+    public AiUsage Snapshot()
+    {
+        lock (_lock)
+            return new(_calls, _unpriced, _tokens, _usd);
+    }
+
+    /// <summary>Records that a provider failed and another answered, for the run's log.</summary>
+    public void NoteFallback(string message)
+    {
+        lock (_lock)
+            _fallbacks.Add(message);
+    }
+
+    /// <summary>The fallbacks noted since the last call, oldest first.</summary>
+    public IReadOnlyList<string> TakeFallbacks()
+    {
+        lock (_lock)
+        {
+            var taken = _fallbacks.ToList();
+            _fallbacks.Clear();
+            return taken;
         }
     }
 
@@ -147,6 +175,16 @@ public sealed class AiTally
                 $"AI cost ≈ ${_usd:0.0000} across {_calls} call(s)") + (_unpriced > 0 ? $", {_unpriced} unpriced" : "");
         }
     }
+}
+
+/// <summary>A tally's running totals at one moment. Subtract two for what happened in between.</summary>
+public readonly record struct AiUsage(int Calls, int Unpriced, long Tokens, decimal Usd)
+{
+    public static AiUsage operator -(AiUsage after, AiUsage before) =>
+        new(after.Calls - before.Calls, after.Unpriced - before.Unpriced, after.Tokens - before.Tokens, after.Usd - before.Usd);
+
+    /// <summary>The estimate, or null when no call in it had a price.</summary>
+    public decimal? CostUsd => Calls > Unpriced ? Usd : null;
 }
 
 /// <summary>Meters every call that goes through an <see cref="IChatClient"/>, from the usage the response reports.</summary>

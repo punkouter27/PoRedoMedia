@@ -11,7 +11,8 @@ public static class StorageNames
         public const string BulkPrompts = "BulkPrompts";
         public const string SoundAssets = "SoundAssets";
 
-        /// <summary>Per-user starred sounds, partitioned by user.</summary>
+        /// <summary>Per-user preferences (string key to string value), partitioned by user.</summary>
+        public const string Preferences = "Preferences";
 
         /// <summary>Per-user daily run counters, partitioned by UTC day.</summary>
         public const string RenderQuotas = "RenderQuotas";

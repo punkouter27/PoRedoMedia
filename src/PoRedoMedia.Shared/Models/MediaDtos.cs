@@ -18,7 +18,8 @@ public sealed record MediaDto(
     string Url,
     string ThumbUrl,
     string? Text = null,
-    string? Detail = null);
+    string? Detail = null,
+    string? Summary = null);
 
 public sealed record UploadRequest(string FileName, long SizeBytes);
 

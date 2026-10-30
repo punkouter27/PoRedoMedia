@@ -17,6 +17,29 @@ public sealed class FFmpegFilterChainTests
 
     // ── Aspect-ratio framing ──────────────────────────────────────────────
 
+    [Fact]
+    public void SocialArgs_FitTheWholePictureOnABlurredFillOfTheChosenFrameAndRefuseAnyOtherAspect()
+    {
+        foreach (var (aspect, frame) in new[] { (SocialExport.Vertical, "720:1280"), (SocialExport.Square, "720:720"), (SocialExport.Wide, "1280:720") })
+        {
+            var args = FFmpegArgs.SocialArgs("https://store/v.mp4?sig=1", "/tmp/out.mp4", aspect)!;
+
+            Assert.StartsWith("-v error -i \"https://store/v.mp4?sig=1\" -filter_complex \"[0:v]split[a][b];", args, StringComparison.Ordinal);
+            // The fill is cropped to the frame; the picture itself only shrinks to fit, so nothing is cut off.
+            Assert.Contains($"[a]scale={frame}:force_original_aspect_ratio=increase,crop={frame},boxblur=", args, StringComparison.Ordinal);
+            Assert.Contains($"[b]scale={frame}:force_original_aspect_ratio=decrease:force_divisible_by=2[fg]", args, StringComparison.Ordinal);
+            Assert.Contains("[bg][fg]overlay=(W-w)/2:(H-h)/2", args, StringComparison.Ordinal);
+            // A silent clip has no audio stream, so its mapping is optional.
+            Assert.Contains("-map \"[v]\" -map 0:a? -c:v libx264", args, StringComparison.Ordinal);
+            Assert.EndsWith("-movflags +faststart -y \"/tmp/out.mp4\"", args, StringComparison.Ordinal);
+        }
+
+        // The aspect becomes part of a blob path, so only the three offered ones are accepted.
+        Assert.Null(FFmpegArgs.SocialArgs("in", "out", "4x5"));
+        Assert.Null(FFmpegArgs.SocialArgs("in", "out", "../x"));
+        Assert.Null(FFmpegArgs.SocialArgs("in", "out", null));
+    }
+
     // ── Visual effects ────────────────────────────────────────────────────
 
     [Fact]

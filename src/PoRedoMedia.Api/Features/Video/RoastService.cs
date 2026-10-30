@@ -81,12 +81,17 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
     private readonly ILogger<RoastService> _logger;
 
     private readonly AiJudge? _judge;
+    private readonly IRoastCritic? _critic;
 
     /// <param name="judge">When present, it picks between each joke and its alternative.</param>
-    public RoastService(AiFoundryClient ai, IConfiguration config, BlobStorageService blobs, ILogger<RoastService> logger, AiJudge? judge = null)
+    /// <param name="critic">When present, it scores the picked jokes, and a weak set is written once more.</param>
+    public RoastService(
+        AiFoundryClient ai, IConfiguration config, BlobStorageService blobs, ILogger<RoastService> logger, AiJudge? judge = null,
+        IRoastCritic? critic = null)
     {
         _ai = ai;
         _judge = judge;
+        _critic = critic;
         _http = new HttpClient(new AiMeterHandler(ai.Meter, config) { InnerHandler = new SocketsHttpHandler() }) { Timeout = Timeout.InfiniteTimeSpan };
         _config = config;
         _blobs = blobs;
@@ -188,17 +193,36 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         for (var i = 0; i < moments.Count; i++)
             prompt.Append(inv, $"[{i}] t={moments[i].AtSeconds:0.0}s {moments[i].What}\n");
 
-        var raw = await _ai.CompleteJsonAsync(
+        var jokes = ReadJokes(await AskAsync(prompt.ToString()), moments, max);
+        List<(long AtMs, string Text)> picked = _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, ct);
+        if (picked.Count == 0)
+            return picked;
+
+        // The quality pass: a set the critic scores as weak is written once more, with its note.
+        var draft = string.Join('\n', picked.Select(j => j.Text));
+        List<(long AtMs, string Text)> rewritten = [];
+        var (_, critique, better) = await RoastQuality.ImproveOnceAsync(
+            _critic, "Roast jokes, each spoken over one moment of a video clip", draft,
+            async (verdict, token) =>
+            {
+                rewritten = [.. ReadJokes(await AskAsync($"{prompt}\n{RoastQuality.RewriteBrief(verdict, draft)}", token), moments, max)
+                    .Select(j => (j.AtMs, j.Text))];
+                return rewritten.Count == 0 ? null : string.Join('\n', rewritten.Select(j => j.Text));
+            },
+            _logger, ct);
+        if (critique is not null)
+            _logger.LogInformation("Roast critic scored the jokes {Score}/10; rewritten: {Rewritten}", critique.Score, better);
+        return better ? rewritten : picked;
+
+        Task<string> AskAsync(string user, CancellationToken? token = null) => _ai.CompleteJsonAsync(
             new AiCall("roast", _ai.Deployment, "roast", Schema)
             {
                 MediaId = mediaId,
                 Temperature = 1.0f,
                 MaxOutputTokens = 2_500,
             },
-            [new SystemChatMessage(SystemPrompt), new UserChatMessage(prompt.ToString())],
-            ct);
-        var jokes = ReadJokes(raw, moments, max);
-        return _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, ct);
+            [new SystemChatMessage(SystemPrompt), new UserChatMessage(user)],
+            token ?? ct);
     }
 
     internal const string JokeRubric =

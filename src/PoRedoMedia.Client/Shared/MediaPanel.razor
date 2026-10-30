@@ -122,7 +122,12 @@
             if (Media.Kind == MediaKind.Image)
                 items.Add(new() { Text = "Copy the picture", Value = "copy", Icon = "content_copy" });
             if (Media.Kind == MediaKind.Video)
+            {
                 items.Add(new() { Text = "Download a GIF (uses one run the first time)", Value = "gif", Icon = "gif_box", Disabled = _busy });
+                // Each frame is made once, the first time, and then kept with the video.
+                foreach (var aspect in SocialExport.Aspects)
+                    items.Add(new() { Text = $"Social video {SocialExport.Label(aspect)}", Value = $"social:{aspect}", Icon = "aspect_ratio", Disabled = _busy });
+            }
             if (Media.Kind == MediaKind.Video && Media.Text is not null)
                 items.Add(new() { Text = "Download the roast audio", Value = "roast", Icon = "mic" });
             return items;
@@ -142,6 +147,9 @@
                 break;
             case "roast":
                 await JS.InvokeVoidAsync("poMedia.download", $"api/media/{Media.Id}/export/roast");
+                break;
+            case string social when social.StartsWith("social:", StringComparison.Ordinal):
+                await SocialAsync(social["social:".Length..]);
                 break;
         }
     }));
@@ -219,6 +227,24 @@
         }
 
         await JS.InvokeVoidAsync("poMedia.download", $"api/media/{Media.Id}/export/gif");
+    }
+
+    private async Task SocialAsync(string aspect)
+    {
+        if (_busy)
+            return;
+
+        Notifications.Notify(NotificationSeverity.Info, "Re-framing the video", "The first time takes a while and uses one run.", 6000);
+        _busy = true;
+        var error = await Api.MakeSocialAsync(Media.Id, aspect);
+        _busy = false;
+        if (error is not null)
+        {
+            Notifications.Notify(NotificationSeverity.Error, "Could not make the social video", error, 8000);
+            return;
+        }
+
+        await JS.InvokeVoidAsync("poMedia.download", $"api/media/{Media.Id}/export/social?aspect={aspect}");
     }
 
     /// <summary>

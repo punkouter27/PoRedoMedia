@@ -212,6 +212,13 @@ public sealed class VideoFunctionTests(AzuriteFixture azurite) : IDisposable
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/media/{video.Id}/export/gif", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync($"/api/media/{video.Id}/export/gif")).StatusCode);
 
+        // Re-framed for a feed: made once per aspect, then served; an aspect not offered is refused.
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/media/{video.Id}/export/social?aspect=9x16")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/media/{video.Id}/export/social?aspect=9x16", null)).StatusCode);
+        var social = (await client.GetAsync($"/api/media/{video.Id}/export/social?aspect=9x16")).Headers.Location!;
+        Assert.Contains("export-9x16.mp4", social.ToString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync($"/api/media/{video.Id}/export/social?aspect=4x5", null)).StatusCode);
+
         var zip = await client.GetAsync($"/api/media/zip?ids={source.Id},{video.Id}");
         using (var archive = new System.IO.Compression.ZipArchive(await zip.Content.ReadAsStreamAsync()))
             Assert.Equal(2, archive.Entries.Count);
