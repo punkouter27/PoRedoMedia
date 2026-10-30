@@ -27,7 +27,8 @@ dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound libr
 **Projects.** `PoRedoMedia.Api` is the ASP.NET Core host and all server logic; it also hosts
 `PoRedoMedia.Client` (Blazor WebAssembly, prerender off, because the client owns the only UI DI container).
 `PoRedoMedia.Shared` holds wire DTOs, enums (`MediaFunction`), `ConfigKeys`, `FunctionStack` rules and catalogs.
-Wire enums travel as strings over both HTTP and SignalR.
+Wire enums travel as strings over both HTTP and SignalR. Shared is `IsAotCompatible` and the client `IsTrimmable` with
+the AOT analyzer on, so trim- or AOT-unsafe code fails the build; JSON goes through the source-generated `WireJson`.
 
 **Api layout.** `Features/<Slice>/` are vertical slices (Media, Runs, Auth, Render, Sharing, one folder per image
 function, and `Video/` for the one step that runs Meme-ify, Insult roast and Auto-captions together); each exposes
@@ -55,7 +56,9 @@ recovers runs cut short by a restart, and its first sweep per process drops reti
 **Functions only exist when configured.** A function is runnable only if its step was registered, which depends on
 the config keys present (e.g. `Google:ApiKey` enables Gemini images, Veo, Lyria, BulkStyles, PhotoToVideo). Pictures
 are looked at by one `IVisionService` (Gemini, else Azure OpenAI; no user-facing picker); a description written by the
-browser's own model (`Vision.description`) replaces that call. With both Gemini and Azure OpenAI configured, a failed
+browser's own model (`Vision.description`) replaces that call. Create sends one by itself (local first) when On-device
+AI is on and Florence-2 is already in the browser's cache (`LocalAiService.IsVisionReadyAsync`), and runs on the server
+if the device fails; `AiCatalog.LooksAtPicture` decides which functions qualify. With both Gemini and Azure OpenAI configured, a failed
 vision or chat call is asked once of the other provider (`Common/Ai/ProviderFallback`; Gemini chat goes through its
 OpenAI-compatible endpoint) and the run log says so. Both roasts get a critic pass (`IRoastCritic`): a draft scoring
 under 6/10 is rewritten once with the critique.
@@ -78,8 +81,17 @@ Modes: fake auth via `X-Fake-User` (Dev/Test), cookie-only (throws in Production
 Advanced switches in `Client/Services/AppSettings` (On-device AI, Recipes, Cost estimates, Visual
 effects). Every switch starts **off**, so the default app is the simple one; a switch
 only hides UI, never access. Switches live in `localStorage` (`po.adv.*`, `po.fx`) and are read synchronously
-through in-process JS. Every function the server can run is always offered. E2E tests turn switches on with
+through in-process JS. Signed in, `Services/PreferenceSync` pulls `/api/preferences` once from the layout (the account
+wins) and PUTs the whole synced set (`po.adv.*`, `po.fx`, `po.sfx.*`, `po.recipes`) a second after any change; recipes
+are read through `RecipeBook`, which skips functions that no longer exist. Every function the server can run is always offered. E2E tests turn switches on with
 `SignedInPageAsync(path, "po.adv.device-ai", ...)`.
+
+**Client pages.** Each page wraps its body in `Shared/PageBoundary` (retry without a reload, then a reload); the
+layout's own `ErrorBoundary` is the last resort. Create is split into `CreateSteps`, `RecipeBar` and `RunView`; the
+Library into `LibraryToolbar`, `LibraryGrid` and `MediaDrawer` (a Radzen side dialog that follows the page's
+`LibrarySelection`). The app has one keydown listener (`Shared/ShortcutKeys` in the layout, `poMedia.attachKeys`);
+pages take keys with `Shortcuts.Register` and dispose the handle. Components that subscribe to events, SignalR,
+`DotNetObjectReference` or JS listeners release them in `Dispose`/`DisposeAsync`.
 
 **Client effects.** `wwwroot/js/fx/` holds the visual effects (WebGPU fluid backdrop `fluid.js`, which stands in for
 the glass one in `js/backdrop.js` when it can run; particles; shader reveal `dissolve.js` with the pixel-flow
@@ -98,5 +110,6 @@ so `scripts/package.sh` (run by `deploy.yml`) bundles a static ffmpeg and `fonts
 native build (no fontconfig), so the meme renderer falls back to that font file.
 
 **Build version.** `Directory.Build.targets` stamps the client assembly (opt-in `StampBuildVersion`) with a `BuildStamp` (`YYMMDD` from the commit
-date); `MainLayout.razor` shows it bottom-right. MinVer separately sets the semantic version from Git tags, which is
+date), `BuildCommit` (short hash) and `BuildTime` (UTC, to the minute); `MainLayout.razor` shows the stamp bottom-right
+with the other two in its tooltip. MinVer separately sets the semantic version from Git tags, which is
 why CI checks out with `fetch-depth: 0`.

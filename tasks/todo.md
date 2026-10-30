@@ -46,8 +46,26 @@
 - [x] 49 Dead endpoints: every mapped route has a caller in the client, tests or scripts; none removed.
 - [x] 50 (server half) `GET/PUT /api/preferences` with `PreferencesDto`, antiforgery-protected, 16 KB cap, integration-tested.
 
+## Done: UI/UX pass, items 21–50 (2026-10-30)
+
+- [x] 21 Library: one toolbar (title, search, kind, sort, Add media); the bulk bar replaces it while items are ticked.
+- [x] 22 A Library item opens in a slide-out drawer (`MediaDrawer`, a Radzen side dialog); Esc closes it; `?item=` deep links open it.
+- [x] 23 Create in three tabbed steps (Pick media, Functions, Run), each fitting a laptop screen.
+- [x] 24 Runs drawer as cards; run lists and run details have no sideways scroll at phone width.
+- [x] 25 `PageBoundary` around every page body: Try again re-renders without a reload, then Reload; the layout boundary stays.
+- [x] 26 `NavigationUiTests`: every nav route and header link, no console errors, layout shift under 0.1, plus `?` and `/`.
+- [x] 27 Skeleton cards while the Library and the Runs drawer load.
+- [x] 28 Empty states with a next step: the empty Library is a drop zone, Runs offers Go to Create, Create explains an empty library.
+- [x] 29 Keys U, R, /, ? through one keydown listener (`ShortcutKeys`), disposed with the layout; `?` lists them.
+- [x] 30 Build stamp tooltip: commit short hash and build time, stamped by `Directory.Build.targets`.
+- [x] 35 Local first: with On-device AI on and Florence-2 cached, Create describes the picture on the device and falls back to the server; the run shows "On device" or "Server". The manual picker is gone; Settings has Get the model ready.
+- [x] 42 Old recipes with Upscale or Cutout load with those steps skipped (`RecipeBook`, unit-tested).
+- [x] 44 `Create.razor` and `Gallery.razor` split into `CreateSteps`, `RecipeBar`, `RunView`, `LibraryToolbar`, `LibraryGrid`, `MediaDrawer`.
+- [x] 45 Shared is `IsAotCompatible`, the client `IsTrimmable` with the AOT analyzer: no warnings to fix (JSON was already source-generated).
+- [x] 46 Disposal audit: a SignalR connection that failed to join, or that connected after the tracker was disposed, is now closed; new components release what they hold.
+- [x] 50 (client half) Settings switches, effects, sound choices and recipes follow the account through `/api/preferences`.
+
 ## Open
 
 - [ ] Run `scripts/package.sh` once on Linux/WSL, or watch the next deploy, to confirm the moved packaging steps.
-- [ ] Wire the client's settings and recipes to `/api/preferences` so they follow the account (server side done).
-- [ ] Old recipes in a browser that include Upscale or Cutout no longer load (the whole recipe list reads as empty there).
+- [ ] `scripts/run-e2e.ps1` stops when an Azurite container from another compose project already holds the name `poredomedia-azurite`.

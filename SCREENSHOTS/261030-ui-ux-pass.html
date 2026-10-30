@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI/UX pass (items 21–50)</title>
+<style>
+  :root { --bg: #f6f6f8; --card: #fff; --ink: #16181d; --muted: #5b6070; --line: #e3e4ea; --accent: #4340d2; --new: #0f8a5f; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111217; --card: #1a1c23; --ink: #eceef4; --muted: #a2a7b6; --line: #2b2e38; --accent: #8b88ff; --new: #3ddc97; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1280px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .lede { color: var(--muted); margin: 0 0 28px; max-width: 80ch; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin: 0 0 22px; }
+  h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  h2 .tag { display: inline-block; font-size: 0.75rem; font-weight: 700; color: #fff; background: var(--accent); border-radius: 6px; padding: 1px 7px; margin-right: 8px; vertical-align: 2px; }
+  .what { margin: 0 0 14px; color: var(--muted); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pair.phones { grid-template-columns: repeat(5, 1fr); }
+  figure { margin: 0; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); }
+  figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+  figcaption b { color: var(--ink); }
+  figcaption b.new { color: var(--new); }
+  ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+  @media (max-width: 760px) { .pair, .pair.phones { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>UI/UX pass (items 21–30, 35, 42, 44–46, 50)</h1>
+  <p class="lede">Captured headless with Playwright on 2026-10-30 against the Test environment (mock AI, hence the orange
+    banner), 1366×768 for the laptop shots and 390×844 for the phone ones. The same seed is used before and after: two
+    uploaded pictures and one finished Meme caption run, plus a fresh user for the empty states. Everything that has no
+    picture (keys, sync, disposal, analyzers, recipes) is listed at the end.</p>
+
+  <section>
+    <h2><span class="tag">21 · 22</span>Library: one toolbar, details in a slide-out drawer</h2>
+    <p class="what">The title, search, kind filter, sort and Add media now share one row. Opening an item no longer
+    squeezes the grid and pushes a long panel beside it: the details and exports (Use as source, download, share, pin,
+    delete, More → GIF / social video / roast audio, the version tree) slide out from the right. Esc or the × closes it,
+    another card swaps what it shows, and <code>?item=</code> links still open it.</p>
+    <div class="pair">
+      <figure><img src="261030-ui-ux-pass/before-library-details.png" alt="Before: Library with the details panel beside the grid"><figcaption><b>Before</b>: title on its own row; the panel takes a grid column.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-library-details.png" alt="After: Library with one toolbar and the details drawer"><figcaption><b class="new">After</b>: one toolbar row; the drawer slides over the right edge.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">21</span>The bulk bar replaces the toolbar while items are ticked</h2>
+    <div class="pair">
+      <figure><img src="261030-ui-ux-pass/before-library-bulk.png" alt="Before: bulk bar"><figcaption><b>Before</b>: the bulk bar under its own title row.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-library-bulk.png" alt="After: the bulk actions bar"><figcaption><b class="new">After</b>: one ticked: clear, count, Select all, Pin, Unpin, Download, Delete in the same place.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">28 · 27</span>Empty Library is the drop zone</h2>
+    <p class="what">An empty Library used to be one sentence. Now it explains what goes there and is itself the drop zone
+    (drop, paste, choose a file or use the camera, with no Add media click first). While the Library loads, placeholder
+    cards the shape of real ones show, so nothing jumps when the items arrive.</p>
+    <div class="pair">
+      <figure><img src="261030-ui-ux-pass/before-library-empty.png" alt="Before: Nothing here yet text"><figcaption><b>Before</b>: a line of text.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-library-empty.png" alt="After: empty state with drop zone"><figcaption><b class="new">After</b>: icon, heading and the picker in place.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">23 · 44</span>Create in three steps</h2>
+    <p class="what">Pick media → Functions → Run, shown as tabs beside the title. A step that is done can be clicked to go
+    back; one not reached yet cannot. Each step fits a laptop screen: the preview is shorter, recipes and "save as recipe"
+    share one row, and the run step puts its buttons and the runs left today on one line. Create.razor went from 455 to
+    394 lines with <code>CreateSteps</code>, <code>RecipeBar</code> and <code>RunView</code> split out, and Gallery.razor
+    from 430 to 369, its markup now in <code>LibraryToolbar</code>, <code>LibraryGrid</code> and <code>MediaDrawer</code>.</p>
+    <div class="pair">
+      <figure><img src="261030-ui-ux-pass/before-create-empty.png" alt="Before: Create home"><figcaption><b>Before</b>: no sense of where you are in the flow.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-create-empty.png" alt="After: Create step 1 with steps and empty-library hint"><figcaption><b class="new">After</b>: step 1 of 3; a first-time user is told the library is empty and what to do (28).</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/before-create-ticked.png" alt="Before: functions"><figcaption><b>Before</b>: functions.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-create-ticked.png" alt="After: step 2 functions"><figcaption><b class="new">After</b>: step 2; Run button tooltip says <b>R</b>.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/before-create-run.png" alt="Before: run"><figcaption><b>Before</b>: the result runs off the screen.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-create-run.png" alt="After: step 3 run"><figcaption><b class="new">After</b>: step 3 fits: shorter result, actions and quota on one line.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">35</span>Local-first picture description</h2>
+    <p class="what">The "What looks at the picture: Server / On device" picker is gone. With Settings → On-device AI on,
+    Settings offers <b>Get the model ready</b> (about 230 MB, once). From then on Create describes the picture on the
+    device by itself and falls back to the server if that fails (a short notice says so). The summary line says which
+    will look, the estimate counts it, and the run shows a small <b>Picture described: On device / Server</b> chip
+    (only once On-device AI is on, so the default app stays plain).</p>
+    <div class="pair">
+      <figure><img src="261030-ui-ux-pass/before-create-device.png" alt="Before: Create with the Server / On device picker"><figcaption><b>Before</b>: a manual "What looks at the picture" picker.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-create-device.png" alt="After: Create with the description line"><figcaption><b class="new">After</b>: no picker; the summary says the server looks until the model is ready.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/before-settings-device.png" alt="Before: Settings with On-device AI on"><figcaption><b>Before</b>: the switch only.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-settings-device.png" alt="After: Settings with Get the model ready"><figcaption><b class="new">After</b>: Get the model ready, until it is.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/before-create-run-device.png" alt="Before: run without a chip"><figcaption><b>Before</b>: the run does not say what looked, and scrolls (874 px of content for 716 px).</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-create-run-device.png" alt="After: run with Server chip"><figcaption><b class="new">After</b>: "Picture described: Server"; fits (716 of 716 px).</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">24 · 27 · 28</span>Runs as cards; phone width without sideways scroll</h2>
+    <p class="what">Each run is a card: icon, what it did and how it went, then its buttons, which drop under the words on
+    a phone. While the runs load, three placeholder cards show; with none, the drawer offers <b>Go to Create</b>. Run
+    details wrap long step pills and results at any width; the phone pages measured 390 px wide for a 390 px screen.</p>
+    <div class="pair">
+      <figure><img src="261030-ui-ux-pass/before-runs.png" alt="Before: runs list"><figcaption><b>Before</b>: rows.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-runs.png" alt="After: run cards"><figcaption><b class="new">After</b>: cards.</figcaption></figure>
+    </div>
+    <div class="pair phones" style="margin-top:14px">
+      <figure><img src="261030-ui-ux-pass/before-phone-runs.png" alt="Before: phone runs"><figcaption><b>Before</b>: phone, Runs.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-phone-runs.png" alt="After: phone runs"><figcaption><b class="new">After</b>: buttons under the words.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/before-phone-library.png" alt="Before: phone library"><figcaption><b>Before</b>: phone, Library.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-phone-library.png" alt="After: phone library"><figcaption><b class="new">After</b>: phone, Library: one bar.</figcaption></figure>
+      <figure><img src="261030-ui-ux-pass/after-phone-run.png" alt="After: phone run details"><figcaption><b class="new">After</b>: phone run details, numbered steps, no sideways scroll.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">29 · 30</span>Keyboard shortcuts and the build stamp</h2>
+    <p class="what"><b>?</b> opens this list from anywhere; <b>U</b> chooses a file on Create or opens Add media in the
+    Library; <b>R</b> runs when the ticks are ready; <b>/</b> jumps to the search. One keydown listener serves the whole
+    app and is removed with the layout; keys typed into a box are ignored. Hovering the YYMMDD stamp bottom right now
+    shows <code>Build version / Commit be96e04 / Built 2026-10-30 19:18 UTC</code> (a native tooltip, so not in the picture).</p>
+    <figure><img src="261030-ui-ux-pass/after-shortcuts.png" alt="After: keyboard shortcuts dialog"><figcaption><b class="new">After</b>: the <b>?</b> dialog.</figcaption></figure>
+  </section>
+
+  <section>
+    <h2>Without a picture</h2>
+    <ul class="notes">
+      <li><b>25</b> Every page body sits in <code>PageBoundary</code>: a failure shows a small box with <b>Try again</b> (redraws the page, no reload; header, nav and runs carry on) and <b>Reload the page</b>. The layout's boundary stays as the last resort.</li>
+      <li><b>26</b> <code>NavigationUiTests</code> loads every nav route, clicks every header link, the account link, the brand and Runs → Go to Create, presses <b>?</b> and <b>/</b>, and fails on any console error or a layout shift of 0.1 or more.</li>
+      <li><b>42</b> Recipes saved with Upscale or Cutout load with those steps left out (<code>RecipeBook</code>), instead of the whole list reading as empty.</li>
+      <li><b>45</b> Shared is <code>IsAotCompatible</code>, the client <code>IsTrimmable</code> with the AOT analyzer on: zero warnings.</li>
+      <li><b>46</b> A SignalR connection that failed to join a run, or that finished connecting after the run tracker was disposed, is now closed.</li>
+      <li><b>50</b> Signed in, the switches, effects, sound choices and recipes follow the account (<code>/api/preferences</code>; the account wins on sign-in, changes are sent a second later). Checked with two fresh browsers: switches turned on in one were on in the other.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
