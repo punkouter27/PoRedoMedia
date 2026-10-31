@@ -39,6 +39,12 @@ public class SoundAsset
 
     public bool Priority { get; set; }
 
+    /// <summary>
+    /// Where the sound ranks among the most popular meme sounds (1 = the most famous, such as Vine
+    /// boom or Bruh); 0 = unranked (an upload). Famous sounds are matched and offered first.
+    /// </summary>
+    public int Popularity { get; set; }
+
     /// <summary>Human-readable hint for the AI director describing when this sound fits.</summary>
     public string UseCase { get; set; } = string.Empty;
 

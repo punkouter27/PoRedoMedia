@@ -50,13 +50,18 @@ internal static class DirectorPrompt
         - Scene labels, one per line: [i] t=<seconds> energy=<0..1> subject=(x,y) "<what happens>" tags: <tags>.
           energy says how hard the moment hits; subject is the main subject's centre as 0..1 of the frame.
           Lines starting "after the line" mark the moment right after someone finishes speaking — react to what was said.
-        - A sound menu, one per line: [n] <name> | tags | use: <when it fits> | priority | user favorite.
+        - A sound menu, one per line: [n] <name> | tags | use: <when it fits> | priority | famous #<rank> | user favorite.
         - Optionally a speech transcript with timings.
 
         RULES
         - Return exactly one entry per scene label, with labelIndex = that label's [i].
         - soundIndex is a sound's [n] from the menu. Any sound may serve any label — the menu is not a per-label assignment.
-        - Judge fit from each sound's tags and use hint. Prefer "priority" sounds when several fit equally;
+        - Pick the sound that means the right thing for the moment: what the sound is known for in meme culture
+          (its name tells you: BRUH is disappointment, Vine boom is a sudden reveal, a fail horn is a failure) must
+          match what happens or what was just said. Judge fit from the name first, then tags and use hint.
+        - Strongly prefer famous sounds (lower "famous #" is more famous). When a famous sound fits the moment,
+          choose it over an obscure one that fits a little better; viewers laugh at sounds they recognise.
+          Use obscure sounds only when no famous one fits. Prefer "priority" sounds when several fit equally;
           lean towards "user favorite" sounds when they fit. Avoid repeating a sound.
         - Scale the effect to the energy: calm moments get visualEffect None and a light touch; high-energy moments earn DeepFry or MotionBlur.
         - Stickers: overlayAssetId is one of deal-with-it, laser-eyes, thug-life, red-circle, clown-wig, explosion, or null.
@@ -74,6 +79,9 @@ internal static class DirectorPrompt
     /// Compact sound menu (a third of the tokens of the JSON form). Use hints are included when a
     /// human or the tagger wrote one; placeholder hints from imports say nothing and are skipped.
     /// </summary>
+    /// <summary>Sounds ranked this high are marked famous on the menu.</summary>
+    internal const int FamousRank = 60;
+
     public static string SerializeSoundsCompact(IReadOnlyList<SoundAsset> sounds)
     {
         var sb = new StringBuilder();
@@ -87,6 +95,8 @@ internal static class DirectorPrompt
                 sb.Append(" | use: ").Append(s.UseCase);
             if (s.Priority)
                 sb.Append(" | priority");
+            if (s.Popularity is > 0 and <= FamousRank)
+                sb.Append(" | famous #").Append(s.Popularity);
             sb.AppendLine();
         }
         return sb.ToString();

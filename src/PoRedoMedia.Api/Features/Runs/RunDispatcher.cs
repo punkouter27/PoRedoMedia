@@ -9,7 +9,7 @@ namespace PoRedoMedia.Api.Features.Runs;
 /// <summary>
 /// The queues runs wait in, one per lane. A video run renders with ffmpeg, so one executes at a
 /// time per process, which is what the hosting plan's CPU budget can carry. An image run spends
-/// nearly all its time waiting on a remote model (a Veo job takes minutes), so a few run side by
+/// nearly all its time waiting on a remote model (a clip takes a minute or more), so a few run side by
 /// side and none of them holds up a render. One source can have only one run queued or running.
 /// Owners take turns within a lane. The run rows are the durable copy of the queues: what a
 /// restart cuts short is queued again when the next process starts.

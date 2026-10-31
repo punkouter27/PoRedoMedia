@@ -23,7 +23,7 @@ the link can view it), and a video can be downloaded as a GIF, re-framed for soc
 blurred fill; the first time uses a run), as its captions (SRT) or as its roast audio. Each result is given a short
 AI-written title and a one-sentence summary after it is made, and Library search matches both. A run shows how long
 each step took (and, with Cost estimates on, its tokens and estimated cost).
-Meme-ify picks from a seeded sound library (`seed-sounds` command); it has no page of its own.
+Meme-ify picks from a library of 300 popular meme sounds (`scripts/meme-sounds/sounds-metadata.json`, fetched from myinstants.com into storage by `SoundLibrarySeeder` at every start, which skips those already there; the `seed-sounds` command does the same by hand). The list is in popularity order: each sound's rank boosts its match and the 30 most famous are always on the AI director's menu, which is told to prefer famous sounds that fit. It has no page of its own.
 Rap roast has no options: it is always a stand-up set at full strength with strong language allowed.
 Bulk styles skips any empty prompt box; its Clear button empties all ten to type your own.
 
@@ -48,9 +48,9 @@ Soft. A run that ends plays its own chime, one for done and one for failed.
 ## Configuration that decides what exists
 
 A function is offered only when its provider is configured (see `Shared/ConfigKeys.cs`):
-`Google:ApiKey` (Gemini images and vision, whole-clip video vision, Veo, Lyria), `OpenAI:*` (chat;
+`Google:ApiKey` (Gemini images and vision, whole-clip video vision, Gemini Omni Flash for Photo to video, Lyria), `OpenAI:*` (chat;
 vision when there is no Google key), `AiFoundry:*` (sampled-frame video vision, director, roast
-voice, speech). With both `Google:ApiKey` and `OpenAI:*`, a failed vision or chat call is retried once on the
+voice, speech; `AiFoundry:ImageDeployment`, FLUX.1 Kontext, draws when Gemini images fail, e.g. out of credit; `AiFoundry:TtsDeployment` speaks the rap roast when Lyria fails). With both `Google:ApiKey` and `OpenAI:*`, a failed vision or chat call is retried once on the
 other provider and the run log says so. Both roasts are scored by a critic and rewritten once when weak.
 `Mocks:UseMockAi` (Test only) replaces every provider.
 

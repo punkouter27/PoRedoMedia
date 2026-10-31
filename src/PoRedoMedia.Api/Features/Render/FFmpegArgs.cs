@@ -69,8 +69,10 @@ internal static class FFmpegArgs
             sb.Append(CultureInfo.InvariantCulture, $"-ss {trimStartSeconds:0.###} ");
         sb.Append(CultureInfo.InvariantCulture, $"-i \"{sourcePath}\"");
 
-        // Inputs 1..N: sound files
-        foreach (var entry in entries)
+        // Inputs 1..N: sound files. A cue without one (a caption or sticker whose sound waited or
+        // was muted, see TurnTaking) only shows.
+        var audible = entries.Where(e => !string.IsNullOrEmpty(e.SoundPath)).ToList();
+        foreach (var entry in audible)
             sb.Append(CultureInfo.InvariantCulture, $" -i \"{entry.SoundPath}\"");
 
         // Overlay inputs (distinct file paths to avoid duplicate inputs)
@@ -79,7 +81,7 @@ internal static class FFmpegArgs
         var overlayInputMap = new Dictionary<string, int>();
         for (var i = 0; i < distinctOverlays.Count; i++)
         {
-            var inputIndex = entries.Count + 1 + i;
+            var inputIndex = audible.Count + 1 + i;
             overlayInputMap[distinctOverlays[i]] = inputIndex;
             sb.Append(CultureInfo.InvariantCulture, $" -i \"{distinctOverlays[i]}\"");
         }
@@ -93,7 +95,7 @@ internal static class FFmpegArgs
         var hasAdvancedVideo = effectCues.Count > 0 || overlayEntries.Count > 0;
         var hasVideoFilters = hasBaseVideoFilters || hasAdvancedVideo;
 
-        var buildAudioMix = entries.Count > 0;
+        var buildAudioMix = audible.Count > 0;
 
         if (hasVideoFilters || buildAudioMix)
         {
@@ -156,10 +158,10 @@ internal static class FFmpegArgs
 
             if (buildAudioMix)
             {
-                // A roast is speech: with one, everything else is the bed under it. The meme sounds
-                // drop to a third, and the whole bed — source and sounds — ducks while a joke is said.
-                // Ducking only the source left the sounds at full level on top of the punchline.
-                var voices = Enumerable.Range(0, entries.Count).Where(i => entries[i].Voice).ToList();
+                // Meme sounds and roast lines take turns (see TurnTaking) and each arrives with the
+                // gain that brings it to one loudness target, so neither drowns the other. Only the
+                // source's own audio ducks while a joke is said.
+                var voices = Enumerable.Range(0, audible.Count).Where(i => audible[i].Voice).ToList();
 
                 // Original audio sits slightly under the meme sounds so the effects cut through.
                 if (sourceHasAudio)
@@ -169,33 +171,33 @@ internal static class FFmpegArgs
                     fc.Append("[0:a]volume=0.85[aorig]");
                 }
 
-                for (var i = 0; i < entries.Count; i++)
+                for (var i = 0; i < audible.Count; i++)
                 {
-                    var delayMs = entries[i].TimestampMs;
-                    var gain = entries[i].Voice ? ",volume=2" : voices.Count > 0 ? ",volume=0.3" : string.Empty;
+                    var delayMs = audible[i].TimestampMs;
+                    var gain = audible[i].GainDb is { } db ? string.Create(CultureInfo.InvariantCulture, $",volume={db:0.##}dB") : string.Empty;
                     if (fc.Length > 0)
                         fc.Append(';');
                     fc.Append(CultureInfo.InvariantCulture, $"[{i + 1}:a]adelay={delayMs}|{delayMs}{gain}[a{i}]");
                 }
 
+                var sounds = Enumerable.Range(0, audible.Count).Where(i => !audible[i].Voice).Select(i => $"[a{i}]").ToList();
                 var labels = new List<string>();
-                if (sourceHasAudio)
-                    labels.Add("[aorig]");
-                labels.AddRange(Enumerable.Range(0, entries.Count).Where(i => !entries[i].Voice).Select(i => $"[a{i}]"));
-
-                if (voices.Count > 0 && labels.Count > 0)
+                if (voices.Count > 0 && sourceHasAudio)
                 {
                     // The voices become one bus: one copy is heard, the other keys the compressor
-                    // on the bed. apad keeps the key running to the end — sidechaincompress stops
-                    // at its shorter input, which cut the bed off after the last joke.
+                    // on the source. apad keeps the key running to the end — sidechaincompress stops
+                    // at its shorter input, which cut the source off after the last joke.
                     fc.Append(CultureInfo.InvariantCulture, $";{string.Concat(voices.Select(i => $"[a{i}]"))}amix=inputs={voices.Count}:normalize=0:duration=longest,asplit[vox][voxdry]");
-                    fc.Append(CultureInfo.InvariantCulture, $";[voxdry]apad[voxkey];{string.Concat(labels)}amix=inputs={labels.Count}:normalize=0:duration=longest[bed]");
-                    fc.Append(";[bed][voxkey]sidechaincompress=threshold=0.015:ratio=12:attack=15:release=400[ducked]");
-                    labels = ["[ducked]", "[vox]"];
+                    fc.Append(";[voxdry]apad[voxkey];[aorig][voxkey]sidechaincompress=threshold=0.015:ratio=12:attack=15:release=400[ducked]");
+                    labels.Add("[ducked]");
+                    labels.AddRange(sounds);
+                    labels.Add("[vox]");
                 }
                 else
                 {
-                    labels.AddRange(voices.Select(i => $"[a{i}]"));
+                    if (sourceHasAudio)
+                        labels.Add("[aorig]");
+                    labels.AddRange(Enumerable.Range(0, audible.Count).Select(i => $"[a{i}]"));
                 }
 
                 var mixInputs = string.Concat(labels);

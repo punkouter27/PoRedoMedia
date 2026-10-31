@@ -113,6 +113,50 @@ public sealed class ImageAiTests
     }
 
     [Fact]
+    public async Task FLUX_draws_what_Gemini_fails_and_when_both_fail_the_users_first_reason_is_kept()
+    {
+        var tally = AiMeter.Begin();
+        var outOfCredit = new RunStepException("The Google AI account is out of credit.");
+        var stands = new FallbackImageService(
+            new StubImages(outOfCredit), ProviderFallback.Gemini, new StubImages(null), "FLUX (Azure)", NullLogger<FallbackImageService>.Instance);
+        var neither = new FallbackImageService(
+            new StubImages(outOfCredit), ProviderFallback.Gemini, new StubImages(new HttpRequestException("429")), "FLUX (Azure)", NullLogger<FallbackImageService>.Instance);
+
+        Assert.Equal([1, 2, 3], (await stands.EditAsync("watercolor", Image)).Data);
+        Assert.Equal(["Gemini image failed; FLUX (Azure) answered instead"], tally.TakeFallbacks());
+        Assert.Same(outOfCredit, await Assert.ThrowsAsync<RunStepException>(() => neither.GenerateAsync("a cat")));
+
+        // The roast's performer works the same way: Azure speech performs what Lyria fails.
+        var performers = new FallbackMusicService(
+            new StubMusic(outOfCredit), "Lyria", new StubMusic(null), "Azure speech", NullLogger<FallbackMusicService>.Instance);
+        Assert.Equal("audio/mpeg", (await performers.GenerateAsync("bars", "stand-up")).ContentType);
+        Assert.Equal(["Lyria performance failed; Azure speech answered instead"], tally.TakeFallbacks());
+
+        // A long reproduction prompt is cut from the description, never from the style at its end.
+        var fitted = FluxImageService.Fit(new string('d', 3000) + "\n\nRender the whole scene in this style: watercolor");
+        Assert.Equal(FluxImageService.MaxPrompt, fitted.Length);
+        Assert.EndsWith("style: watercolor", fitted);
+    }
+
+    private sealed class StubMusic(Exception? failure) : IMusicGenerationService
+    {
+        public bool IsConfigured => true;
+
+        public Task<MusicGenerationResult> GenerateAsync(string lyrics, string stylePrompt, CancellationToken ct = default) =>
+            failure is null ? Task.FromResult(new MusicGenerationResult([1], "audio/mpeg", 1)) : Task.FromException<MusicGenerationResult>(failure);
+    }
+
+    private sealed class StubImages(Exception? failure) : IImageGenerationService
+    {
+        public Task<GeneratedImage> GenerateAsync(string prompt, byte[]? matchAspectOf = null, CancellationToken ct = default) => Draw();
+
+        public Task<GeneratedImage> EditAsync(string prompt, byte[] image, int seed = 0, CancellationToken ct = default) => Draw();
+
+        private Task<GeneratedImage> Draw() =>
+            failure is null ? Task.FromResult(new GeneratedImage([1, 2, 3], "image/png")) : Task.FromException<GeneratedImage>(failure);
+    }
+
+    [Fact]
     public async Task A_weak_roast_is_rewritten_once_with_the_critique_and_a_strong_or_unjudged_one_is_kept()
     {
         var rewrites = 0;

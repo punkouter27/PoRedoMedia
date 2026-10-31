@@ -11,7 +11,7 @@ docker compose up -d                                   # Azurite (local Tables +
 dotnet run --project src/PoRedoMedia.Api               # http://localhost:4100 (also serves the Blazor client)
 dotnet build PoRedoMedia.slnx                          # warnings are errors, so this is the lint step too
 dotnet test tests/PoRedoMedia.UnitTests --filter "FullyQualifiedName~MemeRenderingTests"   # one class / test
-dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound library, then exits
+dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound library, then exits (the app also does this at startup)
 ```
 
 - `IntegrationTests` start their own throwaway Azurite through Testcontainers (`AzuriteFixture`), never the compose
@@ -31,7 +31,7 @@ Wire enums travel as strings over both HTTP and SignalR. Shared is `IsAotCompati
 the AOT analyzer on, so trim- or AOT-unsafe code fails the build; JSON goes through the source-generated `WireJson`.
 
 **Api layout.** `Features/<Slice>/` are vertical slices (Media, Runs, Auth, Render, Sharing, one folder per image
-function, and `Video/` for the one step that runs Meme-ify, Insult roast and Auto-captions together); each exposes
+function, and `Video/` for the one step that runs Meme-ify, Insult roast and Auto-captions together; its meme sounds and roast lines take turns, `TurnTaking`, and the renderer levels every clip to -16 LUFS); each exposes
 `MapX(this IEndpointRouteBuilder)` called from `Program.cs`. `Common/` holds cross-slice contracts, strongly typed IDs,
 storage, AI providers (`Common/Ai`, including the video vision and speech clients) and `ImageBytes` (all still-image
 decode/encode, on SkiaSharp). Exports of a result live under `/api/media/{id}/export/{gif|social|srt|roast}`
@@ -51,10 +51,10 @@ refunded. Each finished step is recorded as a `StepTelemetryDto` (seconds, AI ca
 `IMediaSummarizer` (title of at most six words plus a one-sentence `Summary` on the media row, which Library search
 matches); naming never fails a run. Progress goes out over SignalR (`RunHub` at `/hubs/run`); `HousekeepingService`
 recovers runs cut short by a restart, and its first sweep per process drops retired storage (`SoundFavorites`,
-`media/*/script.json`). The queue, upload rate limit and Veo job waits are in-process only (marked `ponytail:`).
+`media/*/script.json`). The queue, upload rate limit and video-clip waits are in-process only (marked `ponytail:`).
 
 **Functions only exist when configured.** A function is runnable only if its step was registered, which depends on
-the config keys present (e.g. `Google:ApiKey` enables Gemini images, Veo, Lyria, BulkStyles, PhotoToVideo). Pictures
+the config keys present (e.g. `Google:ApiKey` enables Gemini images, Omni video, Lyria, BulkStyles, PhotoToVideo). Pictures
 are looked at by one `IVisionService` (Gemini, else Azure OpenAI; no user-facing picker); a description written by the
 browser's own model (`Vision.description`) replaces that call. Create sends one by itself (local first) when On-device
 AI is on and Florence-2 is already in the browser's cache (`LocalAiService.IsVisionReadyAsync`), and runs on the server

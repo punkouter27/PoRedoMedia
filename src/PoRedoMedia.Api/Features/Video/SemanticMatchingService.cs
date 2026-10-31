@@ -31,6 +31,17 @@ public sealed class SemanticMatchingService : ISemanticMatchingService
     // with comparable overlap, without letting a zero-overlap sound win.
     private const float PriorityBoost = 1.5f;
 
+    /// <summary>
+    /// Famous sounds win over obscure ones that fit about as well: the most popular gets this much
+    /// extra, falling evenly to none at <see cref="PopularityReach"/>. Like the priority boost, it
+    /// scales a match and cannot make a sound that shares no term with the moment win.
+    /// </summary>
+    private const float PopularityBoost = 0.8f;
+    private const int PopularityReach = 150;
+
+    internal static float PopularityFactor(int popularity) =>
+        popularity is > 0 and <= PopularityReach ? 1 + PopularityBoost * (1 - (popularity - 1) / (float)PopularityReach) : 1;
+
     /// <summary>Tokens shorter than this are noise ("a", "of", "in") and are dropped.</summary>
     private const int MinTokenLength = 3;
 
@@ -59,6 +70,7 @@ public sealed class SemanticMatchingService : ISemanticMatchingService
                     var score = TensorPrimitives.CosineSimilarity<float>(lexical, d.Vector);
                     if (d.Sound.Priority)
                         score *= PriorityBoost;
+                    score *= PopularityFactor(d.Sound.Popularity);
                     return new SoundCandidate(d.Sound, score);
                 })
                 .Where(c => c.Score > 0)

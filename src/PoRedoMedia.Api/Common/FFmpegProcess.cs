@@ -115,6 +115,53 @@ public sealed partial class FFmpegProcess
             : 0;
 
     /// <summary>
+    /// The clip's integrated loudness in LUFS (EBU R128), or null when it could not be measured
+    /// (silence reads as -70). Measured, then gained by a fixed amount, because single-pass
+    /// loudnorm lands clips under three seconds several LU off target.
+    /// </summary>
+    public async Task<double?> LoudnessLufsAsync(string path, CancellationToken ct)
+    {
+        try
+        {
+            var psi = BuildPsi("ffmpeg", $"-hide_banner -nostats -i \"{path}\" -map 0:a:0 -af ebur128=framelog=quiet -f null -");
+            psi.RedirectStandardError = true;
+            using var process = Process.Start(psi);
+            if (process is null)
+                return null;
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(ProbeTimeout);
+            try
+            {
+                var report = await process.StandardError.ReadToEndAsync(timeout.Token);
+                await process.WaitForExitAsync(timeout.Token);
+                return ParseIntegratedLoudness(report);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill(entireProcessTree: true);
+                throw;
+            }
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            LogProbeFailed(ex, path);
+            return null;
+        }
+    }
+
+    /// <summary>The last <c>I: -14.2 LUFS</c> in an ebur128 report (its summary), or null.</summary>
+    internal static double? ParseIntegratedLoudness(string report)
+    {
+        var matches = System.Text.RegularExpressions.Regex.Matches(report, @"I:\s+(-?\d+(?:\.\d+)?) LUFS");
+        return matches.Count > 0
+            && double.TryParse(matches[^1].Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lufs)
+            && lufs > -70
+            ? lufs
+            : null;
+    }
+
+    /// <summary>
     /// ffprobe's stdout, or null when it could not start, failed or ran past
     /// <see cref="ProbeTimeout"/> (it is then killed, like a render that overruns). A probe had no
     /// limit at all, so one stuck on a damaged upload held the run's lane for good.

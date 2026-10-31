@@ -87,7 +87,20 @@ public sealed class VideoStep(
 
         var track = context.Has(MediaFunction.VideoRoast) ? await RoastAsync(context, labels, transcript, duration, ct) : null;
         if (track is not null)
-            cues.AddRange(track.Lines.Select(l => new RenderVisualEntry(l.TimestampMs, l.BlobPath, null, null, null, Voice: true)));
+        {
+            cues.AddRange(track.Lines.Select(l => new RenderVisualEntry(l.TimestampMs, l.BlobPath, null, null, null, Voice: true, DurationMs: l.DurationMs)));
+
+            // Meme sounds and jokes take turns on one speaker (see TurnTaking).
+            var turns = TurnTaking.Arrange(cues, (long)(duration * 1000));
+            cues = turns.Cues;
+            if (turns.JokesMoved + turns.JokesDropped + turns.SoundsWaited + turns.SoundsLeftOut > 0)
+                await context.ReportAsync(
+                    $"Taking turns: {turns.JokesMoved} joke(s) waited for a meme sound, {turns.SoundsWaited} meme sound(s) waited for a joke"
+                    + (turns.SoundsLeftOut > 0 ? $", {turns.SoundsLeftOut} meme sound(s) left out (their captions still show)" : "")
+                    + (turns.JokesDropped > 0 ? $", {turns.JokesDropped} joke(s) ran past the end" : ""));
+            foreach (var turn in cues.Where(c => !string.IsNullOrEmpty(c.SoundPath)))
+                await context.ReportAsync(string.Create(CultureInfo.InvariantCulture, $"TURN {turn.TimestampMs / 1000.0:0.0}s–{(turn.TimestampMs + turn.DurationMs) / 1000.0:0.0}s · {(turn.Voice ? "roast" : "meme sound")}"));
+        }
 
         await context.ReportAsync("Rendering");
         var output = new MediaItem
@@ -289,7 +302,7 @@ public sealed class VideoStep(
         var library = (await sounds.LoadAllAsync(ct)).VisibleTo(context.Run.Owner);
         if (library.Count == 0)
         {
-            context.AddNote("The sound library is empty, so no meme sounds were added. Seed it with the seed-sounds command.");
+            context.AddNote("The sound library is still loading (it fills itself after the app starts), so no meme sounds were added. Try again in a few minutes.");
             return ([], null);
         }
 
@@ -335,6 +348,8 @@ public sealed class VideoStep(
         ApplySubjectDefaults(entries, plan.ApprovedLabels);
         entries = [.. entries.OrderBy(e => e.TimestampMs)];
         SnapToAudio(entries, plan.ApprovedLabels, sourceAudio, duration);
+        if (PlacementPlanner.NoRepeats(entries, plan.DirectorMenu) is > 0 and var swapped)
+            await context.ReportAsync($"{swapped} repeated sound(s) swapped for unused ones, so each sound plays once");
 
         return (await CuesAsync(context, entries, library), title);
     }
@@ -343,13 +358,14 @@ public sealed class VideoStep(
     private static async Task<List<RenderVisualEntry>> CuesAsync(RunContext context, ScriptEntry[] entries, IReadOnlyList<SoundAsset> library)
     {
         // A cue whose sound has left the library is dropped rather than failing the render.
-        var soundPaths = library.ToDictionary(s => s.SoundId, s => s.BlobPath);
+        var byId = library.ToDictionary(s => s.SoundId);
         var cues = new List<RenderVisualEntry>();
-        foreach (var e in entries.Where(e => soundPaths.ContainsKey(e.SoundId)))
+        foreach (var e in entries.Where(e => byId.ContainsKey(e.SoundId)))
         {
             cues.Add(new RenderVisualEntry(
-                e.TimestampMs, soundPaths[e.SoundId], e.VisualEffect?.ToString(), e.CaptionText, e.CaptionPosition,
-                FFmpegArgs.ResolveOverlayAssetPath(e.OverlayAssetId), e.OverlayX, e.OverlayY, e.OverlayScale));
+                e.TimestampMs, byId[e.SoundId].BlobPath, e.VisualEffect?.ToString(), e.CaptionText, e.CaptionPosition,
+                FFmpegArgs.ResolveOverlayAssetPath(e.OverlayAssetId), e.OverlayX, e.OverlayY, e.OverlayScale,
+                DurationMs: byId[e.SoundId].DurationMs));
             await context.ReportAsync(
                 string.Create(CultureInfo.InvariantCulture, $"HIT #{cues.Count} · {e.TimestampMs / 1000.0:0.0}s · {e.SoundName}")
                 + (string.IsNullOrWhiteSpace(e.CaptionText) ? "" : $" · \"{e.CaptionText}\"")

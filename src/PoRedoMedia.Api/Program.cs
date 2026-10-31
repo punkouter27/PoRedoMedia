@@ -61,6 +61,7 @@ builder.Services.AddSingleton<RunExecutor>();
 builder.Services.AddSingleton<RunDispatcher>();
 builder.Services.AddHostedService(services => services.GetRequiredService<RunDispatcher>());
 builder.Services.AddHostedService<HousekeepingService>();
+builder.Services.AddHostedService<SoundLibrarySeeder>();
 builder.Services.AddSignalR().AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 // Wire enums travel as their names, matching the client's source-generated JSON.
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));

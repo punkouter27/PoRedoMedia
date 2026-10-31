@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>261030 · Auto-captions removed from the video functions</title>
+<style>
+ body{font-family:Segoe UI,Arial,sans-serif;background:#f4f3fb;margin:0;padding:24px;color:#222}
+ h1{font-size:22px;margin:0 0 4px} p.sub{margin:0 0 18px;color:#555}
+ .row{display:flex;gap:28px}
+ .panel{flex:1;background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 8px #0001}
+ .panel h2{margin:0 0 12px;font-size:17px} .before h2{color:#b42318} .after h2{color:#067647}
+ .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+ .tile{border:2px solid #e3e3e8;border-radius:12px;padding:14px;position:relative;min-height:96px}
+ .tile.on{border-color:#7b6cf6;background:#f1efff}
+ .tile b{display:block;font-size:16px;margin:6px 0 4px} .tile span{font-size:13px;color:#555}
+ .tile i{font-style:normal;color:#5b4ce0;font-weight:700}
+ .box{position:absolute;right:12px;top:12px;width:18px;height:18px;border:2px solid #777;border-radius:4px}
+ .on .box{background:#5b4ce0;border-color:#5b4ce0}
+ .gone{border:2px dashed #d92d20;background:#fff4f3}
+ .note{margin-top:12px;font-size:13px;background:#fffbe6;border-left:4px solid #f5b400;padding:8px 10px;border-radius:6px}
+</style></head><body>
+<h1>Create → Functions (video): Auto-captions removed</h1>
+<p class="sub">After picking a video, the function tiles no longer offer Auto-captions.</p>
+<div class="row">
+ <div class="panel before"><h2>Before</h2><div class="grid">
+  <div class="tile on"><i>✦</i><b>Meme-ify</b><span>Meme sounds, captions and stickers at the right moments.</span><div class="box"></div></div>
+  <div class="tile"><i>🎤</i><b>Insult roast</b><span>A voice roasts what happens.</span><div class="box"></div></div>
+  <div class="tile gone"><i>CC</i><b>Auto-captions</b><span>Burn in subtitles of what is said.</span><div class="box"></div></div>
+ </div><div class="note">① The Auto-captions tile (dashed red) is the one being removed.</div></div>
+ <div class="panel after"><h2>After</h2><div class="grid">
+  <div class="tile on"><i>✦</i><b>Meme-ify</b><span>Meme sounds, captions and stickers at the right moments.</span><div class="box"></div></div>
+  <div class="tile"><i>🎤</i><b>Insult roast</b><span>A voice roasts what happens.</span><div class="box"></div></div>
+ </div><div class="note">② Only Meme-ify and Insult roast remain. Older runs and recipes that used captions still work on the server.</div></div>
+</div></body></html>

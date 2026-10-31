@@ -94,6 +94,8 @@ public sealed class LyriaMusicService : IMusicGenerationService
             }
 
             _logger.LogError("Lyria API error {Status}: {Body}", (int)response.StatusCode, errorBody);
+            if ((int)response.StatusCode == 402)
+                throw new RunStepException("The Google AI account is out of credit. Top it up in AI Studio, then try again.");
             throw new InvalidOperationException($"Lyria API returned {(int)response.StatusCode}: {errorBody}");
         }
 

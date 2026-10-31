@@ -200,6 +200,9 @@ window.poMedia = {
 
     async startCamera(video) {
         try {
+            // The preview never plays sound: once recording adds the microphone, playing it back
+            // through the speakers would feed back into it.
+            video.muted = true;
             video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
             await video.play();
             return true;
@@ -219,10 +222,15 @@ window.poMedia = {
         const type = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
         if (!type) return false;
         try {
-            // The photo preview has no sound. Without a microphone the clip is simply silent.
+            // The photo preview has no sound. Without a microphone the clip is simply silent. The
+            // microphone goes to the recorder only; the muted preview never plays it.
             try {
-                const withSound = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+                const withSound = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' },
+                    audio: { echoCancellation: true, noiseSuppression: true },
+                });
                 video.srcObject.getTracks().forEach((track) => track.stop());
+                video.muted = true;
                 video.srcObject = withSound;
                 await video.play();
             } catch { /* keep the picture-only stream */ }

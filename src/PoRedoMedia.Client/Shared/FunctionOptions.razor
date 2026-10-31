@@ -141,20 +141,9 @@
 @if (Functions.Contains(MediaFunction.Restyle))
 {
     <RadzenFieldset Text="Restyle" AllowCollapse="true" class="rz-mt-2">
-        <RadzenStack Gap="0.75rem">
-            <RadzenFormField Text="Style">
-                <RadzenDropDown TValue="string" Data="StyleRecipeCatalog.All" ValueProperty="Id" TextProperty="Title"
-                                AllowClear="true" Placeholder="None: recreate the picture as it is"
-                                Value="@Get(RunOptions.RestyleStyle)" Change="@(v => Set(RunOptions.RestyleStyle, v?.ToString() ?? ""))" />
-            </RadzenFormField>
-            @if (StyleRecipeCatalog.All.FirstOrDefault(r => r.Id == Get(RunOptions.RestyleStyle)) is { } recipe)
-            {
-                <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">@recipe.Category · @recipe.Description</RadzenText>
-            }
-            <RadzenFormField Text="Or describe a style in your own words">
-                <RadzenTextBox Value="@Get(RunOptions.RestylePrompt)" MaxLength="400" aria-label="Style in your own words" Change="@(v => Set(RunOptions.RestylePrompt, v))" />
-            </RadzenFormField>
-        </RadzenStack>
+        <RadzenFormField Text="Describe the new look (optional)" class="po-fill">
+            <RadzenTextBox Value="@Get(RunOptions.RestylePrompt)" MaxLength="400" aria-label="Describe the new look" Change="@(v => Set(RunOptions.RestylePrompt, v))" />
+        </RadzenFormField>
     </RadzenFieldset>
 }
 
@@ -165,49 +154,6 @@
             <RadzenTextArea Value="@Get(RunOptions.VideoPrompt)" Rows="3" MaxLength="1200" aria-label="What should happen in the clip" Change="@(v => Set(RunOptions.VideoPrompt, v))" />
         </RadzenFormField>
         <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-2 rz-mb-0">Makes an 8-second clip with sound. It takes a few minutes.</RadzenText>
-    </RadzenFieldset>
-}
-
-@if (Functions.Contains(MediaFunction.MemeCaption))
-{
-    <RadzenFieldset Text="Meme caption" AllowCollapse="true" class="rz-mt-2">
-        <RadzenStack Gap="0.75rem">
-            <RadzenSelectBar TValue="string" Value="@Mode" Change="@((string mode) => Set(RunOptions.MemeMode, mode))" aria-label="Where the text comes from">
-                <Items>
-                    <RadzenSelectBarItem Text="AI writes it" Value="@RunOptions.MemeModeAi" />
-                    <RadzenSelectBarItem Text="I'll type it" Value="@RunOptions.MemeModeText" />
-                    <RadzenSelectBarItem Text="Template" Value="@RunOptions.MemeModeTemplate" />
-                </Items>
-            </RadzenSelectBar>
-
-            @if (Mode == RunOptions.MemeModeText)
-            {
-                <RadzenFormField Text="Top text">
-                    <RadzenTextBox Value="@Get(RunOptions.MemeTop)" MaxLength="120" aria-label="Top text" Change="@(v => Set(RunOptions.MemeTop, v))" />
-                </RadzenFormField>
-                <RadzenFormField Text="Bottom text">
-                    <RadzenTextBox Value="@Get(RunOptions.MemeBottom)" MaxLength="120" aria-label="Bottom text" Change="@(v => Set(RunOptions.MemeBottom, v))" />
-                </RadzenFormField>
-            }
-            else if (Mode == RunOptions.MemeModeTemplate)
-            {
-                <RadzenFormField Text="Template">
-                    <RadzenDropDown TValue="string" Data="_templates" ValueProperty="Id" TextProperty="Name"
-                                    Value="@Get(RunOptions.MemeTemplate)" Change="@(v => Set(RunOptions.MemeTemplate, v?.ToString() ?? ""))" />
-                </RadzenFormField>
-                @if (_templates.FirstOrDefault(t => t.Id == Get(RunOptions.MemeTemplate)) is { } template)
-                {
-                    <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">@template.Description</RadzenText>
-                    @for (var i = 0; i < template.ZoneLabels.Length; i++)
-                    {
-                        var index = i;
-                        <RadzenFormField Text="@template.ZoneLabels[index]">
-                            <RadzenTextBox Value="@Get(RunOptions.MemeZone(index))" MaxLength="120" aria-label="@template.ZoneLabels[index]" Change="@(v => Set(RunOptions.MemeZone(index), v))" />
-                        </RadzenFormField>
-                    }
-                }
-            }
-        </RadzenStack>
     </RadzenFieldset>
 }
 
@@ -226,7 +172,6 @@
 
     private static readonly string[] Personas = ["standard", "brainrot", "mlg", "sitcom", "drama", "anime"];
 
-    private List<MemeTemplateDto> _templates = [];
     private List<string> _bulk = [];
     private List<bool> _bulkTicked = [];
     private string _bulkSaved = "";
@@ -241,10 +186,6 @@
             WriteBulk();
             await Changed.InvokeAsync();
         }
-
-        // A recipe can arrive already set to a template, without passing through Set.
-        if (Functions.Contains(MediaFunction.MemeCaption) && Mode == RunOptions.MemeModeTemplate && _templates.Count == 0)
-            _templates = await Runs.GetMemeTemplatesAsync();
     }
 
     private Task TickBulk(int index, bool on)
@@ -376,15 +317,11 @@
         return Changed.InvokeAsync();
     }
 
-    private string Mode => Get(RunOptions.MemeMode) is { Length: > 0 } mode ? mode : RunOptions.MemeModeAi;
-
     private string Get(string key) => Options.GetValueOrDefault(key, "");
 
     private async Task Set(string key, string value)
     {
         Options[key] = value;
-        if (value == RunOptions.MemeModeTemplate && _templates.Count == 0)
-            _templates = await Runs.GetMemeTemplatesAsync();
         await Changed.InvokeAsync();
     }
 

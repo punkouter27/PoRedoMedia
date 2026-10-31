@@ -77,6 +77,13 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
             for (var i = 0; i < job.Cues.Count; i++)
             {
                 var cue = job.Cues[i];
+                if (string.IsNullOrEmpty(cue.SoundPath))
+                {
+                    // Only a caption, sticker or effect: nothing to fetch.
+                    renderEntries.Add(cue);
+                    continue;
+                }
+
                 var soundExt = Path.GetExtension(cue.SoundPath);
                 if (string.IsNullOrEmpty(soundExt)) soundExt = ".mp3";
                 var soundPath = Path.Combine(tempDir, $"sound_{i}{soundExt}");
@@ -89,7 +96,7 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
                         _logger.LogWarning("Sound {Index} ({Path}) has no valid audio stream — skipping", i, soundPath);
                         continue;
                     }
-                    renderEntries.Add(cue with { SoundPath = soundPath });
+                    renderEntries.Add(cue with { SoundPath = soundPath, GainDb = GainToTarget(await _ffmpeg.LoudnessLufsAsync(soundPath, cancellationToken)) });
                     _logger.LogDebug("Sound {Index} downloaded: {Path}", i, soundPath);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -227,6 +234,12 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
         }
         return frames;
     }
+
+    /// <summary>Meme sounds and roast lines all play at this loudness, in LUFS.</summary>
+    internal const double TargetLufs = -16;
+
+    /// <summary>The gain that brings a clip measured at <paramref name="lufs"/> to <see cref="TargetLufs"/>, within ±20 dB; null when unmeasured.</summary>
+    internal static double? GainToTarget(double? lufs) => lufs is { } measured ? Math.Round(Math.Clamp(TargetLufs - measured, -20, 20), 2) : null;
 
     private async Task DownloadBlobToFileAsync(string blobPath, string destPath, CancellationToken ct)
     {

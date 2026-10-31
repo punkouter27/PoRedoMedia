@@ -7,14 +7,6 @@
     margin-bottom: 0.75rem;
 }
 
-/* Home: the picker, with the overview beside it on wide screens and under it on narrow ones. */
-.home {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
-    gap: 1rem;
-    align-items: start;
-}
-
 .create-split {
     display: grid;
     grid-template-columns: minmax(240px, 2fr) minmax(360px, 5fr);
@@ -101,8 +93,7 @@
 }
 
 @media (max-width: 1024px) {
-    /* minmax(0, …): a wide child, such as the sideways strip of recent media, must not widen the column. */
-    .home,
+    /* minmax(0, …): a wide child must not widen the column. */
     .create-split {
         grid-template-columns: minmax(0, 1fr);
     }

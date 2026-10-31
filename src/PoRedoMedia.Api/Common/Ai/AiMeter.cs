@@ -16,7 +16,7 @@ namespace PoRedoMedia.Api.Common.Ai;
 /// Calls reach here three ways: <see cref="AiFoundryClient"/> for the Foundry chat calls,
 /// <see cref="MeteredChatClient"/> for everything behind <see cref="IChatClient"/>, and
 /// <see cref="AiMeterHandler"/> on the HTTP clients of the providers that are plain REST
-/// (Gemini, Veo, Lyria, fal, speech).
+/// (Gemini, Omni, Lyria, fal, speech).
 /// </remarks>
 public sealed partial class AiMeter(IConfiguration configuration, ILogger<AiMeter> logger)
 {
@@ -210,11 +210,14 @@ public sealed class MeteredChatClient(IChatClient inner, AiMeter meter, string s
 
 /// <summary>
 /// Meters the REST providers by the requests that bill: Gemini <c>generateContent</c> (tokens for
-/// text and vision, a flat price per picture for the image models), Veo job starts, Lyria songs,
+/// text and vision, a flat price per picture for the image models), Omni clips, Lyria songs,
 /// fal background removals and speech clips. Only answered requests count.
 /// </summary>
 public sealed class AiMeterHandler(AiMeter meter, IConfiguration configuration) : DelegatingHandler
 {
+    /// <summary>Marks an Interactions request as a clip; unmarked ones there are Lyria songs.</summary>
+    public static readonly HttpRequestOptionsKey<string> Kind = new("po-ai-kind");
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var started = Stopwatch.GetTimestamp();
@@ -241,6 +244,10 @@ public sealed class AiMeterHandler(AiMeter meter, IConfiguration configuration) 
         else if (path.EndsWith(":predictLongRunning", StringComparison.Ordinal))
         {
             meter.RecordCall("video", ModelOf(path), "VideoUsd", elapsed);
+        }
+        else if (path.EndsWith("/interactions", StringComparison.Ordinal) && request.Options.TryGetValue(Kind, out var kind) && kind == "video")
+        {
+            meter.RecordCall("video", configuration[ConfigKeys.GoogleVideoModel] ?? "gemini-omni", "VideoUsd", elapsed);
         }
         else if (path.EndsWith("/interactions", StringComparison.Ordinal))
         {

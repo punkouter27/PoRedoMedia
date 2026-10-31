@@ -35,8 +35,12 @@ public static class FunctionRegistration
             o.Retry.MaxRetryAttempts = 2;
         }).Services.AddHttpClient(GeminiVisionService.HttpClientName).AddHttpMessageHandler<AiMeterHandler>();
 
-        // A Veo call can be slow, and retrying a job start would bill twice: long timeout, no retries.
-        services.AddHttpClient(VeoVideoService.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(15)).AddHttpMessageHandler<AiMeterHandler>();
+        // A clip takes up to a few minutes, and retrying one would bill twice: long timeout, no retries.
+        services.AddHttpClient(OmniVideoService.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(15)).AddHttpMessageHandler<AiMeterHandler>();
+
+        // A FLUX picture takes about 10 s, but a rate-limited one waits up to a minute per try.
+        services.AddHttpClient(FluxImageService.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(3));
+        services.AddHttpClient(SpokenRoastService.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(90));
 
         AddVideo(services, configuration, environment);
 
@@ -90,7 +94,7 @@ public static class FunctionRegistration
 
             if (Has(ConfigKeys.GoogleApiKey))
             {
-                services.AddSingleton<IImageGenerationService, GeminiImageService>();
+                services.AddSingleton(s => ImageGeneration(s, configuration));
                 services.AddSingleton<ReproductionPromptWriter>();
                 services.AddSingleton<IRunStep, RestyleStep>();
             }
@@ -98,9 +102,9 @@ public static class FunctionRegistration
 
         if (Has(ConfigKeys.GoogleApiKey))
         {
-            services.TryAddSingleton<IImageGenerationService, GeminiImageService>();
+            services.TryAddSingleton<IImageGenerationService>(s => ImageGeneration(s, configuration));
             services.AddSingleton<IRunStep, BulkStylesStep>();
-            services.AddSingleton<IVideoGenerationService, VeoVideoService>();
+            services.AddSingleton<IVideoGenerationService, OmniVideoService>();
             services.AddSingleton<IRunStep, PhotoToVideoStep>();
 
             if (canSeeImages)
@@ -108,7 +112,16 @@ public static class FunctionRegistration
                 // The roast needs a performer (Lyria, on the Google key) and something that can see.
                 // Without a chat model it still runs, on its built-in lyrics, and says so.
                 services.AddSingleton<IChatCompletionService>(s => new ChatCompletions(chat is null ? null : s.GetRequiredService<IChatClient>()));
-                services.AddSingleton<IMusicGenerationService, LyriaMusicService>();
+                // With a Foundry speech deployment too, a spoken set stands in when Lyria fails.
+                services.AddSingleton<IMusicGenerationService>(s =>
+                {
+                    var lyria = ActivatorUtilities.CreateInstance<LyriaMusicService>(s);
+                    return SpokenRoastService.IsAvailable(configuration)
+                        ? new FallbackMusicService(
+                            lyria, "Lyria", ActivatorUtilities.CreateInstance<SpokenRoastService>(s), "Azure speech",
+                            s.GetRequiredService<ILogger<FallbackMusicService>>())
+                        : lyria;
+                });
                 AddRoast(services);
             }
         }
@@ -183,6 +196,17 @@ public static class FunctionRegistration
             gemini = new FallbackVisionService(
                 gemini, ProviderFallback.Gemini, azure, ProviderFallback.AzureOpenAi, services.GetRequiredService<ILogger<FallbackVisionService>>());
         return new CachingVisionService(gemini, services.GetRequiredService<HybridCache>(), "gemini");
+    }
+
+    /// <summary>Gemini draws; with a Foundry image deployment too, FLUX draws what Gemini fails (such as when its credit runs out).</summary>
+    private static IImageGenerationService ImageGeneration(IServiceProvider services, IConfiguration configuration)
+    {
+        var gemini = ActivatorUtilities.CreateInstance<GeminiImageService>(services);
+        return FluxImageService.IsConfigured(configuration)
+            ? new FallbackImageService(
+                gemini, ProviderFallback.Gemini, ActivatorUtilities.CreateInstance<FluxImageService>(services), "FLUX (Azure)",
+                services.GetRequiredService<ILogger<FallbackImageService>>())
+            : gemini;
     }
 
     /// <summary>A chat client with OpenTelemetry spans (gen_ai.*) and usage metering around it.</summary>

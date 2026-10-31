@@ -23,6 +23,8 @@
   <ItemGroup>
     <!-- Sticker images the renderer overlays on video. -->
     <Content Include="Assets\overlays\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The meme sound list SoundLibrarySeeder fills storage from at startup. -->
+    <Content Include="..\..\scripts\meme-sounds\sounds-metadata.json" Link="meme-sounds\sounds-metadata.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PoRedoMedia.UnitTests" />

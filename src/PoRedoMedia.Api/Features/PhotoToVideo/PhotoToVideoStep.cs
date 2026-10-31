@@ -42,79 +42,52 @@ public sealed class PhotoToVideoStep(
     }
 }
 
-/// <summary>Google Veo: start a long-running job, wait for it, download the clip.</summary>
-public sealed class VeoVideoService(IConfiguration configuration, IHttpClientFactory http, ILogger<VeoVideoService> logger) : IVideoGenerationService
+/// <summary>
+/// Google Gemini Omni Flash through the Interactions API: the picture and the description go in, a
+/// clip of 3 to 10 seconds with its own sound comes back in the same answer. Omni replaced Veo,
+/// whose preview models Google shut down on 2026-10-22.
+/// </summary>
+public sealed class OmniVideoService(IConfiguration configuration, IHttpClientFactory http) : IVideoGenerationService
 {
-    public const string HttpClientName = "Veo";
-    private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/";
-    private const string AudioDirective = " Include ambient sound and natural audio that fits the scene.";
+    public const string HttpClientName = "GoogleVideo";
+    private const string Endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
 
-    /// <summary>A healthy job takes one to five minutes. Past this the run fails and can be retried.</summary>
-    private static readonly TimeSpan Limit = TimeSpan.FromMinutes(8);
-    private static readonly TimeSpan PollEvery = TimeSpan.FromSeconds(6);
-
-    private readonly string _model = configuration[ConfigKeys.GoogleVeoModel] is { Length: > 0 } model ? model : "veo-3.1-lite-generate-preview";
+    private readonly string _model = configuration[ConfigKeys.GoogleVideoModel] is { Length: > 0 } model ? model : "gemini-omni-1.1-flash";
 
     public async Task<byte[]> GenerateAsync(byte[] image, string prompt, CancellationToken ct = default)
     {
-        var client = http.CreateClient(HttpClientName);
         var body = new
         {
-            instances = new[]
+            model = _model,
+            input = new object[]
             {
-                new { prompt = WithAudioDirection(prompt), image = new { bytesBase64Encoded = Convert.ToBase64String(image), mimeType = "image/jpeg" } },
+                new { type = "image", data = Convert.ToBase64String(image), mime_type = "image/jpeg" },
+                new { type = "text", text = prompt },
             },
-            parameters = new { sampleCount = 1 },
+            generation_config = new { video_config = new { task = "image_to_video" } },
+            response_format = new { type = "video", resolution = "720p" },
+            // Not kept on Google's side: the clip is never edited there afterwards.
+            store = false,
         };
-
-        using var start = await client.SendAsync(Request(HttpMethod.Post, $"models/{_model}:predictLongRunning", JsonContent.Create(body)), ct);
-        if (!start.IsSuccessStatusCode)
-            throw Rejected(await start.Content.ReadAsStringAsync(ct), (int)start.StatusCode);
-
-        using var started = await JsonDocument.ParseAsync(await start.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        var operation = started.RootElement.TryGetProperty("name", out var name) ? name.GetString() : null;
-        if (string.IsNullOrEmpty(operation))
-            throw new RunStepException("The video service did not start the job. Try again.");
-
-        // ponytail: the job is waited for in this process. A restart mid-wait loses it and the run
-        // is marked interrupted; persist the operation name and resume if that becomes common.
-        var deadline = DateTime.UtcNow + Limit;
-        while (DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(PollEvery, ct);
-            using var poll = await client.SendAsync(Request(HttpMethod.Get, operation), ct);
-            if (!poll.IsSuccessStatusCode)
-            {
-                logger.LogWarning("Veo poll returned {Status}; retrying", (int)poll.StatusCode);
-                continue;
-            }
-
-            using var status = await JsonDocument.ParseAsync(await poll.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            var root = status.RootElement;
-            if (!root.TryGetProperty("done", out var done) || !done.GetBoolean())
-                continue;
-            if (root.TryGetProperty("error", out var error))
-                throw new RunStepException("The video service rejected this: " + (error.TryGetProperty("message", out var m) ? m.GetString() : "no reason given"));
-            if (!TryExtractVideoUri(root, out var uri))
-                throw new RunStepException("The video service finished without a clip, which usually means its safety filter blocked it. Try a different description.");
-
-            using var download = await client.SendAsync(Request(HttpMethod.Get, uri), ct);
-            download.EnsureSuccessStatusCode();
-            return await download.Content.ReadAsByteArrayAsync(ct);
-        }
-
-        throw new RunStepException("The video took too long and was abandoned. Try again.");
-    }
-
-    private HttpRequestMessage Request(HttpMethod method, string url, HttpContent? content = null)
-    {
-        var request = new HttpRequestMessage(method, url.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? url : BaseUrl + url) { Content = content };
+        using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint) { Content = JsonContent.Create(body) };
         request.Headers.Add("x-goog-api-key", configuration[ConfigKeys.GoogleApiKey]);
-        return request;
+        request.Options.Set(AiMeterHandler.Kind, "video");
+
+        using var response = await http.CreateClient(HttpClientName).SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            throw Rejected(await response.Content.ReadAsStringAsync(ct), (int)response.StatusCode);
+
+        using var answer = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        return TryExtractVideo(answer.RootElement, out var clip)
+            ? clip
+            : throw new RunStepException("The video service finished without a clip, which usually means its safety filter blocked it. Try a different description or picture.");
     }
 
     private static RunStepException Rejected(string body, int status)
     {
+        // Google says "out of credit" with a 402, and sometimes with a 429 that carries the same text.
+        if (status == 402 || body.Contains("credits are depleted", StringComparison.OrdinalIgnoreCase))
+            return new RunStepException("The Google AI account is out of credit. Top it up in AI Studio, then try again.");
         try
         {
             using var doc = JsonDocument.Parse(body);
@@ -129,39 +102,33 @@ public sealed class VeoVideoService(IConfiguration configuration, IHttpClientFac
         return new RunStepException($"The video service refused the request ({status}).");
     }
 
-    /// <summary>
-    /// Veo makes a silent clip unless sound is asked for. A prompt that already talks about sound,
-    /// or asks for silence, is left alone.
-    /// </summary>
-    public static string WithAudioDirection(string prompt)
+    /// <summary>The first video in a completed interaction's <c>steps[].content[]</c>; none when it was blocked.</summary>
+    internal static bool TryExtractVideo(JsonElement root, out byte[] clip)
     {
-        string[] audioCues =
-        [
-            "sound", "audio", "music", "voice", "narrat", "speaks", "speech", "dialog", "talking", "speak",
-            "hear", "listen", "laugh", "quiet", "silent", "silence", "mute",
-        ];
-        return audioCues.Any(cue => prompt.Contains(cue, StringComparison.OrdinalIgnoreCase)) ? prompt : prompt.TrimEnd() + AudioDirective;
-    }
+        clip = [];
+        if (!root.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array)
+            return false;
 
-    internal static bool TryExtractVideoUri(JsonElement root, out string uri)
-    {
-        uri = "";
-        if (root.TryGetProperty("response", out var response)
-            && response.TryGetProperty("generateVideoResponse", out var generated)
-            && generated.TryGetProperty("generatedSamples", out var samples)
-            && samples.ValueKind == JsonValueKind.Array && samples.GetArrayLength() > 0
-            && samples[0].TryGetProperty("video", out var clip)
-            && clip.TryGetProperty("uri", out var value) && value.ValueKind == JsonValueKind.String)
+        foreach (var step in steps.EnumerateArray())
         {
-            uri = value.GetString()!;
-            return true;
+            if (!step.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var part in content.EnumerateArray())
+            {
+                if (part.TryGetProperty("type", out var type) && type.ValueEquals("video")
+                    && part.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.String)
+                {
+                    clip = data.GetBytesFromBase64();
+                    return clip.Length > 0;
+                }
+            }
         }
 
         return false;
     }
 }
 
-/// <summary>Stands in for Veo with a real, playable two-second clip of the picture, made locally.</summary>
+/// <summary>Stands in for Omni with a real, playable two-second clip of the picture, made locally.</summary>
 public sealed class MockVideoService(FFmpegProcess ffmpeg) : IVideoGenerationService
 {
     public async Task<byte[]> GenerateAsync(byte[] image, string prompt, CancellationToken ct = default)

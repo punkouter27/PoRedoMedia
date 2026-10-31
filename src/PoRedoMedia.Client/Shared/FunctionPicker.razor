@@ -1,8 +1,9 @@
 @* One tile per function valid for the picked media. What cannot be added to the current
-   selection, or cannot run on this server, is disabled and says why. *@
+   selection, or cannot run on this server, is disabled and says why. Auto-captions is not offered
+   here (the server still runs it for older recipes and runs). *@
 
 <div class="function-grid" role="group" aria-label="Functions">
-    @foreach (var function in FunctionStack.For(Kind))
+    @foreach (var function in FunctionStack.For(Kind).Where(f => f != MediaFunction.Captions))
     {
         var f = function;
         var available = Available.Contains(f);

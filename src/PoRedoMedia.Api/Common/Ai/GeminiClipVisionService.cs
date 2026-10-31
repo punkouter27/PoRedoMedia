@@ -136,8 +136,8 @@ public sealed partial class GeminiClipVisionService(
     /// <summary>Sends the video to the Files API by the resumable protocol; returns the file's name (<c>files/…</c>).</summary>
     private async Task<string> UploadAsync(MediaItem video, CancellationToken ct)
     {
-        // The Veo client: a long timeout and no retries, because an upload stream cannot be sent twice.
-        var client = http.CreateClient(VeoVideoService.HttpClientName);
+        // The video client: a long timeout and no retries, because an upload stream cannot be sent twice.
+        var client = http.CreateClient(OmniVideoService.HttpClientName);
         var blob = storage.Blob(video.SourcePath);
         var size = (await blob.GetPropertiesAsync(cancellationToken: ct)).Value.ContentLength;
 
@@ -173,7 +173,7 @@ public sealed partial class GeminiClipVisionService(
     /// <summary>A video is processed after upload; it can be used once it is ACTIVE. Returns its URI.</summary>
     private async Task<string> WaitUntilActiveAsync(string file, CancellationToken ct)
     {
-        var client = http.CreateClient(VeoVideoService.HttpClientName);
+        var client = http.CreateClient(OmniVideoService.HttpClientName);
         var deadline = DateTime.UtcNow + ProcessingLimit;
         while (true)
         {
@@ -234,7 +234,7 @@ public sealed partial class GeminiClipVisionService(
         {
             using var request = new HttpRequestMessage(HttpMethod.Delete, BaseUrl + file);
             request.Headers.Add("x-goog-api-key", configuration[ConfigKeys.GoogleApiKey]);
-            using var response = await http.CreateClient(VeoVideoService.HttpClientName).SendAsync(request, CancellationToken.None);
+            using var response = await http.CreateClient(OmniVideoService.HttpClientName).SendAsync(request, CancellationToken.None);
             response.EnsureSuccessStatusCode();
         }
         catch (HttpRequestException ex)

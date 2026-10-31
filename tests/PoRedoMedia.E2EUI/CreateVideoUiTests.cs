@@ -28,7 +28,7 @@ public sealed class CreateVideoUiTests : UiTestBase
     }
 
     [LiveServerFact]
-    public async Task Picking_a_video_ticking_roast_and_captions_and_running_shows_one_video_with_its_extras()
+    public async Task Picking_a_video_ticking_the_roast_and_running_shows_one_video_with_its_extras()
     {
         var page = await SignedInPageAsync("/");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Choose a photo or a video" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
@@ -38,18 +38,17 @@ public sealed class CreateVideoUiTests : UiTestBase
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "What should happen to this video?" })).ToBeVisibleAsync(new() { Timeout = 60_000 });
         await Assertions.Expect(page.Locator("[data-fn=Restyle]")).ToHaveCountAsync(0);
         await page.Locator("[data-fn=VideoRoast] input").CheckAsync();
-        await page.Locator("[data-fn=Captions] input").CheckAsync();
+        await Assertions.Expect(page.Locator("[data-fn=Captions]")).ToHaveCountAsync(0);
         await Assertions.Expect(page.GetByText("Comic voice")).ToBeVisibleAsync();
         await page.GetByText("Square 1:1").ClickAsync();
 
-        await Assertions.Expect(page.GetByText("party.mp4 → Insult roast, then Auto-captions")).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText("party.mp4 → Insult roast")).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Run", Exact = true }).ClickAsync();
 
         await Assertions.Expect(page.GetByText("Done. The results are in your gallery.")).ToBeVisibleAsync(new() { Timeout = 90_000 });
         var result = page.Locator("figure[data-origin=VideoRoast]");
         await Assertions.Expect(result.Locator("video")).ToHaveCountAsync(1);
         await Assertions.Expect(result).ToContainTextAsync("Mock insult one.");
-        await Assertions.Expect(result.GetByRole(AriaRole.Link, new() { Name = "Download the captions (SRT)" })).ToBeVisibleAsync();
 
         // The result is a square video, as asked.
         var shape = await result.Locator("video").EvaluateAsync<double[]>(

@@ -22,7 +22,12 @@ public sealed record RenderJob(
 /// time the cue reaches <see cref="FFmpegArgs"/>.
 /// </param>
 /// <param name="OverlayPath">Local path of the sticker image, when the cue has one that ships.</param>
-/// <param name="Voice">A roast line, not a meme sound: louder, and the source audio ducks under it.</param>
+/// <param name="Voice">A roast line, not a meme sound: the source audio ducks under it.</param>
+/// <param name="DurationMs">How long the sound plays; 0 = unknown. Meme sounds and roast lines take turns by it.</param>
+/// <param name="GainDb">
+/// The gain that brings this clip to the shared loudness target, so meme sounds and roast lines
+/// play at the same level. Measured by the renderer; null = left as it is.
+/// </param>
 public readonly record struct RenderVisualEntry(
     long TimestampMs,
     string SoundPath,
@@ -33,4 +38,6 @@ public readonly record struct RenderVisualEntry(
     double? OverlayX = null,
     double? OverlayY = null,
     double? OverlayScale = null,
-    bool Voice = false);
+    bool Voice = false,
+    int DurationMs = 0,
+    double? GainDb = null);

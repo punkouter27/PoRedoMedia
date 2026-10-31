@@ -77,6 +77,8 @@ public sealed class GeminiImageService(IConfiguration configuration, IHttpClient
         using var response = await SendGatedAsync(request, ct);
         if ((int)response.StatusCode == 429)
             throw new RunStepException("The image model is busy right now. Wait a minute and try again.");
+        if ((int)response.StatusCode == 402)
+            throw new RunStepException("The Google AI account is out of credit. Top it up in AI Studio, then try again.");
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"Gemini image returned {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync(ct)}");
 

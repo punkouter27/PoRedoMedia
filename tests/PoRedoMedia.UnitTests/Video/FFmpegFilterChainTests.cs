@@ -75,21 +75,46 @@ public sealed class FFmpegFilterChainTests
     }
 
     [Fact]
-    public void BuildFFmpegArgs_RoastVoice_DucksSourceAndMemeSoundsUnderIt()
+    public void BuildFFmpegArgs_RoastVoice_and_meme_sounds_share_one_loudness_and_only_the_source_ducks()
     {
         var entries = new List<RenderVisualEntry>
         {
-            new(TimestampMs: 1000, SoundPath: "/tmp/boom.mp3", VisualEffect: null, CaptionText: null, CaptionPosition: null),
-            new(TimestampMs: 3000, SoundPath: "/tmp/joke.mp3", VisualEffect: null, CaptionText: null, CaptionPosition: null, Voice: true)
+            new(TimestampMs: 1000, SoundPath: "/tmp/boom.mp3", VisualEffect: null, CaptionText: null, CaptionPosition: null, GainDb: -3.4),
+            new(TimestampMs: 3000, SoundPath: "/tmp/joke.mp3", VisualEffect: null, CaptionText: null, CaptionPosition: null, Voice: true, GainDb: 2.5)
         };
 
         var args = FFmpegArgs.BuildFFmpegArgs("/tmp/source.mp4", entries, "/tmp/out.mp4", aggressiveVisuals: false, sourceDurationSeconds: 10.0, sourceHasAudio: true);
 
-        // The meme sound drops, and it joins the source in the bed the voice ducks.
-        Assert.Contains("[1:a]adelay=1000|1000,volume=0.3[a0]", args, StringComparison.Ordinal);
-        Assert.Contains("[2:a]adelay=3000|3000,volume=2[a1]", args, StringComparison.Ordinal);
-        Assert.Contains("[aorig][a0]amix=inputs=2:normalize=0:duration=longest[bed];[bed][voxkey]sidechaincompress", args, StringComparison.Ordinal);
-        Assert.Contains("[ducked][vox]amix=inputs=2", args, StringComparison.Ordinal);
+        // Each clip carries its own measured gain to the shared target; no fixed boost or cut.
+        Assert.Contains("[1:a]adelay=1000|1000,volume=-3.4dB[a0]", args, StringComparison.Ordinal);
+        Assert.Contains("[2:a]adelay=3000|3000,volume=2.5dB[a1]", args, StringComparison.Ordinal);
+        // The voice ducks the source only; the meme sound joins the final mix at its own level.
+        Assert.Contains("[aorig][voxkey]sidechaincompress", args, StringComparison.Ordinal);
+        Assert.Contains("[ducked][a0][vox]amix=inputs=3", args, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Meme_sounds_and_jokes_take_turns_a_waiting_sound_leaves_its_caption_and_a_song_mutes_sounds()
+    {
+        RenderVisualEntry Sound(long at, int ms, string? caption = null) => new(at, "/s.mp3", null, caption, null, DurationMs: ms);
+        RenderVisualEntry Joke(long at, int ms) => new(at, "/j.mp3", null, null, null, Voice: true, DurationMs: ms);
+        static (long, bool, bool, string?) Seen(RenderVisualEntry c) => (c.TimestampMs, c.Voice, c.SoundPath.Length > 0, c.CaptionText);
+
+        var result = TurnTaking.Arrange(
+            [Sound(1000, 2000, "A"), Sound(4000, 1000, "B"), Sound(6000, 1000), Sound(8000, 1000), Joke(1000, 3000), Joke(15000, 2000), Joke(19000, 2000)],
+            videoMs: 20_000);
+
+        // The first joke lets the sound at its moment finish. The sounds that fall in the joke wait
+        // for it, one after another; "B" stays on screen at its moment while its sound waits.
+        Assert.Equal(
+            [(1000L, false, true, "A"), (3200L, true, true, null), (4000L, false, false, "B"), (6400L, false, true, null),
+             (7600L, false, true, null), (8800L, false, true, null), (15000L, true, true, null)],
+            result.Cues.Select(Seen));
+        Assert.Equal((1, 1, 3, 0), (result.JokesMoved, result.JokesDropped, result.SoundsWaited, result.SoundsLeftOut));
+
+        // A song (the rap) mutes the meme sounds under it; their captions still show.
+        var song = TurnTaking.Arrange([Joke(0, 40_000), Sound(5000, 1000, "C"), Sound(42_000, 1000)], videoMs: 45_000);
+        Assert.Equal([(0L, true, true, null), (5000L, false, false, "C"), (42_000L, false, true, null)], song.Cues.Select(Seen));
     }
 
     // ── Captions ──────────────────────────────────────────────────────────

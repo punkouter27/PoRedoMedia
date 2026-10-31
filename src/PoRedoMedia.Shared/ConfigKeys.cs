@@ -32,11 +32,19 @@ public static class ConfigKeys
     public const string OpenAiEndpoint = "OpenAI:Endpoint";
     public const string OpenAiKey = "OpenAI:Key";
     public const string OpenAiChatDeployment = "OpenAI:ChatCompletionsDeployment";
+    public const string AiFoundryEndpoint = "AiFoundry:Endpoint";
+    public const string AiFoundryKey = "AiFoundry:Key";
+    public const string AiFoundryTtsDeployment = "AiFoundry:TtsDeployment";
+
+    /// <summary>The Foundry image model that draws when Gemini cannot (FLUX.1 Kontext). Empty = no stand-in.</summary>
+    public const string AiFoundryImageDeployment = "AiFoundry:ImageDeployment";
+
     public const string GoogleApiKey = "Google:ApiKey";
     public const string GoogleVisionModel = "Google:VisionModel";
     public const string GoogleImageModel = "Google:ImageModel";
     public const string GoogleLyriaModel = "Google:LyriaModel";
-    public const string GoogleVeoModel = "Google:VeoModel";
+    /// <summary>The model that turns a picture into a clip (Interactions API). Empty = gemini-omni-1.1-flash.</summary>
+    public const string GoogleVideoModel = "Google:VideoModel";
 
     /// <summary>The model that watches a whole video for Meme-ify. Empty = <see cref="GoogleVisionModel"/>.</summary>
     public const string GoogleClipVisionModel = "Google:ClipVisionModel";

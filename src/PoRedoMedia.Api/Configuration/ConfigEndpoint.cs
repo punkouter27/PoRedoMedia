@@ -17,7 +17,7 @@ public static class ConfigEndpoint
                 MockAi.IsEnabled(configuration, env), env.IsDevOrTest(), [.. executor.Available.Order()],
                 [.. MediaRoast.Voices(configuration, env)],
                 new AiPricingDto(
-                    Price("VisionUsd", 0.001m), Price("TextUsd", 0.0015m), Price("ImageUsd", 0.039m), Price("MusicUsd", 0.04m), Price("VideoUsd", 0.40m)),
+                    Price("VisionUsd", 0.001m), Price("TextUsd", 0.0015m), Price("ImageUsd", 0.039m), Price("MusicUsd", 0.04m), Price("VideoUsd", 1.00m)),
                 ServerSpeech: transcription.IsEnabled,
                 // Shown beside an unpinned item, so its expiry, and its share link's, is no surprise.
                 RetentionDays: configuration.GetValue<int?>(ConfigKeys.RetentionDays) ?? Features.Housekeeping.HousekeepingService.DefaultRetentionDays));

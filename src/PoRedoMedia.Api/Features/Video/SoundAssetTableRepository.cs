@@ -49,6 +49,7 @@ public sealed class SoundAssetTableRepository : ISoundAssetRepository
                 ActionVectorTags = tags,
                 BlobUrl = entity.GetString("BlobUrl") ?? string.Empty,
                 Priority = entity.GetBoolean("Priority") ?? false,
+                Popularity = entity.GetInt32("Popularity") ?? 0,
                 UseCase = entity.GetString("UseCase") ?? string.Empty,
                 Attribution = entity.GetString("Attribution") ?? string.Empty,
                 Owner = entity.GetString("Owner"),

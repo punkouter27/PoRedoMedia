@@ -30,6 +30,9 @@ internal static class PlacementPlanner
 
     private const int DirectorMenuCap = 48;
 
+    /// <summary>The most popular sounds always on the director's menu, so a Bruh or a Vine boom is there to pick.</summary>
+    private const int FamousOnMenu = 30;
+
     /// <summary>Prefix of the scene labels made from speech; their timing is deliberate, never snapped.</summary>
     internal const string SpeechLabelPrefix = "after the line";
 
@@ -65,9 +68,10 @@ internal static class PlacementPlanner
         var requests = new List<PlacementRequest>();
         var menu = new Dictionary<SoundId, SoundAsset>();
         var prioritySounds = library.Where(s => s.Priority).ToList();
+        var famous = library.Where(s => s.Popularity > 0).OrderBy(s => s.Popularity).Take(FamousOnMenu).ToList();
         var provisionalIdx = 0;
 
-        // Labels whose words miss the tag vocabulary still get a provisional priority sound —
+        // Labels whose words miss the tag vocabulary still get a provisional famous sound —
         // the director re-picks from the full menu.
         for (var i = 0; i < sceneLabels.Count; i++)
         {
@@ -86,7 +90,7 @@ internal static class PlacementPlanner
             }
             else if (library.Count > 0)
             {
-                var pool = prioritySounds.Count > 0 ? prioritySounds : library;
+                var pool = famous.Count > 0 ? famous : prioritySounds.Count > 0 ? prioritySounds : library;
                 var provisional = pool[provisionalIdx++ % pool.Count];
                 log.Add($"NO TAG MATCH — PROVISIONAL: {provisional.DisplayName}. AI DIRECTOR WILL CHOOSE FINAL SOUND.");
                 requests.Add(new(atMs, provisional, PlacementScore(0.4f, label.Energy)));
@@ -110,12 +114,12 @@ internal static class PlacementPlanner
                 : $"PLACED: {d.SelectedSound.DisplayName} @ {d.ApprovedTimestampMs}ms [{d.PlacementType}]");
         }
 
-        // Menu: approved picks + per-label candidates + the curated priority set,
+        // Menu: approved picks + per-label candidates + the most famous sounds + the curated priority set,
         // capped to keep the prompt small. The render resolves any library sound, so every menu
         // pick is renderable.
         foreach (var d in decisions)
             menu[d.SelectedSound.SoundId] = d.SelectedSound;
-        foreach (var s in prioritySounds)
+        foreach (var s in famous.Concat(prioritySounds))
         {
             if (menu.Count >= DirectorMenuCap) break;
             menu.TryAdd(s.SoundId, s);
@@ -186,4 +190,38 @@ internal static class PlacementPlanner
 
     internal static string Truncate(string text, int max)
         => text.Length <= max ? text : text[..(max - 1)] + "…";
+
+    /// <summary>
+    /// Each sound once per video: a cue repeating an earlier cue's sound gets the unused menu sound
+    /// closest to it (most shared tags, then the more famous). Without one left, it keeps its sound.
+    /// </summary>
+    /// <param name="entries">In time order.</param>
+    /// <returns>How many cues got a different sound.</returns>
+    internal static int NoRepeats(IReadOnlyList<ScriptEntry> entries, IReadOnlyList<SoundAsset> menu)
+    {
+        var used = new HashSet<SoundId>();
+        var swapped = 0;
+        foreach (var entry in entries)
+        {
+            if (used.Add(entry.SoundId))
+                continue;
+
+            var tags = entry.ActionVectorTags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var other = menu
+                .Where(s => !used.Contains(s.SoundId))
+                .OrderByDescending(s => s.ActionVectorTags.Count(tags.Contains))
+                .ThenBy(s => s.Popularity > 0 ? s.Popularity : int.MaxValue)
+                .FirstOrDefault();
+            if (other is null)
+                continue;
+
+            entry.SoundId = other.SoundId;
+            entry.SoundName = other.DisplayName;
+            entry.ActionVectorTags = other.ActionVectorTags;
+            used.Add(other.SoundId);
+            swapped++;
+        }
+
+        return swapped;
+    }
 }

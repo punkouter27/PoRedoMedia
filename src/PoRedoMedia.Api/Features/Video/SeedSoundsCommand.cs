@@ -22,15 +22,16 @@ public static class SeedSoundsCommand
     public static async Task<int> RunAsync(string[] args, IConfiguration config)
     {
         var seedsDir = ResolveSeedsDir(args, Directory.GetCurrentDirectory());
-        return await RunForDirAsync(seedsDir, config, verbose: true);
+        var result = await RunForDirAsync(seedsDir, config, verbose: true);
+        return result is { Failed: 0 } ? 0 : 1;
     }
 
     /// <summary>
-    /// Library-loading path used by both the CLI verb and the Development auto-seed at startup.
+    /// Library-loading path used by both the CLI verb and <see cref="SoundLibrarySeeder"/> at startup.
     /// Resolves <c>seedsDir</c> relative to <paramref name="contentRoot"/> so the running web host
     /// can find the metadata no matter the working directory.
     /// </summary>
-    public static async Task<int> RunForDirAsync(string seedsDir, IConfiguration config, bool verbose)
+    public static async Task<SeedResult> RunForDirAsync(string seedsDir, IConfiguration config, bool verbose)
     {
         var metaFile = Path.Combine(seedsDir, "sounds-metadata.json");
 
@@ -49,7 +50,7 @@ public static class SeedSoundsCommand
                 Console.Error.WriteLine($"✗ Metadata file not found: {metaFile}");
                 Console.Error.WriteLine("  Pass --seeds-dir <path>, or run from the repository root.");
             }
-            return 1;
+            return new SeedResult(0, 0, 1, 0);
         }
 
         // ── Parse metadata ───────────────────────────────────────────────────
@@ -74,38 +75,45 @@ public static class SeedSoundsCommand
         if (verbose) Console.WriteLine();
 
         int seeded = 0, skipped = 0, failed = 0;
+        var listed = meta.Sounds.Select(e => DeriveStableGuid(e.Id ?? e.Filename).ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var entry in meta.Sounds)
+        // The list is in popularity order: its position is the sound's rank (1 = most famous).
+        foreach (var (entry, rank) in meta.Sounds.Select((e, i) => (e, i + 1)))
         {
             var soundId = DeriveStableGuid(entry.Id ?? entry.Filename);
 
-            // Skip only when the row AND its blob already point at our local container — i.e.
-            // a previous successful run. A row whose BlobUrl still references an external
-            // source (its sourceUrl) is *not* considered seeded and will be re-uploaded + have its
-            // BlobUrl rewritten. This keeps the library coherent across format changes and
-            // prevents "the row points elsewhere but the local blob is the one we want" splits.
+            // Skip a sound already seeded into this account: its row points at this container's
+            // blob, the blob is there, its length is known and a local copy (if any) is the same size.
             try
             {
                 var existing = await tableClient.GetEntityAsync<TableEntity>(PartitionKey, soundId.ToString());
-                var existingUrl = existing.Value.GetString("BlobUrl") ?? string.Empty;
                 var bClient = containerClient.GetBlobClient(entry.Filename);
-                var blobExists = await bClient.ExistsAsync();
                 var localFileForCheck = Path.Combine(seedsDir, entry.Filename);
-                var isUpToDate = false;
-                if (blobExists && File.Exists(localFileForCheck))
+                if ((existing.Value.GetInt32("DurationMs") ?? 0) > 0
+                    && string.Equals(existing.Value.GetString("BlobUrl"), bClient.Uri.ToString(), StringComparison.OrdinalIgnoreCase)
+                    && await bClient.ExistsAsync()
+                    && (!File.Exists(localFileForCheck)
+                        || (await bClient.GetPropertiesAsync()).Value.ContentLength == new FileInfo(localFileForCheck).Length))
                 {
-                    var p = await bClient.GetPropertiesAsync();
-                    var lLen = new FileInfo(localFileForCheck).Length;
-                    isUpToDate = p.Value.ContentLength == lLen;
-                }
-                var hasDuration = (existing.Value.GetInt32("DurationMs") ?? 0) > 0;
-                if (isUpToDate && hasDuration && existingUrl.Contains("/devstoreaccount", StringComparison.OrdinalIgnoreCase))
-                {
+                    // The clip is in place; a changed name, tags, hint or rank only rewrites the row.
+                    var row = existing.Value;
+                    if (row.GetString("DisplayName") != entry.DisplayName || row.GetString("Tags") != string.Join(",", entry.ActionVectorTags)
+                        || row.GetString("UseCase") != entry.UseCase || row.GetInt32("Popularity") != rank || row.GetBoolean("Priority") != entry.Priority)
+                    {
+                        await tableClient.UpsertEntityAsync(new TableEntity(PartitionKey, soundId.ToString())
+                        {
+                            ["DisplayName"] = entry.DisplayName,
+                            ["Tags"] = string.Join(",", entry.ActionVectorTags),
+                            ["UseCase"] = entry.UseCase,
+                            ["Popularity"] = rank,
+                            ["Priority"] = entry.Priority,
+                        }, TableUpdateMode.Merge);
+                    }
+
                     if (verbose) Console.WriteLine($"  [SKIP] {entry.DisplayName}");
                     skipped++;
                     continue;
                 }
-                // Row exists but the local blob is missing OR the row still points at an external URL.
             }
             catch (Azure.RequestFailedException ex) when (ex.Status == 404)
             {
@@ -163,39 +171,22 @@ public static class SeedSoundsCommand
                             Console.WriteLine($"  [WARN] HTTP {(int)resp.StatusCode} fetching {entry.SourceUrl}");
                         }
                     }
-                    catch (Exception ex) when (verbose)
+                    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
                     {
-                        Console.WriteLine($"  [WARN] Could not download {entry.SourceUrl}: {ex.Message}");
+                        if (verbose) Console.WriteLine($"  [WARN] Could not download {entry.SourceUrl}: {ex.Message}");
                     }
                 }
 
+                // A clip that could not be fetched is left out (and tried again next time), never
+                // stood in for by a placeholder that would play as noise.
+                if (!await blobClient.ExistsAsync() || (await blobClient.GetPropertiesAsync()).Value.ContentLength < 1000)
+                {
+                    await blobClient.DeleteIfExistsAsync();
+                    failed++;
+                    continue;
+                }
+
                 blobUrl = blobClient.Uri.ToString();
-                var blob = containerClient.GetBlobClient(entry.Filename);
-                var blobExists = await blob.ExistsAsync();
-                var isSmall = false;
-                if (blobExists)
-                {
-                    var props = await blob.GetPropertiesAsync();
-                    isSmall = props.Value.ContentLength < 1000;
-                }
-                if (!blobExists || isSmall)
-                {
-                    byte[] placeholderBytes;
-                    var samplePath = Path.Combine(seedsDir, "valid-sample.mp3");
-                    if (File.Exists(samplePath))
-                    {
-                        placeholderBytes = await File.ReadAllBytesAsync(samplePath);
-                    }
-                    else
-                    {
-                        placeholderBytes = new byte[8192];
-                    }
-                    using var ms = new MemoryStream(placeholderBytes);
-                    await blobClient.UploadAsync(ms, new BlobUploadOptions
-                    {
-                        HttpHeaders = new BlobHttpHeaders { ContentType = "audio/mpeg" }
-                    });
-                }
             }
             else
             {
@@ -218,6 +209,8 @@ public static class SeedSoundsCommand
                 ["Tags"] = string.Join(",", entry.ActionVectorTags),
                 ["BlobUrl"] = blobUrl,
                 ["Priority"] = entry.Priority,
+                ["UseCase"] = entry.UseCase,
+                ["Popularity"] = rank,
             };
 
             try
@@ -226,11 +219,25 @@ public static class SeedSoundsCommand
                 if (verbose) Console.WriteLine($"  [SEED] {entry.DisplayName}");
                 seeded++;
             }
-            catch (Exception ex) when (verbose)
+            catch (Azure.RequestFailedException ex)
             {
-                Console.WriteLine($"  [FAIL] {entry.DisplayName}: {ex.Message}");
+                if (verbose) Console.WriteLine($"  [FAIL] {entry.DisplayName}: {ex.Message}");
                 failed++;
             }
+        }
+
+        // Library sounds dropped from the list leave storage too: the list is the whole shared
+        // library. A user's own sound (one with an Owner) is never the list's to remove.
+        var removed = 0;
+        await foreach (var row in tableClient.QueryAsync<TableEntity>(r => r.PartitionKey == PartitionKey, select: ["RowKey", "BlobUrl", "Owner"]))
+        {
+            if (listed.Contains(row.RowKey) || !string.IsNullOrEmpty(row.GetString("Owner")))
+                continue;
+            if (row.GetString("BlobUrl") is { Length: > 0 } url && Uri.TryCreate(url, UriKind.Absolute, out var blobUri))
+                await containerClient.GetBlobClient(Uri.UnescapeDataString(blobUri.Segments[^1])).DeleteIfExistsAsync();
+            await tableClient.DeleteEntityAsync(PartitionKey, row.RowKey);
+            if (verbose) Console.WriteLine($"  [DROP] {row.RowKey}");
+            removed++;
         }
 
         if (verbose)
@@ -241,7 +248,7 @@ public static class SeedSoundsCommand
             Console.WriteLine($"╚══════════════════════════════════════════════════╝");
         }
 
-        return failed > 0 ? 1 : 0;
+        return new SeedResult(seeded, skipped, failed, removed);
     }
 
     /// <summary>Reads the clip (local copy first, else the uploaded blob) and measures it; 0 if unreadable.</summary>
@@ -308,6 +315,8 @@ public static class SeedSoundsCommand
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    public sealed record SeedResult(int Seeded, int Skipped, int Failed, int Removed);
+
     // ── JSON deserialization models ───────────────────────────────────────────
     private sealed class SoundsMetadata
     {
@@ -325,5 +334,6 @@ public static class SeedSoundsCommand
         [JsonPropertyName("actionVectorTags")]
         public string[] ActionVectorTags { get; set; } = [];
         public bool Priority { get; set; }
+        public string UseCase { get; set; } = string.Empty;
     }
 }

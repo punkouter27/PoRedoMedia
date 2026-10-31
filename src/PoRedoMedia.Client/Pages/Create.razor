@@ -31,11 +31,8 @@
     }
     else if (Step == 1)
     {
-        @* Home: the drop zone and recent media, with today's allowance and runs beside them. *@
-        <div class="home">
-            <MediaPicker ValueChanged="PickAsync" TakeShared="@(Shared is not null)" />
-            <HomeOverview Quota="_quota" />
-        </div>
+        @* Home: the drop zone and recent media. Runs left show beside Run; past runs are in the header's Runs. *@
+        <MediaPicker ValueChanged="PickAsync" TakeShared="@(Shared is not null)" />
     }
     else
     {
@@ -127,7 +124,7 @@
     /// <summary>Options worth carrying from one run to the next. Text typed for one picture is not.</summary>
     private static readonly string[] Remembered =
     [
-        RunOptions.VideoAspect, RunOptions.VideoPersona, RunOptions.VideoRoastVoice, RunOptions.RestyleStyle, RunOptions.MemeMode,
+        RunOptions.VideoAspect, RunOptions.VideoPersona, RunOptions.VideoRoastVoice,
     ];
 
     /// <summary>A gallery item to start from, set by "Use as source".</summary>
