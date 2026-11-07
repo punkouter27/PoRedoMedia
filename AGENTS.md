@@ -25,6 +25,8 @@ Overall summary of the project: [DOCS/README.md](DOCS/README.md).
   run terminal commands or click through a web GUI.
 - **Secrets:** Do not use `dotnet user-secrets`. Put local data in `appsettings` or in Azure Key
   Vault (`kv-poshared2`, secrets prefixed `PoRedoMedia--`).
+- **Shared components:** Look for chances to consolidate functionality and UI into shared components
+  (`PoRedoMedia.Shared`, `Client/Shared`, `Common/`) instead of duplicating it across slices or pages.
 - **Build version:** The app shows its deployment build version as `YYMMDD` in the bottom-right
   corner. `Directory.Build.targets` derives it from the Git commit date (today's date when there is
   no commit); never type it by hand.
@@ -36,10 +38,14 @@ Overall summary of the project: [DOCS/README.md](DOCS/README.md).
   side by side with notes. Give the full valid paths.
 - **Clarifying questions:** After changing more than 100 lines, when no questions are already
   pending, list 3 key follow-up questions about future direction or logic.
+- **Problems found:** When you find a problem, propose a solution too, and wait for the user to
+  approve it before acting on it.
 - **Big removals:** If a prompt removes more than 100 lines of code overall, say so.
 - **Required footers:**
   - **Short recap:** If a response is over 100 words, end it with a recap under 20 words.
-  - **3-level summary:** If a code change is over 20 lines, add exactly one sentence per level:
+  - **3-level summary:** If a code change is over 20 lines, add exactly one sentence per level, plus
+    a diagram that makes the change easier to understand (style:
+    [diagram-design](https://github.com/cathrynlavery/diagram-design)):
     1. Toddler: explain the idea simply.
     2. Child: explain what the app actually does now.
     3. Adult: explain how it was built.
