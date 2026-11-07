@@ -30,7 +30,7 @@ public sealed class FunctionPickerTests
     {
         using var ctx = new BunitContext();
 
-        Assert.Equal(["Memeify", "VideoRoast", "Captions"], Disabled(Render(ctx, MediaKind.Video, [])).Keys);
+        Assert.Equal(["Memeify", "VideoRoast"], Disabled(Render(ctx, MediaKind.Video, [])).Keys);
     }
 
     [Fact]

@@ -16,6 +16,12 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <!-- IsTrimmable makes the publish trim this assembly, but the server names Routes (and the
+         router finds pages) only by reflection, so the trimmer would drop them and the app would
+         open blank. Keep the whole assembly; the analyzer above still guards the code. -->
+    <TrimmerRootAssembly Include="PoRedoMedia.Client" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
