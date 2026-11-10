@@ -59,7 +59,8 @@ internal static class FFmpegArgs
         bool sourceHasAudio,
         string? aspectRatio = null,
         IReadOnlyList<TranscriptSegmentDto>? subtitles = null,
-        double trimStartSeconds = 0)
+        double trimStartSeconds = 0,
+        double sourceVolume = 0.85)
     {
         var sb = new StringBuilder();
 
@@ -163,12 +164,13 @@ internal static class FFmpegArgs
                 // source's own audio ducks while a joke is said.
                 var voices = Enumerable.Range(0, audible.Count).Where(i => audible[i].Voice).ToList();
 
-                // Original audio sits slightly under the meme sounds so the effects cut through.
+                // Original audio sits slightly under the meme sounds so the effects cut through; a narrated movie
+                // clip keeps it at full level instead, and its meme sounds come in lower (RenderJob.SoundsUnderDb).
                 if (sourceHasAudio)
                 {
                     if (fc.Length > 0)
                         fc.Append(';');
-                    fc.Append("[0:a]volume=0.85[aorig]");
+                    fc.Append(CultureInfo.InvariantCulture, $"[0:a]volume={sourceVolume:0.##}[aorig]");
                 }
 
                 for (var i = 0; i < audible.Count; i++)

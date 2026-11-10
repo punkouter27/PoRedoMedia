@@ -24,7 +24,8 @@ dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound libr
 
 ## Architecture
 
-**Projects.** `PoRedoMedia.Api` is the ASP.NET Core host and all server logic; it also hosts
+**Projects.** `PoRedoMedia.Movie` is Create Movie's engine, brought over from PoAutoRobo's core (see below).
+`PoRedoMedia.Api` is the ASP.NET Core host and all server logic; it also hosts
 `PoRedoMedia.Client` (Blazor WebAssembly, prerender off, because the client owns the only UI DI container).
 `PoRedoMedia.Shared` holds wire DTOs, enums (`MediaFunction`), `ConfigKeys`, `FunctionStack` rules and catalogs.
 Wire enums travel as strings over both HTTP and SignalR. Shared is `IsAotCompatible` and the client `IsTrimmable` with
@@ -103,6 +104,46 @@ document instead of being called from pages. Blazor never awaits an effect: the 
 (`poMorph.start`, `poConfetti.burst`, `poSfx.runEnded`) return nothing. On-device models (Florence-2 vision, Whisper
 speech) live in `Client/LocalAi` and `wwwroot/js/local-ai/` (`device-tasks.js` for speech); a picture reaches the
 vision worker as bytes through `[JSImport]` (`LocalAiBytes`, hence `AllowUnsafeBlocks` in the client).
+
+**Create Movie** (`/movie`). `PoRedoMedia.Movie` is PoAutoRobo's core with its window and Azure clients taken out:
+the episode and its pure edits (`EpisodeEditor`, `EditHistory`), the script writer and its prompts (`ChatScriptWriter`,
+`ScriptSchemas`), pictures (`Visuals`), and the FFmpeg render (`EpisodeBuilder`: clips, intro and outro, teasers,
+thumbnails). It reaches every service through a delegate (`JsonChat`, `SeeingChat`, `ImageMaker`, `INarrator`,
+`Hear`), filled in `Features/Movies/MovieAi` from this app's own providers: chat from `OpenAI:*` (else `AiFoundry:*`),
+voice from `AiFoundry:TtsDeployment` timed by listening back with `AiFoundry:TranscriptionDeployment`, pictures from
+`IImageGenerationService`, AI video by drawing a still and animating it with `IVideoGenerationService`. Without one,
+it has a stand-in (stand-in words, a tone for the voice) or the feature is not offered. Shows: `General` (the
+default, a movie about anything) and the `Robot`/`Kids` presets, each with its own brand kit, shapes and prompts;
+an episode's `BeatStructure` says which. `MovieStudio` stands where PoAutoRobo's view model stood: one per user,
+it keeps open movies, undo history and the user's one long job **in memory** (a restart forgets undo and stops a
+job), and movies as **files on this server's disk** under `Movie:Root` (default `/home/data/poredomedia/movies` on
+App Service, local app data elsewhere), one folder a user named by a hash of their id. Every change goes through
+`MovieStudio.Edit` (save, then record for undo). A movie's id is its folder name (`MovieStudio.IsId`), and only
+media types are served from inside it. A movie is the intro, the user's own films, and the outro: nothing generated goes between them. A script is
+written with `EpisodeLength(films, films)` (so `BeatPlan.Repair` keeps only the film clips), edits that would add a
+non-film clip are refused (`addClip`, `kind`, `removeVideo`), and `CheckLength` refuses a render with a clip that
+has no film. Films come from the Library (staged from blob storage), so the Library's
+1-minute limit applies; every clip must run under a minute and a movie up to 10 (`Durations.MaxClip`/`MaxMovie`,
+checked in `MovieStudio.CheckLength` before anything is paid for). **Every render puts each film and AI video clip
+through Meme-ify** (`MovieStudio.Memes`): the clip as it plays (voice-over mixed in) is uploaded as a hidden working
+item, `VideoStep` runs on it directly (no run row, no daily quota) with the narration handed over as its speech, the
+result is kept in the movie's `memes/` folder (named by everything that went into it, so an edit makes it again), and
+the working blobs and output row are deleted. Kids' clips get Meme-ify without the roast, in the "sitcom" persona. Over a narrated clip the roast is a heckler: the
+`VideoRoast.narrated` run option tells `RoastService` the speech is a narrator to answer (`NarratorBrief`), and
+`TurnTaking.Arrange` moves a joke that would start mid-line to the end of that line. A clip can be left out of Meme-ify
+(`Clip.NoMemes`, the "memes" edit). A movie render (or the one-go make) is one run of the daily quota
+(`MovieStudio.StartRenderAsync`), refunded when the job ends without a video.
+Its AI cost is logged as "meme-ify"; `Movie:MemeifyUsd` prices the estimate shown first. The finished video then goes
+into the Library by itself, replacing the movie's earlier copy unless that was shared or pinned (`export/library.json`).
+With no server speech model, a film that keeps its own sound is heard by the browser's Whisper
+(`poDeviceAi.transcribeMedia`), stored as the item's source speech like an upload's. `SourceAudioAnalysis` uses speech
+already stored with an item instead of transcribing it again. Spending is logged per movie (`SpendLog`) and held to an optional monthly budget; anything
+priced asks first. The finished video can be put in the Library (`POST /api/movies/{id}/library`). YouTube upload
+needs `YouTube:ClientId`/`YouTube:ClientSecret` (an OAuth client of the *Web application* kind, redirect
+`/api/movies/youtube/callback`); the sign-in is used for that one upload and nothing is kept. Routes are under
+`/api/movies` (`Features/Movies/MovieEndpoints`); the client is `Pages/CreateMovie` with one component per step
+(`Shared/Movie*Step`), state in `Services/MovieStore`, and `wwwroot/js/movie.js` for undo keys and the preview's
+live captions. Its advanced controls are the `po.adv.movie` switch.
 
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,

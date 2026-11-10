@@ -16,7 +16,9 @@ namespace PoRedoMedia.Api.Features.Video;
 /// <item>A song (the rap roast) has no turns to share: meme sounds during it are muted, and their
 /// captions, stickers and effects still show.</item>
 /// </list>
-/// A joke that cannot finish before the video ends is left out.
+/// A joke that cannot finish before the video ends is left out. Over a narrator, a joke never starts in the middle of
+/// one of the narrator's lines: it waits for the line to end, so the two take turns too (the narrator is turned down
+/// under a joke that runs into the next line).
 /// </summary>
 public static class TurnTaking
 {
@@ -37,14 +39,34 @@ public static class TurnTaking
 
     public sealed record Result(List<RenderVisualEntry> Cues, int JokesMoved, int JokesDropped, int SoundsWaited, int SoundsLeftOut);
 
-    public static Result Arrange(IReadOnlyList<RenderVisualEntry> cues, long videoMs)
+    /// <param name="speech">The narrator's lines, start and end in milliseconds; null when nobody narrates.</param>
+    public static Result Arrange(IReadOnlyList<RenderVisualEntry> cues, long videoMs, IReadOnlyList<(long Start, long End)>? speech = null)
     {
-        if (!cues.Any(c => c.Voice) || !cues.Any(c => !c.Voice))
-            return new([.. cues], 0, 0, 0, 0);
-
         static long Length(RenderVisualEntry c) => c.DurationMs > 0 ? c.DurationMs : UnknownMs;
+        var heckles = 0;
+        var waitedForLine = new HashSet<RenderVisualEntry>();
+        if (speech is { Count: > 0 })
+        {
+            cues = [.. cues.Select(c =>
+            {
+                if (!c.Voice || Length(c) > SongMs || speech.FirstOrDefault(s => c.TimestampMs > s.Start && c.TimestampMs < s.End) is not { End: > 0 } line)
+                    return c;
+                heckles++;
+                var moved = c with { TimestampMs = line.End + GapMs };
+                waitedForLine.Add(moved);
+                return moved;
+            })];
+        }
+
+        if (!cues.Any(c => c.Voice) || !cues.Any(c => !c.Voice))
+        {
+            // Only a joke this pass moved can have been pushed past the end.
+            var kept = cues.Where(c => !waitedForLine.Contains(c) || c.TimestampMs + Length(c) <= videoMs).ToList();
+            return new(kept, heckles, cues.Count - kept.Count, 0, 0);
+        }
+
         var output = new List<RenderVisualEntry>();
-        int jokesMoved = 0, jokesDropped = 0, waited = 0, leftOut = 0;
+        int jokesMoved = heckles, jokesDropped = 0, waited = 0, leftOut = 0;
 
         // A song keeps its place and mutes the meme sounds it covers.
         var songs = cues.Where(c => c.Voice && Length(c) > SongMs).ToList();

@@ -19,6 +19,7 @@ public sealed class NavigationUiTests : UiTestBase
     [
         ("/", "Create"),
         ("/library", "Library"),
+        ("/movie", "Create Movie"),
         ("/settings", "Settings"),
     ];
 
@@ -37,7 +38,7 @@ public sealed class NavigationUiTests : UiTestBase
         foreach (var (path, heading) in Routes)
         {
             await page.GotoAsync(BaseUrl + path);
-            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = heading, Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = heading, Level = 1, Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await page.WaitForTimeoutAsync(1000);
             var shift = await page.EvaluateAsync<double>("() => window.__poShift");
@@ -46,10 +47,10 @@ public sealed class NavigationUiTests : UiTestBase
 
         // Every link in the header, clicked: each lands on its page.
         var nav = page.GetByRole(AriaRole.Navigation, new() { Name = "Main", Exact = true });
-        foreach (var (link, heading) in new[] { ("Library", "Library"), ("Create", "Create") })
+        foreach (var (link, heading) in new[] { ("Library", "Library"), ("Create Movie", "Create Movie"), ("Create", "Create") })
         {
-            await nav.GetByRole(AriaRole.Link, new() { Name = link }).ClickAsync();
-            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = heading, Level = 1 })).ToBeVisibleAsync();
+            await nav.GetByRole(AriaRole.Link, new() { Name = link, Exact = true }).ClickAsync();
+            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = heading, Level = 1, Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         }
 
         await page.GetByRole(AriaRole.Link, new() { NameRegex = new("account and settings$") }).ClickAsync();

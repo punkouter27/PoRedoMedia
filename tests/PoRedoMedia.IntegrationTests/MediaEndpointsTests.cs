@@ -28,7 +28,7 @@ public sealed class MediaEndpointsTests(AzuriteFixture azurite) : IDisposable
         return ImageBytes.ToPng(image);
     }
 
-    private static async Task<byte[]> ClipAsync(int seconds)
+    internal static async Task<byte[]> ClipAsync(int seconds)
     {
         var ffmpeg = new FFmpegProcess(new ConfigurationBuilder().Build(), NullLogger<FFmpegProcess>.Instance);
         var path = Path.Combine(Path.GetTempPath(), $"poredomedia-{Guid.NewGuid():N}.mp4");
@@ -45,7 +45,7 @@ public sealed class MediaEndpointsTests(AzuriteFixture azurite) : IDisposable
         }
     }
 
-    private static async Task<HttpResponseMessage> UploadAndConfirmAsync(HttpClient client, string fileName, byte[] bytes)
+    internal static async Task<HttpResponseMessage> UploadAndConfirmAsync(HttpClient client, string fileName, byte[] bytes)
     {
         var ticketResponse = await client.PostAsJsonAsync("/api/media/sas", new UploadRequest(fileName, bytes.Length));
         ticketResponse.EnsureSuccessStatusCode();

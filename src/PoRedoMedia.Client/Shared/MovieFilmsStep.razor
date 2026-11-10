@@ -1,0 +1,314 @@
+@* Step 2, Films: start a movie. Say what it is about, add films from the Library (or upload new
+   ones), then either make the whole video from them in one go or write a script to look over
+   first. Saved movies are on the right, to open and carry on with. *@
+@implements IDisposable
+@inject MovieStore Store
+@inject MovieApi Api
+@inject DialogService Dialogs
+@inject IJSRuntime JS
+@inject RunApi Runs
+
+@if (Store.Config is { } config)
+{
+var info = Store.ShowInfo;
+<div class="mv-two">
+    <div class="mv-side mv-form">
+        @if (Store.Movie is { } open && !Store.StartingNew)
+        {
+            <span class="mv-quiet">This movie</span>
+            <h2 class="mv-open-title">@open.Title</h2>
+            <h3 class="mv-section">@(config.Shows.FirstOrDefault(s => s.Value == open.Show)?.TopicLabel ?? "What it is about")</h3>
+            <p class="mv-topic" title="What this movie's script was written from, as it was typed in. To change what the movie says, edit its clips on the Voice-over step.">@open.Topic</p>
+            <h3 class="mv-section">My footage</h3>
+            <p class="mv-quiet">@(open.Clips.Count(c => c.HasFilm) switch { 0 => "No films: made of pictures only.", 1 => "1 of your films is in it.", var n => $"{n} of your films are in it." })</p>
+            <div class="mv-pinned">
+                <RadzenButton Text="New movie" Icon="add" Click="@(() => { Store.StartingNew = true; Store.Notify(); })" class="mv-wide"
+                              title="Start the next movie, of any series: say what it is about, add your films and write its script. This movie stays saved, and stays open until the new script is written. Free until you write the script." />
+            </div>
+        }
+        else
+        {
+            @if (Store.Movie is { } back)
+            {
+                <button type="button" class="mv-linkish" @onclick="BackAsync" title="Back to the movie that is open. Anything typed here is kept for when you start the next one.">← Back to @back.Title</button>
+            }
+            <div class="mv-field">
+                <RadzenLabel Text="Kind of video" Component="mv-kind" />
+                <RadzenSelectBar Name="mv-kind" TValue="string" Value="@Store.Show" Change="@(show => Store.SetShowAsync(show))" Disabled="Store.IsWorking" Size="ButtonSize.Small"
+                                 title="General: a movie about anything. Robot lesson: an episode of the R1 series. Kids' video: your son playing, told for young children and uploaded as made for kids. Each has its own intro, outro, look and numbers, set on the Template step. Switching costs nothing.">
+                    <Items>
+                        @foreach (var show in config.Shows)
+                        {
+                            <RadzenSelectBarItem Text="@show.Label" Value="@show.Value" />
+                        }
+                    </Items>
+                </RadzenSelectBar>
+            </div>
+            <div class="mv-field">
+                <RadzenLabel Text="@(info?.TopicLabel ?? "What it is about")" Component="mv-topic" />
+                <RadzenTextArea Name="mv-topic" @bind-Value="Store.Topic" MaxLength="@config.MaxTopicLength" Placeholder="@info?.TopicPlaceholder" Rows="4" @oninput="@(e => { Store.Topic = e.Value?.ToString() ?? ""; Store.Notify(); })"
+                                title="What this movie is about. A sentence is enough; notes also work." />
+                <span class="mv-quiet">@($"{Store.Topic.Length:N0} of {config.MaxTopicLength:N0} characters")</span>
+            </div>
+            <div class="mv-field">
+                <RadzenLabel Text="@(info?.SecondLabel ?? "Anything else (optional)")" Component="mv-second" />
+                <RadzenTextArea Name="mv-second" @bind-Value="Store.Second" MaxLength="2000" Placeholder="@info?.SecondPlaceholder" Rows="2"
+                                title="A sentence or two more for the script writer, so the movie can make the most of it. Leave it empty if you like." />
+            </div>
+
+            <div class="mv-row mv-between">
+                <strong>My footage</strong>
+                <span class="mv-row">
+                @if (Store.FilmList.Count > 1)
+                {
+                    <RadzenButton Text="Remove all" Icon="clear_all" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="Store.IsWorking" Click="@(() => { Store.FilmList.Clear(); Store.Notify(); })"
+                                  title="Take every film off this list. They stay in your Library; add them again with Add films." />
+                }
+                <RadzenButton Text="@(_adding ? "Done" : "Add films")" Icon="@(_adding ? "check" : "add")" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => _adding = !_adding)"
+                              title="Add films (2 seconds to 1 minute each): pick or drop several videos at once to upload them, or click ones already in your Library. The script places each one in the beat its note fits." />
+                </span>
+            </div>
+            @if (_adding)
+            {
+                <div class="mv-add-films">
+                    <MediaPicker ValueChanged="AddFilm" Multiple="true" Accept=".mp4,.mov,.webm" BatchDone="@(() => { _adding = Store.FilmList.Count == 0; Store.Notify(); })" />
+                </div>
+            }
+            @if (Store.FilmList.Count > 0)
+            {
+                var total = TimeSpan.FromTicks(Store.FilmList.Sum(f => f.Length.Ticks));
+                <span class="@(total > MaxMovie ? "mv-caution" : "mv-quiet")" title="Your films end to end. A movie can be up to 10 minutes, and each film up to a minute.">
+                    @($"{(Store.FilmList.Count == 1 ? "1 film" : $"{Store.FilmList.Count} films")} · {total:m\\:ss} of 10:00")@(total > MaxMovie ? ": too long for one movie. Leave some out." : "")
+                </span>
+            }
+            @if (Store.FilmList.Count == 0 && !_adding)
+            {
+                <p class="mv-quiet">No films yet. A movie is your own videos, between the series' intro and outro: add at least one.</p>
+            }
+            @foreach (var film in Store.FilmList)
+            {
+                var row = film;
+                <div class="mv-film">
+                    <img src="@row.Media.ThumbUrl" alt="" loading="lazy" />
+                    <div class="mv-film-body">
+                        <div class="mv-row mv-between">
+                            <span class="mv-film-name" title="@row.Media.Title"><strong>@row.Media.Title</strong> <span class="mv-quiet">@Length(row.Media.DurationSeconds)</span></span>
+                            <span class="mv-row">
+                                <RadzenButton Icon="visibility" Variant="Variant.Text" Size="ButtonSize.Small" IsBusy="row.Watching" Disabled="@(!config.Script)" Click="@(() => WatchAsync(row))"
+                                              title="Suggest a note: a model watches a few frames of the film and says what it shows. A cent or two, once per film." aria-label="Suggest a note" />
+                                <RadzenButton Icon="close" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => { Store.FilmList.Remove(row); Store.Notify(); })"
+                                              title="Leave this film out of the movie. It stays in your Library; add it again with Add films." aria-label="Leave this film out" />
+                            </span>
+                        </div>
+                        <div class="mv-row">
+                            <RadzenSwitch Value="row.OwnSound" Name="@($"mv-own-{row.Media.Id}")" Change="@(on => { row.OwnSound = on; _ = HearAsync(row); })" />
+                            <RadzenLabel Text="@(row.OwnSound ? "My sound" : "Narrate")" Component="@($"mv-own-{row.Media.Id}")"
+                                         title="My sound: the film plays with its own sound alone. Narrate: the narrator speaks over it, fitted to its length, with the film's own sound turned down underneath." />
+                        </div>
+                        @if (row.Listening is { } listening)
+                        {
+                            <span class="mv-quiet" aria-live="polite" title="This server has no speech model, so the speech model in your browser listens to the film, for its captions. Free.">@listening</span>
+                        }
+                        <RadzenTextBox @bind-Value="row.Note" MaxLength="200" Placeholder="What it shows: first try, falls over" class="mv-wide" aria-label="What this film shows"
+                                       title="A few words on what this film shows. The script uses them to place the film in the beat it fits. The eye button can suggest some." />
+                    </div>
+                </div>
+            }
+
+            <div class="mv-pinned">
+                @if (Store.FilmList.Count > 0)
+                {
+                    <RadzenButton Text="Make the video from my films" Icon="movie" Disabled="@(Store.IsWorking || !config.Ffmpeg || TimeSpan.FromTicks(Store.FilmList.Sum(f => f.Length.Ticks)) > MaxMovie)" Click="MakeAsync" class="mv-wide"
+                                  title="Make the whole video from the films above in one go: each film is watched, given a voice-over that fits its length, recorded over the film's own sound, put through Meme-ify, and the films are joined between the series' intro and outro, rendered and put in your Library. No pictures are drawn. You are told what it does and costs first. The box at the top is optional here." />
+                }
+                <RadzenButton Text="Write the script" ButtonStyle="@(Store.FilmList.Count > 0 && Store.Topic.Trim().Length > 0 ? ButtonStyle.Primary : ButtonStyle.Base)"
+                              Variant="@(Store.FilmList.Count > 0 && Store.Topic.Trim().Length > 0 ? Variant.Filled : Variant.Outlined)"
+                              Disabled="@(Store.IsWorking || Store.Topic.Trim().Length == 0 || Store.FilmList.Count == 0)" Click="@(() => Store.StartMovieAsync(false))" class="mv-wide"
+                              title="Write the voice-over for your films, one clip for each, to look over and change clip by clip before the movie is rendered. Needs at least one film and a line on what it is about. Progress is shown at the foot of the page, with a Cancel button." />
+            </div>
+        }
+    </div>
+
+    <div class="mv-main">
+        @if (Store.Library.Count > 0)
+        {
+            <div class="mv-row mv-between">
+                <h2 class="mv-section">Saved movies</h2>
+                <RadzenButton Text="Delete all" Icon="delete_sweep" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Disabled="Store.IsWorking" Click="DeleteAllAsync"
+                              title="Delete every saved movie, with its script, voices, pictures and finished videos. Videos already in your Library stay there." />
+            </div>
+            <div class="mv-library">
+                @foreach (var saved in Store.Library)
+                {
+                    var item = saved;
+                    <div class="mv-saved @(item.Id == Store.Movie?.Id ? "open" : null)">
+                        <button type="button" class="mv-saved-open" @onclick="@(() => OpenAsync(item))" title="@($"{item.Title}\nSaved {item.Saved.ToLocalTime():d MMM yyyy, HH:mm}. Click to open this movie and carry on with it.")">
+                            @if (item.ThumbUrl is not null)
+                            {
+                                <img src="@item.ThumbUrl" alt="" loading="lazy" />
+                            }
+                            else
+                            {
+                                <span class="mv-saved-blank" aria-hidden="true"><RadzenIcon Icon="movie" /></span>
+                            }
+                            <span class="mv-saved-text"><strong>@item.Title</strong><span class="mv-quiet">@item.Details</span></span>
+                        </button>
+                        <RadzenSplitButton Icon="more_horiz" Variant="Variant.Text" Size="ButtonSize.Small" AlwaysOpenPopup="true" Click="@(choice => SavedAsync(item, choice))" aria-label="@($"More for {item.Title}")">
+                            <ChildContent>
+                                <RadzenSplitButtonItem Text="Make a copy" Value="copy" Icon="content_copy" />
+                                <RadzenSplitButtonItem Text="Delete…" Value="delete" Icon="delete" />
+                            </ChildContent>
+                        </RadzenSplitButton>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="mv-empty">
+                <RadzenIcon Icon="movie_filter" aria-hidden="true" />
+                <strong>No movies yet.</strong>
+                <span>Say what your movie is about on the left, add a few films from your Library, and press <em>Make the video from my films</em>. Movies you make are kept here to open again.</span>
+            </div>
+        }
+    </div>
+</div>
+}
+
+@code {
+    private static readonly TimeSpan MaxMovie = TimeSpan.FromMinutes(10);
+    private bool _adding;
+
+    protected override void OnInitialized() => Store.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private static string Length(double? seconds) => seconds is { } s ? TimeSpan.FromSeconds(s).ToString(@"m\:ss") : "";
+
+    private async Task BackAsync()
+    {
+        Store.StartingNew = false;
+        if (Store.Movie is { } movie && movie.Show != Store.Show) await Store.SetShowAsync(movie.Show);
+        Store.Notify();
+    }
+
+    private void AddFilm(MediaDto media)
+    {
+        if (media.Kind != MediaKind.Video)
+        {
+            Store.Say(null, "That is a picture. A movie's films are videos: choose an MP4, MOV or WEBM.");
+            return;
+        }
+        if (Store.FilmList.Any(f => f.Media.Id == media.Id))
+        {
+            Store.Say("That film is already in the list.");
+            return;
+        }
+        if (Store.FilmList.Count >= (Store.Config?.MaxFilms ?? 20))
+        {
+            Store.Say(null, $"A movie can be made from up to {Store.Config?.MaxFilms ?? 20} films.");
+            return;
+        }
+        if (media.DurationSeconds > 62)
+        {
+            Store.Say(null, "Each film can be up to a minute long. Trim it, then add it again.");
+            return;
+        }
+        var film = new MovieFilm(media);
+        Store.FilmList.Add(film);
+        Store.Notify();
+        _ = HearAsync(film);
+    }
+
+    /// <summary>
+    /// For a server with no speech model: the speech model in this browser listens to a film that keeps its own sound,
+    /// so what is said in it becomes its captions and Meme-ify can time its jokes by it. Once for each film; free.
+    /// </summary>
+    private async Task HearAsync(MovieFilm film)
+    {
+        if (Store.Config?.ServerSpeech != false || !film.OwnSound || film.Heard || film.Listening is not null) return;
+        if (await Api.HeardAsync(film.Media.Id))
+        {
+            film.Heard = true;
+            return;
+        }
+        film.Listening = "Listening on your device…";
+        Store.Notify();
+        using var progress = DotNetObjectReference.Create(new BlobUploadService.ProgressSink(percent =>
+        {
+            film.Listening = percent >= 0 ? $"Getting the speech model ready: {percent}%" : "Listening on your device…";
+            Store.Notify();
+        }));
+        var lines = await JS.InvokeAsync<int>("poDeviceAi.transcribeMedia", film.Media.Url, film.Media.Id, progress);
+        (film.Listening, film.Heard) = (null, lines >= 0);
+        if (lines < 0)
+            Store.Say(null, $"What is said in “{film.Media.Title}” could not be heard on this device, so its captions are yours to type.");
+        Store.Notify();
+    }
+
+    private async Task WatchAsync(MovieFilm film)
+    {
+        film.Watching = true;
+        var seen = await Api.WatchFilmAsync(Store.Show, new MovieFilmDto(film.Media.Id, film.Note, film.OwnSound));
+        film.Watching = false;
+        if (seen.Note is { Length: > 0 } note) film.Note = note.Length > 200 ? note[..200] : note;
+        Store.Say(seen.Timeline is null ? null : $"Seen in “{film.Media.Title}”: {seen.Timeline}", seen.Error);
+    }
+
+    private async Task MakeAsync()
+    {
+        var n = Store.FilmList.Count;
+        var config = Store.Config!;
+        var memes = !config.Memes ? "" : Store.Show == "Kids"
+            ? $" Each clip then goes through Meme-ify for meme sounds, stickers, text and effects (no spoken roast in a kids' video), about {MovieDialogs.Money(n * config.MemePrice)}."
+            : $" Each clip then goes through Meme-ify for meme sounds, stickers, text, effects and a roast that heckles the narrator, about {MovieDialogs.Money(n * config.MemePrice)}.";
+        var plan = $"Watches your {(n == 1 ? "film" : $"{n} films")}, writes a voice-over for each that fits its length and records it over the film's own sound.{memes} Then it joins them between the series' intro and outro, renders the finished video and puts it in your Library. No pictures are drawn. You can stop it at any point, and change any clip afterwards."
+            + await MovieDialogs.RunsLeftAsync(Runs);
+        if (await MovieDialogs.ConfirmSpendAsync(Dialogs, Store, "Make the video from your films?", plan, "Make it", config.Memes ? n * config.MemePrice : 0))
+            await Store.StartMovieAsync(true);
+    }
+
+    private async Task OpenAsync(MovieSummaryDto item)
+    {
+        if (Store.IsWorking)
+        {
+            Store.Say(null, "Wait for the job in progress to finish, or cancel it, before opening another movie.");
+            return;
+        }
+        if (!item.Damaged)
+        {
+            await Store.OpenAsync(item.Id);
+            return;
+        }
+        if (await MovieDialogs.ConfirmAsync(Dialogs, "This movie's file is damaged", "Restore it from the copy saved just before the last change?", "Restore")
+            && Store.Apply(await Api.DoAsync(item.Id, "restore")))
+            await Store.OpenAsync(item.Id);
+    }
+
+    private async Task SavedAsync(MovieSummaryDto item, RadzenSplitButtonItem? choice)
+    {
+        switch (choice?.Value)
+        {
+            case "copy":
+                Store.Say($"Copying {item.Title}…");
+                var reply = await Api.DoAsync(item.Id, "duplicate");
+                await Store.RefreshLibraryAsync();
+                Store.Say(reply.Error is null ? $"Copied {item.Title}." : null, reply.Error);
+                break;
+            case "delete":
+                if (await MovieDialogs.ConfirmAsync(Dialogs, $"Delete {item.Title}?", "The movie's folder, with its script, voices, pictures and finished videos, is deleted for good.", "Delete"))
+                    await Store.DeleteAsync(item);
+                break;
+        }
+    }
+
+    private async Task DeleteAllAsync()
+    {
+        var n = Store.Library.Count;
+        if (await MovieDialogs.ConfirmAsync(Dialogs, n == 1 ? "Delete your 1 saved movie?" : $"Delete all {n} saved movies?",
+                "Every movie's folder, with its script, voices, pictures and finished videos, is deleted for good. Videos already in your Library stay there.", "Delete all"))
+            await Store.DeleteAllAsync();
+    }
+
+    public void Dispose() => Store.Changed -= OnChanged;
+}

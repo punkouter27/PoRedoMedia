@@ -4,8 +4,24 @@ window.poDeviceAi = {
     // Hears what is said in a video with a speech model running in this browser, and stores it
     // with the video. Used when the server has no speech model. Resolves to the number of lines
     // heard, or -1 when it could not be done; the run then simply has no captions.
-    async transcribeVideo(input, mediaId, status) {
-        const file = input.files && input.files[0];
+    async transcribeVideo(input, mediaId, status, index = 0) {
+        const file = input.files && input.files[index];
+        return window.poDeviceAi.transcribeFile(file, mediaId, status);
+    },
+
+    // The same for a video already in the Library, fetched here first: a film picked for a movie.
+    async transcribeMedia(url, mediaId, status) {
+        try {
+            const response = await fetch(url, { credentials: 'same-origin' });
+            if (!response.ok) return -1;
+            return await window.poDeviceAi.transcribeFile(await response.blob(), mediaId, status);
+        } catch (err) {
+            console.warn('[poDeviceAi] The film could not be fetched to listen to:', err?.message ?? err);
+            return -1;
+        }
+    },
+
+    async transcribeFile(file, mediaId, status) {
         // Decoding holds the whole soundtrack in memory, so long videos are left alone.
         if (!file || file.size > 80 * 1024 * 1024) return -1;
         let worker;

@@ -157,7 +157,10 @@ public sealed partial class SourceAudioAnalysis : ISourceAudioAnalysis
 
     private async Task<SourceAudio> AnalyseAndStoreAsync(MediaId mediaId, string sourceBlobPath, CancellationToken ct)
     {
-        var speechPath = _transcription.IsEnabled
+        // What is said may be known already: heard on the user's device, or a movie's own narration. It is used as it
+        // is, and the speech model is not paid to hear it again.
+        var known = await LoadKnownSpeechAsync(mediaId, ct);
+        var speechPath = _transcription.IsEnabled && known is null
             ? Path.Combine(Path.GetTempPath(), $"{"poredomedia"}-{mediaId}-speech.mp3")
             : null;
         try
@@ -169,7 +172,7 @@ public sealed partial class SourceAudioAnalysis : ISourceAudioAnalysis
                 return SourceAudio.None with { DurationSeconds = durationSeconds };
             }
 
-            IReadOnlyList<TranscriptSegmentDto> speech = [];
+            IReadOnlyList<TranscriptSegmentDto> speech = known ?? [];
             string? speechError = null;
             if (speechPath is not null && File.Exists(speechPath))
             {
@@ -184,9 +187,9 @@ public sealed partial class SourceAudioAnalysis : ISourceAudioAnalysis
                 }
             }
 
-            // A failed transcription is not stored, so the engine's read retries it.
+            // A failed transcription is not stored, so the engine's read retries it. Known speech is already stored.
             if (speechError is null)
-                await StoreAsync(mediaId, speech, envelope, durationSeconds, ct);
+                await StoreAsync(mediaId, known is null ? speech : null, envelope, durationSeconds, ct);
 
             return new SourceAudio(true, speech, envelope, speechError, durationSeconds);
         }
@@ -199,7 +202,18 @@ public sealed partial class SourceAudioAnalysis : ISourceAudioAnalysis
         }
     }
 
-    private async Task StoreAsync(MediaId mediaId, IReadOnlyList<TranscriptSegmentDto> speech, AudioEnvelope? envelope, double durationSeconds, CancellationToken ct)
+    /// <summary>Speech stored with the item before it was analysed; null when there is none.</summary>
+    private async Task<List<TranscriptSegmentDto>?> LoadKnownSpeechAsync(MediaId mediaId, CancellationToken ct)
+    {
+        var path = MediaAnalysisPaths.SourceSpeech(mediaId.Value);
+        if (!await _blobs.ExistsAsync(path, ct))
+            return null;
+        await using var stream = await _blobs.OpenReadAsync(path, ct);
+        return await JsonSerializer.DeserializeAsync<List<TranscriptSegmentDto>>(stream, JsonOpts, ct);
+    }
+
+    /// <param name="speech">Null to leave the speech stored with the item as it is.</param>
+    private async Task StoreAsync(MediaId mediaId, IReadOnlyList<TranscriptSegmentDto>? speech, AudioEnvelope? envelope, double durationSeconds, CancellationToken ct)
     {
         if (durationSeconds > 0)
         {
@@ -207,7 +221,7 @@ public sealed partial class SourceAudioAnalysis : ISourceAudioAnalysis
             await _blobs.UploadAsync(MediaAnalysisPaths.SourceDuration(mediaId.Value), text, "text/plain", ct);
         }
 
-        if (_transcription.IsEnabled)
+        if (_transcription.IsEnabled && speech is not null)
         {
             using var json = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(speech, JsonOpts));
             await _blobs.UploadAsync(MediaAnalysisPaths.SourceSpeech(mediaId.Value), json, "application/json", ct);

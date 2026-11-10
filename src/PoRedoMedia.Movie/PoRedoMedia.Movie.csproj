@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Create Movie's engine: the episode and its edits, the script writer and its prompts, narration, pictures and the
+       FFmpeg render. Brought over from PoAutoRobo's core, which has no window in it. It works on files in one folder
+       per movie and reaches every outside service through a delegate, which the Api fills with its own providers. -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- The unused-using check only runs on build when documentation is generated; undocumented members are not an error. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <!-- The engine is grouped by what each part does, and every part sees the others, so no file lists them. -->
+  <ItemGroup>
+    <Using Include="PoRedoMedia.Movie.Library" />
+    <Using Include="PoRedoMedia.Movie.Script" />
+    <Using Include="PoRedoMedia.Movie.Voice" />
+    <Using Include="PoRedoMedia.Movie.Pictures" />
+    <Using Include="PoRedoMedia.Movie.Render" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PoRedoMedia.UnitTests" />
+    <InternalsVisibleTo Include="PoRedoMedia.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/PoRedoMedia.Api/PoRedoMedia.Api.csproj" />
     <Project Path="src/PoRedoMedia.Client/PoRedoMedia.Client.csproj" />
+    <Project Path="src/PoRedoMedia.Movie/PoRedoMedia.Movie.csproj" />
     <Project Path="src/PoRedoMedia.Shared/PoRedoMedia.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">

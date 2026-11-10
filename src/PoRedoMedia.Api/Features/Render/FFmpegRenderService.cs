@@ -96,7 +96,10 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
                         _logger.LogWarning("Sound {Index} ({Path}) has no valid audio stream — skipping", i, soundPath);
                         continue;
                     }
-                    renderEntries.Add(cue with { SoundPath = soundPath, GainDb = GainToTarget(await _ffmpeg.LoudnessLufsAsync(soundPath, cancellationToken)) });
+                    var gain = GainToTarget(await _ffmpeg.LoudnessLufsAsync(soundPath, cancellationToken));
+                    if (job.SoundsUnderDb > 0 && !cue.Voice)
+                        gain = (gain ?? 0) - job.SoundsUnderDb;
+                    renderEntries.Add(cue with { SoundPath = soundPath, GainDb = gain });
                     _logger.LogDebug("Sound {Index} downloaded: {Path}", i, soundPath);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -117,7 +120,8 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
                 sourceHasAudio,
                 job.AspectRatio,
                 job.Subtitles,
-                job.TrimStartSeconds);
+                job.TrimStartSeconds,
+                sourceVolume: job.SoundsUnderDb > 0 ? 1.0 : 0.85);
 
             _logger.LogDebug("FFmpeg args: {Args}", args);
 

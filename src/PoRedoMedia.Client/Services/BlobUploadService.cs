@@ -7,15 +7,16 @@ namespace PoRedoMedia.Client.Services;
 /// <summary>Uploads the file chosen in an input: reserve, send to storage from the browser, confirm.</summary>
 public sealed class BlobUploadService(MediaApi api, IJSRuntime js)
 {
+    /// <param name="index">Which of the input's chosen files, when it holds several.</param>
     public async Task<(MediaDto? Media, string? Error)> UploadAsync(
-        ElementReference fileInput, string fileName, long sizeBytes, Action<int> onProgress)
+        ElementReference fileInput, string fileName, long sizeBytes, Action<int> onProgress, int index = 0)
     {
         var (ticket, error) = await api.StartUploadAsync(fileName, sizeBytes);
         if (ticket is null)
             return (null, error);
 
         using var progress = DotNetObjectReference.Create(new ProgressSink(onProgress));
-        if (!await js.InvokeAsync<bool>("poMedia.upload", fileInput, ticket.UploadUrl, progress))
+        if (!await js.InvokeAsync<bool>("poMedia.upload", fileInput, ticket.UploadUrl, progress, index))
             return (null, "The upload did not finish. Check your connection and try again.");
 
         return await api.ConfirmUploadAsync(ticket.Id);

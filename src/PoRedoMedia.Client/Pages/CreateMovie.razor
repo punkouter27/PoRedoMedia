@@ -1,0 +1,291 @@
+@page "/movie"
+@* Create Movie: a whole video made from the user's own films and generated pictures, told by a
+   voice-over and wrapped in a series' intro and outro. Four steps (Template, Films, Voice-over,
+   Video) and, with advanced controls on, a quick Preview before the render. The state is in
+   Services/MovieStore; each step is a component of its own under Shared. *@
+@implements IDisposable
+@inject MovieStore Store
+@inject MovieApi Api
+@inject DialogService Dialogs
+@inject IJSRuntime JS
+
+<PageTitle>Create Movie · PoRedoMedia</PageTitle>
+
+<PageBoundary>
+<div class="mv">
+    <header class="mv-head">
+        <div class="mv-title">
+            @if (_renaming && Store.Movie is not null)
+            {
+                <RadzenTextBox @bind-Value="_title" MaxLength="120" aria-label="Movie title" class="mv-rename" @onkeydown="RenameKeyAsync" @onblur="RenameAsync" />
+            }
+            else
+            {
+                <h1 class="mv-name" title="@(Store.Movie?.Title)">@(Store.Movie?.Title ?? "Create Movie")</h1>
+            }
+            <span class="mv-meta" title="Clips, length of the finished video (measured once a clip's voice is recorded, estimated from the word count until then), what the movie has cost, and how much the script and voice services have been used. Settings has the full breakdown.">
+                @(Store.Movie?.Meta ?? "No movie open yet: set up the template, then add your films.")
+            </span>
+        </div>
+        <div class="mv-tools" role="toolbar" aria-label="This movie">
+            <RadzenButton Icon="undo" Variant="Variant.Text" Disabled="@(Store.Movie?.CanUndo != true)" Click="@(() => Store.DoAsync("undo"))"
+                          title="Undo the last change to the movie (Ctrl+Z)" aria-label="Undo" />
+            <RadzenButton Icon="redo" Variant="Variant.Text" Disabled="@(Store.Movie?.CanRedo != true)" Click="@(() => Store.DoAsync("redo"))"
+                          title="Redo the change you undid (Ctrl+Y)" aria-label="Redo" />
+            <RadzenButton Icon="settings" Variant="Variant.Text" Click="@(() => _settings = !_settings)"
+                          title="Settings: picture quality, the monthly budget and what has been spent, and advanced controls. Changes are kept for next time." aria-label="Movie settings" />
+            @if (Store.Movie is not null)
+            {
+                <RadzenSplitButton Icon="more_horiz" Variant="Variant.Text" Click="MoreAsync" AlwaysOpenPopup="true" aria-label="More for this movie" class="mv-more">
+                    <ChildContent>
+                        <RadzenSplitButtonItem Text="Rename movie…" Value="rename" Icon="edit" />
+                        <RadzenSplitButtonItem Text="Make a copy" Value="copy" Icon="content_copy" />
+                        @if (Store.Advanced)
+                        {
+                            <RadzenSplitButtonItem Text="Remove unused media…" Value="clean" Icon="cleaning_services" />
+                        }
+                        <RadzenSplitButtonItem Text="Delete movie…" Value="delete" Icon="delete" />
+                    </ChildContent>
+                </RadzenSplitButton>
+            }
+        </div>
+    </header>
+
+    <div class="mv-guide">
+        <nav class="mv-steps" aria-label="Step">
+            @foreach (var (step, name, hint) in Steps)
+            {
+                if (step == MovieStore.Preview && !Store.Advanced) continue;
+                var needsMovie = step is MovieStore.Clips or MovieStore.Preview or MovieStore.Video;
+                <button type="button" class="@(Store.Step == step ? "current" : null)" disabled="@(needsMovie && Store.Movie is null)" title="@hint"
+                        aria-current="@(Store.Step == step ? "step" : null)" @onclick="@(() => Store.GoTo(step))">@name</button>
+            }
+        </nav>
+        <ul class="mv-checklist" aria-label="What this step asks for">
+            @{ var next = _guide.FirstOrDefault(i => !i.Done && !i.Optional); }
+            @foreach (var item in _guide)
+            {
+                <li class="@(item.Done ? "done" : item == next ? "next" : null)">
+                    <RadzenIcon Icon="@(item.Done ? "check_circle" : item == next ? "radio_button_checked" : "radio_button_unchecked")" aria-hidden="true" />
+                    <span>@item.Text</span>
+                    @if (item.Optional && !item.Done)
+                    {
+                        <span class="mv-quiet">optional</span>
+                    }
+                </li>
+            }
+        </ul>
+        @if (GuideAction() is var (label, lit, act))
+        {
+            <RadzenButton Text="@label" ButtonStyle="@(lit ? ButtonStyle.Primary : ButtonStyle.Base)" Variant="@(lit ? Variant.Filled : Variant.Outlined)" Disabled="Store.IsWorking" Click="act" class="mv-guide-button"
+                          title="The next thing this step needs, or the next step once this one is done. Lit when it is what to do now. Anything that costs money asks first and shows the cost." />
+        }
+    </div>
+
+    @if (Store.Config?.Notice is { } notice)
+    {
+        <div class="mv-notice" role="note"><RadzenIcon Icon="info" aria-hidden="true" /> @notice</div>
+    }
+
+    <div class="mv-page">
+        @if (Store.Config is null)
+        {
+            <div class="po-skeleton mv-loading" aria-label="Loading"></div>
+        }
+        else if (Store.Job is { State: "running", Skeletons.Length: > 0 } writing)
+        {
+            @* While a script is written, each clip's title pops in as it arrives. *@
+            <div class="mv-deck mv-skeletons" aria-label="The clips being written">
+                @foreach (var title in writing.Skeletons)
+                {
+                    <div class="mv-card skeleton">
+                        <div class="mv-card-picture po-skeleton"></div>
+                        @if (title.Length > 0)
+                        {
+                            <strong class="mv-pop">@title</strong>
+                        }
+                        else
+                        {
+                            <span class="mv-bar po-skeleton"></span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            switch (Store.Step)
+            {
+                case MovieStore.Template: <MovieTemplateStep /> break;
+                case MovieStore.Clips: <MovieClipsStep /> break;
+                case MovieStore.Preview: <MoviePreviewStep /> break;
+                case MovieStore.Video: <MovieVideoStep /> break;
+                default: <MovieFilmsStep /> break;
+            }
+        }
+    </div>
+
+    @* What is going on, and what was last said, float over the foot of the page so nothing moves. *@
+    <div class="mv-dock" aria-live="polite">
+        @if (Store.Job is { State: "running" } job)
+        {
+            <div class="mv-activity">
+                <div class="mv-activity-head"><strong>@job.Title</strong><span class="mv-quiet">@job.Time</span></div>
+                <div class="mv-activity-bar">
+                    <RadzenProgressBar Value="@Math.Round(job.Fraction * 100)" ShowValue="false" aria-label="Progress" />
+                    <span>@($"{job.Fraction * 100:0}%")</span>
+                </div>
+                <div class="mv-activity-foot">
+                    <span class="mv-quiet" title="@job.Detail">@job.Detail</span>
+                    <RadzenButton Text="Cancel" Variant="Variant.Outlined" Click="Store.CancelJobAsync"
+                                  title="Stop this job. Narration and pictures already made are kept, so starting again picks up faster." />
+                </div>
+            </div>
+        }
+        @if (Store.Error is { } error)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" Title="Something went wrong" AllowClose="true" Close="Store.Dismiss" class="rz-m-0 mv-message">@error</RadzenAlert>
+        }
+        else if (Store.Status is { } status)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Success" AllowClose="true" Close="Store.Dismiss" class="rz-m-0 mv-message">@status</RadzenAlert>
+        }
+    </div>
+
+    @if (_settings)
+    {
+        <MovieSettingsPanel Close="@(() => _settings = false)" />
+    }
+
+    @if (Store.Playing is var (url, upright))
+    {
+        @* A clip or a teaser watched on its own. Closing it lets go of the file. *@
+        <div class="mv-player-shade" @onclick="ClosePlayer">
+            <div class="mv-player @(upright ? "upright" : null)" @onclick:stopPropagation="true">
+                <video src="@url" controls autoplay playsinline aria-label="Playing"></video>
+                <RadzenButton Icon="close" Variant="Variant.Text" Click="ClosePlayer" aria-label="Close the player" class="mv-player-close" />
+            </div>
+        </div>
+    }
+</div>
+</PageBoundary>
+
+@code {
+    private static readonly (string Step, string Name, string Hint)[] Steps =
+    [
+        (MovieStore.Template, "1 · Template", "Set up once for the whole series: the intro and outro every video opens and ends with, their logo, mascot and music, and the style any pictures are drawn in. Come back when you want a new look."),
+        (MovieStore.Films, "2 · Films", "Start a video: add your films and make the whole video from them in one go, or write a script with pictures between them. Or open one you saved."),
+        (MovieStore.Clips, "3 · Voice-over", "Check and change what is said over each clip: order the clips, edit and listen to their words, and give each its voice and any picture. Opens once there is a movie."),
+        (MovieStore.Preview, "Preview", "Watch the whole video quickly before rendering it, set the captions and the outro's music, and go back to fix anything. An advanced step."),
+        (MovieStore.Video, "4 · Video", "Render the finished video and its upload files, upload it, and make the short upright teasers for other sites."),
+    ];
+
+    private IReadOnlyList<MovieGuideItem> _guide = [];
+    private DotNetObjectReference<CreateMovie>? _self;
+    private bool _settings;
+    private bool _renaming;
+    private string _title = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Store.Changed += OnChanged;
+        await Store.StartAsync();
+        _guide = Store.Guide();
+    }
+
+    private void OnChanged() => InvokeAsync(() =>
+    {
+        _guide = Store.Guide();
+        StateHasChanged();
+    });
+
+    private void ClosePlayer() => Store.Playing = null;
+
+    // ---- The guide button: what the step needs next, else the way on ----
+
+    private (string Label, bool Lit, Func<Task> Act)? GuideAction()
+    {
+        var movie = Store.Movie;
+        var done = _guide.All(i => i.Done || i.Optional);
+        if (Store.Step == MovieStore.Clips && movie is not null && !done)
+        {
+            if (movie.Clips.Any(c => !c.Measured && !c.OwnSound))
+                return ("Record voices", true, () => Store.DoAsync("voices", job: true));
+        }
+        if (Store.Step == MovieStore.Films && (movie is null || Store.StartingNew)) return null;
+        if (Store.Step == MovieStore.Video || (Store.Step != MovieStore.Template && movie is null)) return null;
+        var after = Store.Step switch
+        {
+            MovieStore.Template => MovieStore.Films,
+            MovieStore.Films => MovieStore.Clips,
+            MovieStore.Clips => Store.Advanced ? MovieStore.Preview : MovieStore.Video,
+            _ => MovieStore.Video,
+        };
+        var name = Steps.First(s => s.Step == after).Name;
+        return ($"Continue to {name[(name.IndexOf('·') + 1)..].Trim()}", done, () =>
+        {
+            Store.GoTo(after);
+            return Task.CompletedTask;
+        });
+    }
+
+    // ---- The … menu ----
+
+    private async Task MoreAsync(RadzenSplitButtonItem? item)
+    {
+        if (Store.Movie is not { } movie || item is null) return;
+        switch (item.Value)
+        {
+            case "rename":
+                (_title, _renaming) = (movie.Title, true);
+                break;
+            case "copy":
+                if (await Store.DoAsync("duplicate") is { Error: null })
+                    await Store.RefreshLibraryAsync();
+                break;
+            case "clean":
+                var unused = await Api.EstimateAsync(movie.Id, "unused");
+                if (unused is null) break;
+                if (unused.NothingToDo) Store.Say("Nothing to remove: every saved file is in use.");
+                else if (await MovieDialogs.ConfirmAsync(Dialogs, "Remove unused media?", unused.Summary, "Remove"))
+                    await Store.DoAsync("clean");
+                break;
+            case "delete":
+                if (await MovieDialogs.ConfirmAsync(Dialogs, $"Delete {movie.Title}?", "The movie's folder, with its script, voices, pictures and finished videos, is deleted for good.", "Delete"))
+                    await Store.DeleteAsync(new MovieSummaryDto(movie.Id, movie.Title, movie.Show, "", null, default, movie.Number, false));
+                break;
+        }
+    }
+
+    private async Task RenameKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await RenameAsync();
+        else if (e.Key == "Escape") _renaming = false;
+    }
+
+    private async Task RenameAsync()
+    {
+        if (!_renaming) return;
+        _renaming = false;
+        if (_title.Trim() is { Length: > 0 } title && title != Store.Movie?.Title)
+            await Store.EditAsync(new MovieEdit("rename", Text: title));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _self = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("poMovie.attachKeys", _self);
+    }
+
+    /// <summary>Undo and redo, from js/movie.js: Ctrl+Z and Ctrl+Y anywhere but in a box being typed in, which keeps its own.</summary>
+    [JSInvokable]
+    public Task OnMovieKey(string key) => key == "undo" ? Store.DoAsync("undo") : Store.DoAsync("redo");
+
+    public void Dispose()
+    {
+        Store.Changed -= OnChanged;
+        _ = JS.InvokeVoidAsync("poMovie.detachKeys");
+        _self?.Dispose();
+    }
+}

@@ -1,0 +1,84 @@
+namespace PoRedoMedia.Movie.Pictures;
+
+/// <summary>What a "generate all" run would make, shown to the user before anything is paid for.</summary>
+/// <param name="Dollars">Null when the model's price is not known; the app then shows counts only instead of guessing.</param>
+/// <param name="Videos">AI videos among them. Animations and stock photos are in <paramref name="ClipIds"/> but cost no picture.</param>
+public sealed record CostEstimate(IReadOnlyList<Guid> ClipIds, int Pictures, decimal? Dollars, int Videos = 0)
+{
+    /// <summary>Approximate list price of one eight-second 720p video from Sora 2, in US dollars (checked October 2026).</summary>
+    public static decimal VideoPrice { get; set; } = 0.80m;
+
+    /// <summary>
+    /// Approximate list price of one 1536×1024 medium-quality picture from gpt-image-1-mini, in US dollars (checked
+    /// October 2026). An estimate for the confirmation dialog only; the Azure bill is the real figure.
+    /// </summary>
+    public const decimal MiniPicturePrice = 0.015m;
+
+    /// <summary>The same picture at low quality, for drafts. Approximate, like the price above.</summary>
+    private const decimal MiniDraftPrice = 0.006m;
+
+    /// <summary>
+    /// Approximate list price of one picture from FLUX.1 Kontext pro, in US dollars (checked November 2026). It has no
+    /// quality setting, so a draft costs the same.
+    /// </summary>
+    public const decimal FluxPicturePrice = 0.04m;
+
+    /// <summary>What the host says one picture costs from a model this list has no price for; null when it does not say.</summary>
+    public static decimal? HostPicturePrice { get; set; }
+
+    public bool NothingToDo => ClipIds.Count == 0;
+
+    public string Summary
+    {
+        get
+        {
+            if (NothingToDo) return "Every clip already has its picture.";
+            var count = string.Join(" and ", new[]
+            {
+                Pictures == 1 ? "1 picture" : Pictures > 1 ? $"{Pictures} pictures" : "",
+                Videos == 1 ? "1 AI video" : Videos > 1 ? $"{Videos} AI videos" : "",
+            }.Where(part => part.Length > 0));
+            if (count.Length == 0) return "Animations and stock photos only, which cost no picture.";
+            return Dollars is { } dollars
+                ? $"{count}, about {SpendLog.Money(dollars)}."
+                : $"{count}. The cost depends on your Azure pricing.";
+        }
+    }
+
+    /// <param name="finals">Draft pictures count as wanted too: they are what is drawn again at full quality.</param>
+    /// <param name="subjectSheet">The episode's subject sheet is still to be drawn, one picture more.</param>
+    public static CostEstimate For(Episode episode, string imageModel, Quality quality = Quality.Medium, bool finals = false, bool subjectSheet = false)
+    {
+        var clips = episode.Clips.Where(c => NeedsPicture(c) || (finals && c.Draft && Visuals.PictureCount(c.Visual.Kind) > 0)).ToList();
+        var pictures = clips.Sum(c => Visuals.PictureCount(c.Visual.Kind)) + (subjectSheet && clips.Any(c => Visuals.UsesSubject(c.Visual.Kind)) ? 1 : 0);
+        var videos = clips.Count(c => c.Visual.Kind == VisualKind.AiVideo);
+        // No pictures means no unknown price, whatever the model is.
+        return new CostEstimate([.. clips.Select(c => c.Id)], pictures, (pictures == 0 ? 0 : pictures * PriceOf(imageModel, quality)) + videos * VideoPrice, videos);
+    }
+
+    /// <summary>Price of one picture from this model, or null when it is not known.</summary>
+    public static decimal? PriceOf(string imageModel, Quality quality = Quality.Medium) => (imageModel, quality) switch
+    {
+        _ when HostPicturePrice is { } price && !ImageModels.IsGptImage(imageModel) => price,
+        _ when ImageModels.IsFlux(imageModel) => FluxPicturePrice,
+        ("gpt-image-1-mini", Quality.Medium) => MiniPicturePrice,
+        ("gpt-image-1-mini", Quality.Low) => MiniDraftPrice,
+        _ => null,
+    };
+
+    /// <summary>What drawing one clip costs: its pictures at the model's price (nothing when that is not known) and any AI video.</summary>
+    public static decimal PriceOf(Clip clip, string imageModel, Quality quality = Quality.Medium) =>
+        Visuals.PictureCount(clip.Visual.Kind) * (PriceOf(imageModel, quality) ?? 0) + (clip.Visual.Kind == VisualKind.AiVideo ? VideoPrice : 0);
+
+    /// <summary>
+    /// Whether a batch run under this estimate may draw its next clip, given what it has spent on pictures so far. The
+    /// estimate is what the user agreed to, so a run that costs more than expected (a substitute, a retry) stops there
+    /// instead of running on. With no known price there is no figure to hold to, and only the monthly budget applies.
+    /// </summary>
+    public bool Allows(decimal spent, decimal next) => Dollars is not { } agreed || spent + next <= agreed;
+
+    /// <summary>Generated kinds with no picture yet, or one the dialogue has since moved away from.</summary>
+    private static bool NeedsPicture(Clip clip) =>
+        Visuals.IsGenerated(clip.Visual.Kind)
+        && (clip.Visual.Stale || clip.Visual.MediaPaths is not { Count: > 0 });
+}

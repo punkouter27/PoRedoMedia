@@ -65,7 +65,36 @@
 - [x] 46 Disposal audit: a SignalR connection that failed to join, or that connected after the tracker was disposed, is now closed; new components release what they hold.
 - [x] 50 (client half) Settings switches, effects, sound choices and recipes follow the account through `/api/preferences`.
 
+## Done: Create Movie (2026-11-09)
+
+- [x] PoAutoRobo's core copied in as `PoRedoMedia.Movie`: Azure/Windows clients removed, FFmpeg, fonts and the scene browser found on any OS.
+- [x] A `General` show beside the Robot and Kids presets: shapes, prompts, kit, made-up camera logo and mascot.
+- [x] Services wired from this app's providers (`Features/Movies/MovieAi`); stand-ins when one is missing.
+- [x] `/api/movies` and `/movie`: Template, Films, Voice-over, Preview (advanced), Video; undo; spend and budget; YouTube by a web sign-in.
+- [x] Tests: 6 unit, 1 integration, 2 browser; the nav test knows the new link.
+
+## Done: Create Movie, round 2 (2026-11-09)
+
+- [x] Clips under a minute, movies up to 10 minutes, checked before rendering and on the Films step.
+- [x] Every film and AI video clip goes through Meme-ify at render (roast too, except in kids' videos); the movie lands in the Library.
+- [x] Films that keep their sound are heard by the browser's speech model when the server has none; known speech is never transcribed twice.
+
+## Done: Create Movie, round 3 (2026-11-09)
+
+- [x] Meme-ify can be switched off for one clip (on by default).
+- [x] The roast heckles the narrator: it is told the speech is a narrator to answer, and its lines wait for the narrator's pauses.
+- [x] A movie render is one run of the daily quota, refunded when no video comes of it.
+
 ## Open
+
+- [ ] The heckler roast is only tested with mock AI: try one narrated movie with the real roast and judge the jokes.
+
+- [ ] Create Movie on the F1 plan: a render is minutes of CPU, and F1 allows 60 a day. Decide on a bigger plan, or keep movies to local runs.
+- [ ] Movies, undo and the job live on one server (disk and memory). Mirror the folders to blob storage if the app ever runs on two instances.
+- [ ] The browser's speech model (Whisper, a large first download) is not covered by a test: the films test runs with server speech.
+- [ ] Meme-ify estimate is a flat price a clip (`Movie:MemeifyUsd`); the real cost is logged after, from the AI meter.
+- [ ] YouTube upload: create the Web-application OAuth client and put `PoRedoMedia--YouTube--ClientId`/`--ClientSecret` in the vault.
+- [ ] No timeline-strip drag or waveform on the Preview step (PoAutoRobo had both); clip reorder is by card drag and Ctrl+arrows.
 
 - [ ] Run `scripts/package.sh` once on Linux/WSL, or watch the next deploy, to confirm the moved packaging steps.
 - [ ] `scripts/run-e2e.ps1` stops when an Azurite container from another compose project already holds the name `poredomedia-azurite`.

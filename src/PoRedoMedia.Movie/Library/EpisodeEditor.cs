@@ -1,0 +1,257 @@
+
+namespace PoRedoMedia.Movie.Library;
+
+/// <summary>Every edit the studio makes to an episode. Each returns a new episode and touches only the clip it names.</summary>
+public static class EpisodeEditor
+{
+    /// <summary>Share of words two versions of a line must have in common to count as the same subject without asking the model.</summary>
+    private const double SameSubject = 0.85;
+
+    /// <summary>A blank clip for the user to write, shown as a title card until it is given a picture.</summary>
+    public static Clip NewClip() => new(
+        Guid.NewGuid(), "New clip", Tier.B,
+        new Dictionary<Tier, TierScript> { [Tier.B] = new("Write what the host says here.", "A comic panel that illustrates this clip.", "talking to the camera") },
+        new VisualSpec(VisualKind.TitleCard, KindLocked: true), HostVisible: true);
+
+    /// <summary>A second copy of a clip, with its pictures; its voice is recorded afresh.</summary>
+    public static Clip Copy(Clip clip) => clip with { Id = Guid.NewGuid(), Title = clip.Title + " copy" };
+
+    /// <summary>Puts <paramref name="clip"/> straight after the clip named.</summary>
+    public static Episode AddClip(Episode episode, Guid afterId, Clip clip)
+    {
+        var at = episode.Clips.ToList().FindIndex(c => c.Id == afterId);
+        if (at < 0)
+            throw new ArgumentException($"No clip {afterId} in this episode.", nameof(afterId));
+        return episode with { Clips = [.. episode.Clips.Take(at + 1), clip, .. episode.Clips.Skip(at + 1)] };
+    }
+
+    /// <exception cref="ArgumentException">It is the only clip: an episode always has at least one.</exception>
+    public static Episode RemoveClip(Episode episode, Guid clipId) =>
+        episode.Clips.Count == 1 && episode.Clips[0].Id == clipId
+            ? throw new ArgumentException("An episode needs at least one clip.", nameof(clipId))
+            : episode with { Clips = [.. episode.Clips.Where(c => c.Id != clipId)] };
+
+    /// <summary>Where the episode comes in its series: shown in the intro and the upload title from the next render.</summary>
+    public static Episode SetNumber(Episode episode, int number) => episode.Number == number ? episode : episode with { Number = number };
+
+    public static Episode Rename(Episode episode, string title) =>
+        string.IsNullOrWhiteSpace(title) ? episode : episode with { Title = title.Trim() };
+
+    public static Episode SetClipTitle(Episode episode, Guid clipId, string title) =>
+        string.IsNullOrWhiteSpace(title) ? episode : Update(episode, clipId, clip => clip with { Title = title.Trim() });
+
+    /// <summary>Replaces what the active depth's picture should show. A picture already drawn from the old words is out of date.</summary>
+    public static Episode SetVisualPrompt(Episode episode, Guid clipId, string prompt) =>
+        Update(episode, clipId, clip => string.IsNullOrWhiteSpace(prompt) || prompt.Trim() == clip.Active.VisualPrompt
+            ? clip
+            : clip with
+            {
+                Scripts = clip.Scripts.ToDictionary(s => s.Key, s => s.Key == clip.ActiveTier ? s.Value with { VisualPrompt = prompt.Trim() } : s.Value),
+                Visual = clip.Visual with { Stale = clip.Visual.Stale || HasGeneratedMedia(clip) },
+            });
+
+    public static Episode Reorder(Episode episode, IReadOnlyList<Guid> order)
+    {
+        var byId = episode.Clips.ToDictionary(c => c.Id);
+        if (order.Count != byId.Count || order.Distinct().Count() != order.Count || !order.All(byId.ContainsKey))
+            throw new ArgumentException("The new order must list every clip exactly once.", nameof(order));
+        return episode with { Clips = [.. order.Select(id => byId[id])] };
+    }
+
+    /// <exception cref="ArgumentException">The clip has not been written at that depth yet; add it with <see cref="AddTier"/> first.</exception>
+    public static Episode SetTier(Episode episode, Guid clipId, Tier tier) =>
+        Update(episode, clipId, clip => clip.ActiveTier == tier
+            ? clip
+            : !clip.Scripts.ContainsKey(tier)
+            ? throw new ArgumentException($"This clip has not been written at depth {tier} yet.", nameof(tier))
+            : clip with { ActiveTier = tier, Visual = clip.Visual with { Stale = clip.Visual.Stale || HasGeneratedMedia(clip) } });
+
+    /// <summary>Gives a clip a depth it did not have. A depth already written is kept, so a slow reply cannot undo edits made to it.</summary>
+    public static Episode AddTier(Episode episode, Guid clipId, Tier tier, TierScript script) =>
+        Update(episode, clipId, clip => clip.Scripts.ContainsKey(tier)
+            ? clip
+            : clip with { Scripts = new Dictionary<Tier, TierScript>(clip.Scripts) { [tier] = script } });
+
+    public static Episode SetHostVisible(Episode episode, Guid clipId, bool visible) =>
+        Update(episode, clipId, clip => clip with { HostVisible = visible });
+
+    /// <summary>Changes the art direction. Whatever was drawn in the old look is out of date.</summary>
+    public static Episode SetLook(Episode episode, Look look) => episode.Look == look ? episode : episode with
+    {
+        Look = look,
+        Clips = [.. episode.Clips.Select(c => HasGeneratedMedia(c) ? c with { Visual = c.Visual with { Stale = true } } : c)],
+    };
+
+    /// <summary>
+    /// Replaces the active tier's dialogue. Narration follows the text on the next narrate pass; the picture is only
+    /// marked stale when the model says the core action, tool or subject changed, and is never regenerated here.
+    /// </summary>
+    public static async Task<Episode> EditDialogueAsync(Episode episode, Guid clipId, string dialogue, IScriptWriter writer, CancellationToken ct)
+    {
+        dialogue = dialogue.Trim();
+        var clip = episode.Clips.FirstOrDefault(c => c.Id == clipId)
+            ?? throw new ArgumentException($"No clip {clipId} in this episode.", nameof(clipId));
+        // Over a film's own sound the words are only its captions, and a film may have none.
+        if (dialogue.Length == 0 && !clip.OwnSound)
+            throw new ArgumentException("Dialogue cannot be empty.", nameof(dialogue));
+        var before = clip.Active.Dialogue;
+        if (dialogue == before)
+            return episode;
+
+        // A clip with no picture yet has nothing to go stale: its picture request includes the dialogue as it is then.
+        // A line that keeps nearly all its words (a typo fixed, a phrase tightened) is the same subject; nobody is asked.
+        var stale = clip.Visual.Stale
+            || (HasGeneratedMedia(clip) && Durations.SharedWords(before, dialogue) < SameSubject && await writer.CoreChangedAsync(before, dialogue, ct));
+        return SetDialogue(episode, clipId, dialogue, stale);
+    }
+
+    /// <summary>
+    /// Gives the clip, as it is now, the words <see cref="EditDialogueAsync"/> settled on, and marks its picture out of
+    /// date when that said so. Everything else about the clip is left as it is, so a picture finished while the words
+    /// were being checked is kept. Nothing happens when the clip has gone.
+    /// </summary>
+    public static Episode SetDialogue(Episode episode, Guid clipId, string dialogue, bool stale) =>
+        episode.Clips.Any(c => c.Id == clipId)
+            ? Update(episode, clipId, c => WithDialogue(c, dialogue) with { Visual = c.Visual with { Stale = c.Visual.Stale || stale } })
+            : episode;
+
+    /// <summary>Swaps the clip's picture for the user's footage and takes the dialogue and pace that were fitted to it.</summary>
+    public static Episode AttachVideo(Episode episode, Guid clipId, string videoPath, FitResult fit) =>
+        Update(episode, clipId, c => WithDialogue(c, fit.Dialogue) with
+        {
+            NarrationRate = fit.Rate,
+            Visual = new VisualSpec(VisualKind.UserVideo, KindLocked: true, UserVideoPath: videoPath),
+        });
+
+    public static Episode RemoveVideo(Episode episode, Guid clipId) => Update(episode, clipId, WithoutVideo);
+
+    /// <summary>The clip as a title card narrated at normal pace: nothing of its film is left, its own sound and robot's view included.</summary>
+    internal static Clip WithoutVideo(Clip clip) =>
+        Narratable(clip with { NarrationRate = 1.0, OwnSound = false, RobotView = false, Visual = new VisualSpec(VisualKind.TitleCard) });
+
+    /// <summary>
+    /// A clip that is to be narrated needs words to say. One that played a film with its own sound may have none, so it
+    /// is given its title until the user writes some.
+    /// </summary>
+    internal static Clip Narratable(Clip clip) => clip.OwnSound || clip.Active.Dialogue.Trim().Length > 0 ? clip : WithDialogue(clip, clip.Title);
+
+    /// <summary>
+    /// Plays the clip's film with its own sound, or narrates over it again. Only a clip with a film has a sound of its
+    /// own. Its words stay either way: over its own sound they are its captions. Narrating again needs the words
+    /// fitted to the film, which is the caller's to do (<see cref="AttachVideo"/> with the fitted words).
+    /// </summary>
+    public static Episode SetOwnSound(Episode episode, Guid clipId, bool ownSound) =>
+        episode.Clips.FirstOrDefault(c => c.Id == clipId) is { Visual.UserVideoPath: not null } clip && clip.OwnSound != ownSound
+            ? Update(episode, clipId, c => c with { OwnSound = ownSound, NarrationRate = 1.0 })
+            : episode;
+
+    /// <summary>Shows the clip's film through the robot's eyes, or as it was filmed. Only a clip with a film has one to show.</summary>
+    public static Episode SetRobotView(Episode episode, Guid clipId, bool on) =>
+        episode.Clips.FirstOrDefault(c => c.Id == clipId) is { Visual.UserVideoPath: not null } clip && clip.RobotView != on
+            ? Update(episode, clipId, c => c with { RobotView = on })
+            : episode;
+
+    // Attaches finished pictures to the clip they were drawn for, as that clip is now. Drawing takes a while, so the
+    // clip may have moved on: footage or a different picture type wins and the pictures are dropped; changed words
+    // keep the pictures but mark them out of date.
+    /// <param name="draft">The pictures are quick drafts, to be drawn again at full quality.</param>
+    public static Episode ApplyPicture(Episode episode, Clip requested, IReadOnlyList<string> paths, bool draft = false)
+    {
+        var current = episode.Clips.FirstOrDefault(c => c.Id == requested.Id);
+        if (current is null || current.Visual.Kind != requested.Visual.Kind || current.Visual.UserVideoPath is not null)
+            return episode;
+        var stillDescribesIt = current.Active == requested.Active && current.HostVisible == requested.HostVisible;
+        // Another take: what the clip showed until now is kept beside it, so it can be gone back to.
+        var earlier = requested.Visual.Take != current.Visual.Take && current.Visual.MediaPaths is { Count: > 0 } shown && !shown.SequenceEqual(paths)
+            ? [.. current.Visual.EarlierTakes ?? [], shown]
+            : current.Visual.EarlierTakes;
+        return Update(episode, requested.Id, c => c with { Visual = c.Visual with { MediaPaths = paths, Stale = !stillDescribesIt, Take = requested.Visual.Take, EarlierTakes = earlier }, Draft = draft });
+    }
+
+    /// <summary>The clip with its active depth's picture described as <paramref name="prompt"/>.</summary>
+    public static Clip WithVisualPrompt(Clip clip, string prompt) => clip with
+    {
+        Scripts = clip.Scripts.ToDictionary(s => s.Key, s => s.Key == clip.ActiveTier ? s.Value with { VisualPrompt = prompt } : s.Value),
+    };
+
+    /// <summary>
+    /// Puts in a clip's place the clip that was drawn instead of it, with its files, when the picture asked for
+    /// could not be made as described. Only when the clip is still as it was when its picture was asked for: any
+    /// change made to it meanwhile wins, and what was drawn is dropped.
+    /// </summary>
+    public static Episode ApplySubstitute(Episode episode, Clip requested, Clip drawn, IReadOnlyList<string> paths, bool draft = false)
+    {
+        var current = episode.Clips.FirstOrDefault(c => c.Id == requested.Id);
+        if (current is null || current.Active != requested.Active || current.Visual.Kind != requested.Visual.Kind || current.Visual.UserVideoPath is not null)
+            return episode;
+        // The words, depths and place in the episode are the clip's own; the description, picture type and files are what was drawn.
+        return Update(episode, requested.Id, c => WithVisualPrompt(c, drawn.Active.VisualPrompt) with
+        {
+            Visual = drawn.Visual with { MediaPaths = paths.Count > 0 ? paths : null, EarlierTakes = c.Visual.EarlierTakes },
+            Draft = draft && paths.Count > 0,
+        });
+    }
+
+    /// <summary>The clip as it would be asked for once more: the same words, a fresh attempt at the picture.</summary>
+    public static Clip NextTake(Clip clip) =>
+        clip with { Visual = clip.Visual with { Take = Math.Max(clip.Visual.Take, clip.Visual.EarlierTakes?.Count ?? 0) + 1 } };
+
+    /// <summary>Goes back to an earlier take: it and what the clip shows now change places. Nothing is made or paid for.</summary>
+    public static Episode UseEarlierTake(Episode episode, Guid clipId, int index) =>
+        Update(episode, clipId, c =>
+        {
+            if (c.Visual.EarlierTakes is not { } earlier || index < 0 || index >= earlier.Count)
+                return c;
+            var kept = earlier.ToList();
+            var chosen = kept[index];
+            if (c.Visual.MediaPaths is { Count: > 0 } shown) kept[index] = shown; else kept.RemoveAt(index);
+            return c with { Visual = c.Visual with { MediaPaths = chosen, EarlierTakes = kept, Stale = false } };
+        });
+
+    /// <summary>
+    /// Gives the episode the series look: its art direction, its caption style and, when the series has one, its
+    /// music (<paramref name="music"/>, already copied into the episode folder). Clips and words are left alone.
+    /// </summary>
+    public static Episode UseSeriesLook(Episode episode, SeriesKit kit, string? music)
+    {
+        var styled = SetLook(episode, kit.Look) with { Captions = kit.Captions, MusicPath = music ?? episode.MusicPath };
+        return styled == episode ? episode : styled;
+    }
+
+    /// <summary>Sets the music played under the narration; null takes it away.</summary>
+    /// <summary>Whether the clip goes through Meme-ify before it is joined into the movie.</summary>
+    public static Episode SetMemes(Episode episode, Guid clipId, bool on) => Update(episode, clipId, clip => clip.NoMemes == !on ? clip : clip with { NoMemes = !on });
+
+    public static Episode SetMusic(Episode episode, string? path) => episode.MusicPath == path ? episode : episode with { MusicPath = path };
+
+    // Swaps in one changed clip and leaves the rest of the episode as it is now, so a slow change to one clip
+    // cannot undo edits made to the others while it was in progress.
+    public static Episode ReplaceClip(Episode episode, Clip clip) =>
+        episode.Clips.Any(c => c.Id == clip.Id) ? Update(episode, clip.Id, _ => clip) : episode;
+
+    /// <summary>The user's own choice for one clip; dealing the picture types afresh leaves it alone from then on.</summary>
+    public static Episode SetKind(Episode episode, Guid clipId, VisualKind kind)
+    {
+        if (kind == VisualKind.UserVideo)
+            throw new ArgumentException("Attach a video to make a clip use your own footage.", nameof(kind));
+        return Update(episode, clipId, c => c with
+        {
+            Visual = c.Visual.Kind == kind ? c.Visual with { KindLocked = true } : new VisualSpec(kind, KindLocked: true),
+        });
+    }
+
+    /// <summary>The clip with its active tier saying <paramref name="dialogue"/>; the other tiers are untouched.</summary>
+    public static Clip WithDialogue(Clip clip, string dialogue) => clip with
+    {
+        Scripts = clip.Scripts.ToDictionary(s => s.Key, s => s.Key == clip.ActiveTier ? s.Value with { Dialogue = dialogue } : s.Value),
+    };
+
+    internal static Episode Update(Episode episode, Guid clipId, Func<Clip, Clip> change)
+    {
+        if (episode.Clips.All(c => c.Id != clipId))
+            throw new ArgumentException($"No clip {clipId} in this episode.", nameof(clipId));
+        return episode with { Clips = [.. episode.Clips.Select(c => c.Id == clipId ? change(c) : c)] };
+    }
+
+    private static bool HasGeneratedMedia(Clip clip) => clip.Visual.MediaPaths is { Count: > 0 };
+}

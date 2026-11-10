@@ -1,0 +1,256 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace PoRedoMedia.Movie.Library;
+
+/// <summary>One saved episode as the library lists it.</summary>
+/// <param name="Thumbnail">The first generated picture still on disk, or null.</param>
+/// <param name="Number">Where the episode comes in the series; 0 when it has no number.</param>
+public sealed record EpisodeSummary(string Folder, string Title, string? Thumbnail, int Clips, TimeSpan Runtime, DateTime Saved, int Number = 0, Show Show = Show.Robot)
+{
+    public string Details => Clips == 0 ? "Damaged · open to restore" : $"{BeatPlan.Label(Show)} · {(Clips == 1 ? "1 clip" : $"{Clips} clips")} · {Runtime:m\\:ss}";
+
+    /// <summary>The full title and when it was last saved, for a tooltip; the list itself has room for neither.</summary>
+    public string Tip => $"{Title}\nSaved {Saved:d MMM yyyy, HH:mm}";
+
+    public override string ToString() => Title; // what a screen reader calls the item
+}
+
+public static class ProjectStore
+{
+    public const string FileName = "episode.json";
+
+    // Enums are saved as their names, one converter for each kind an episode or the brand kit holds.
+    public static readonly JsonSerializerOptions JsonOptions = Json.Knowing(new()
+    {
+        WriteIndented = true,
+        Converters =
+        {
+            new JsonStringEnumConverter<BeatStructure>(), new JsonStringEnumConverter<Show>(), new JsonStringEnumConverter<CaptionPreset>(),
+            new JsonStringEnumConverter<Tier>(), new JsonStringEnumConverter<VisualKind>(), new JsonStringEnumConverter<Look>(),
+            new JsonStringEnumConverter<IntroLayout>(),
+        },
+    });
+
+    // A saved episode with a field missing or null fails to read, and is reported as damaged.
+    private static readonly JsonSerializerOptions Strict = new(JsonOptions)
+    {
+        RespectNullableAnnotations = true,
+        RespectRequiredConstructorParameters = true,
+    };
+
+    public static void Save(Episode episode, string folder)
+    {
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, FileName);
+        var temp = path + ".tmp";
+        File.WriteAllText(temp, Json.Write(episode, JsonOptions));
+        if (File.Exists(path))
+            File.Replace(temp, path, path + ".bak");
+        else
+            File.Move(temp, path);
+    }
+
+    /// <exception cref="InvalidDataException">The file is missing or unreadable; offer <see cref="RestoreBackup"/>.</exception>
+    public static Episode Load(string folder) => Read(Path.Combine(folder, FileName), folder);
+
+    public static Episode RestoreBackup(string folder)
+    {
+        var path = Path.Combine(folder, FileName);
+        var episode = Read(path + ".bak", folder);
+        File.Copy(path + ".bak", path, overwrite: true);
+        return episode;
+    }
+
+    // An episode file can be edited by anyone who can reach the (often cloud-synced) folder, so it is not trusted.
+    // The serializer refuses missing and null fields; what it cannot see is checked here, where a problem can be
+    // reported as a damaged file and not left to crash later.
+    private static void CheckShape(Episode episode, string path)
+    {
+        var sound = AssCaptions.IsHexColour(episode.Captions.AccentColor)
+            // A clip always has the depth it is on; the other depths are written on demand and may be absent.
+            && episode.Clips.All(c => c is not null && c.Scripts.ContainsKey(c.ActiveTier) && c.Scripts.Values.All(script => script is not null)
+                && (c.Visual.EarlierTakes ?? []).All(take => take is not null && take.All(path => path is not null)));
+        if (!sound)
+            throw new InvalidDataException($"{path} is missing or damaged.");
+    }
+
+    // Media must live inside the episode's own folder. A path pointing anywhere else (a network share, a system
+    // file) is dropped, so opening an episode can never make the app reach out to or read from another place. The app
+    // writes every path in full; one that is not (relative, or "C:x.png" on a drive's current folder) would be read
+    // from wherever the app happens to be running, so it is dropped too.
+    private static Episode KeepOwnMedia(Episode episode, string folder)
+    {
+        var root = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        bool Inside(string path) => Path.IsPathFullyQualified(path) && Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+
+        return episode with
+        {
+            MusicPath = episode.MusicPath is { } music && Inside(music) ? music : null,
+            Clips = [.. episode.Clips.Select(clip =>
+            {
+                var visual = clip.Visual;
+                if (visual.UserVideoPath is { } video && !Inside(video))
+                    return EpisodeEditor.WithoutVideo(clip);
+                if (visual.EarlierTakes is { } takes && !takes.All(take => take.All(Inside)))
+                    visual = visual with { EarlierTakes = [.. takes.Where(take => take.All(Inside))] };
+                if (visual.MediaPaths is { } media && !media.All(Inside))
+                    visual = visual with { MediaPaths = [.. media.Where(Inside)] };
+                return ReferenceEquals(visual, clip.Visual) ? clip : clip with { Visual = visual };
+            })],
+        };
+    }
+
+    /// <summary>Episode folders directly under <paramref name="root"/>, most recently saved first.</summary>
+    public static IReadOnlyList<string> ListEpisodes(string root) =>
+        Directory.Exists(root)
+            ? [.. Directory.GetDirectories(root)
+                .Where(folder => File.Exists(Path.Combine(folder, FileName)))
+                .OrderByDescending(folder => File.GetLastWriteTimeUtc(Path.Combine(folder, FileName)))]
+            : [];
+
+    /// <summary>
+    /// What the library shows for each saved episode. A damaged one is still listed, so it can be opened and restored.
+    /// <paramref name="measured"/> gives a clip's recorded length in its folder, so the list shows the running time the
+    /// open episode's header does; without it the lengths are estimated from the words.
+    /// </summary>
+    public static IReadOnlyList<EpisodeSummary> Summaries(string root, Func<Clip, string, TimeSpan?>? measured = null) =>
+        [.. ListEpisodes(root).Select(folder =>
+        {
+            var saved = File.GetLastWriteTime(Path.Combine(folder, FileName));
+            try
+            {
+                var episode = Load(folder);
+                var runtime = Durations.Total(episode, measured is null ? null : clip => measured(clip, folder));
+                return new EpisodeSummary(folder, episode.Title, episode.Cover(), episode.Clips.Count, runtime, saved, episode.Number, BeatPlan.ShowOf(episode.Structure));
+            }
+            catch (InvalidDataException)
+            {
+                return new EpisodeSummary(folder, Path.GetFileName(folder), null, 0, TimeSpan.Zero, saved);
+            }
+        })];
+
+    /// <summary>How many earlier episodes a new script is told about: enough to build on, few enough to stay cheap.</summary>
+    private const int EarlierShown = 10;
+
+    /// <summary>
+    /// The series before episode <paramref name="number"/> of <paramref name="show"/>, a line to each in order: its
+    /// number, title and clip titles. A new script is told these so it can call back to them and not explain them again.
+    /// </summary>
+    public static IReadOnlyList<string> SeriesBefore(string root, int number, Show show = Show.Robot) =>
+        [.. ListEpisodes(root)
+            .Select(folder =>
+            {
+                try
+                {
+                    return Load(folder);
+                }
+                catch (InvalidDataException)
+                {
+                    return null; // damaged: it says nothing about the series that can be trusted
+                }
+            })
+            .OfType<Episode>()
+            .Where(e => e.Number > 0 && e.Number < number && BeatPlan.ShowOf(e.Structure) == show)
+            .OrderByDescending(e => e.Number).Take(EarlierShown).OrderBy(e => e.Number)
+            .Select(e => $"#{e.Number} · {e.Title}: {string.Join("; ", e.Clips.Select(c => c.Title))}")];
+
+    /// <summary>
+    /// The number the next episode of <paramref name="show"/> gets: one more than the highest saved, so a gap is never
+    /// filled. Each series counts its own.
+    /// </summary>
+    public static int NextNumber(string root, Show show = Show.Robot) => NextNumber(Summaries(root), show);
+
+    /// <summary>The number the next episode of <paramref name="show"/> gets, from the library already listed.</summary>
+    public static int NextNumber(IEnumerable<EpisodeSummary> library, Show show = Show.Robot) =>
+        library.Where(s => s.Show == show).Select(s => s.Number).DefaultIfEmpty(0).Max() + 1;
+
+    private const string SnippetsFile = "grounding.json";
+
+    /// <summary>Keeps the passages a script was written from beside the episode, so they can be shown and checked against later.</summary>
+    public static void SaveSnippets(IReadOnlyList<GroundingSnippet> snippets, string folder) =>
+        File.WriteAllText(Path.Combine(folder, SnippetsFile), Json.Write(snippets, JsonOptions));
+
+    /// <summary>The saved passages with web links only; none when the file is absent or unreadable.</summary>
+    public static IReadOnlyList<GroundingSnippet> LoadSnippets(string folder) =>
+        [.. JsonFile.Load<List<GroundingSnippet>>(Path.Combine(folder, SnippetsFile), [], JsonOptions)
+            .Where(s => s is { Repo: not null, Path: not null, Text: not null } && Files.IsWebLink(s.Url ?? ""))];
+
+    /// <summary>
+    /// Copies an episode to a new folder beside it, without its finished videos or its spending, and returns that folder.
+    /// A numbered episode's copy is the next in the series, so two episodes never share a number.
+    /// </summary>
+    public static string Duplicate(string folder, string root)
+    {
+        var episode = Load(folder);
+        var title = episode.Title + " copy";
+        var number = episode.Number > 0 ? NextNumber(root, BeatPlan.ShowOf(episode.Structure)) : 0;
+        var copy = NewFolder(root, title, number);
+        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(folder, file);
+            // The spending stays with the original: copied, the month's total would count it twice.
+            if (relative.StartsWith("export" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || relative.Equals(SpendLog.FileName, StringComparison.OrdinalIgnoreCase))
+                continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(copy, relative))!);
+            File.Copy(file, Path.Combine(copy, relative));
+        }
+
+        // Media is recorded by full path, so the copy's clips must point at the copy's own files.
+        string Moved(string path) => Path.Combine(copy, Path.GetRelativePath(folder, Path.GetFullPath(path, folder)));
+        Save(episode with
+        {
+            Title = title,
+            Number = number,
+            MusicPath = episode.MusicPath is { } music ? Moved(music) : null,
+            Clips = [.. episode.Clips.Select(c => c with
+            {
+                Visual = c.Visual with
+                {
+                    UserVideoPath = c.Visual.UserVideoPath is { } video ? Moved(video) : null,
+                    MediaPaths = c.Visual.MediaPaths is { } media ? [.. media.Select(Moved)] : null,
+                    EarlierTakes = c.Visual.EarlierTakes is { } takes ? [.. takes.Select(take => (IReadOnlyList<string>)[.. take.Select(Moved)])] : null,
+                },
+            })],
+        }, copy);
+        return copy;
+    }
+
+    private const int MaxFolderName = 60;
+
+    // A file-system-safe name from a title: lower-case letters and digits joined by hyphens, capped in length.
+    public static string Slug(string title)
+    {
+        var slug = System.Text.RegularExpressions.Regex.Replace(title.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        if (slug.Length > MaxFolderName - 4) // leaves room for a "-999" suffix
+            slug = slug[..(MaxFolderName - 4)].Trim('-');
+        return slug.Length == 0 ? "episode" : slug;
+    }
+
+    // A folder for a new episode that does not collide with one already saved under the same title. A numbered
+    // episode's folder starts with its number, so the folders sort in the order of the series.
+    public static string NewFolder(string root, string title, int number = 0)
+    {
+        var slug = Slug(number > 0 ? $"{number:00} {title}" : title);
+        var folder = Path.Combine(root, slug);
+        for (var n = 2; Directory.Exists(folder); n++)
+            folder = Path.Combine(root, $"{slug}-{n}");
+        return folder;
+    }
+
+    private static Episode Read(string path, string folder)
+    {
+        try
+        {
+            var episode = Json.Read<Episode>(File.ReadAllText(path), Strict)
+                ?? throw new InvalidDataException($"{path} is empty.");
+            CheckShape(episode, path);
+            return KeepOwnMedia(episode, folder);
+        }
+        catch (Exception e) when (e is JsonException or IOException or ArgumentException or NotSupportedException)
+        {
+            throw new InvalidDataException($"{path} is missing or damaged.", e);
+        }
+    }
+}

@@ -134,7 +134,8 @@ public interface ITranscriptionService
 public interface IVideoRoast
 {
     /// <summary>Null when the clip gave nothing to roast.</summary>
+    /// <param name="narrated">What is said in the clip is a narrator's voice-over: the roast plays off it, as a heckler would.</param>
     Task<RoastTrack?> GenerateAsync(
         MediaId mediaId, string voice, IReadOnlyList<SceneLabel> labels, IReadOnlyList<TranscriptSegmentDto> transcript,
-        double durationSeconds, CancellationToken ct);
+        double durationSeconds, bool narrated, CancellationToken ct);
 }

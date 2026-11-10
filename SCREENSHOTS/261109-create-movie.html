@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create Movie · before and after</title>
+<style>
+  :root { --ink: #16181d; --quiet: #5b6170; --line: #e3e5ec; --brand: #4340d2; --new: #22a06b; --bg: #f6f7fb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  .sub { margin: 0 0 20px; color: var(--quiet); }
+  .pair { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; align-items: start; margin-bottom: 28px; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: #fff; background: var(--quiet); }
+  .tag.after { background: var(--new); }
+  h2 { margin: 10px 0 8px; font-size: 17px; }
+  .bar { display: flex; align-items: center; gap: 18px; padding: 12px 16px; border-radius: 8px; background: linear-gradient(100deg, #4340d2, #7c3aed); color: #fff; font-weight: 600; }
+  .bar .brand { font-weight: 800; }
+  .bar .pill { padding: 4px 12px; border-radius: 999px; }
+  .bar .pill.on { background: rgb(255 255 255 / 22%); }
+  .bar .pill.new { outline: 2px dashed #ffe066; outline-offset: 2px; background: rgb(255 255 255 / 22%); }
+  ul { margin: 8px 0 0; padding-left: 18px; }
+  li { margin: 4px 0; }
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  figure { margin: 0; }
+  figure img { width: 100%; border: 1px solid var(--line); border-radius: 8px; display: block; }
+  figcaption { margin-top: 4px; font-size: 13px; color: var(--quiet); }
+  figcaption b { color: var(--ink); }
+  .note { border-left: 4px solid var(--new); padding: 2px 10px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+  <h1>Create Movie</h1>
+  <p class="sub">PoAutoRobo's movie maker, brought into PoRedoMedia as a new section. 9 Nov 2026. Shots taken by the browser tests, with mock AI.</p>
+
+  <div class="pair">
+    <div class="panel">
+      <span class="tag">BEFORE</span>
+      <h2>Two places to go</h2>
+      <div class="bar"><span class="brand">PoRedoMedia</span><span class="pill on">Create</span><span class="pill">Library</span></div>
+      <ul>
+        <li>Create runs one function over one picture or one video.</li>
+        <li>Nothing joins several films into one movie, writes a voice-over, or adds an intro and outro.</li>
+        <li>That lived in PoAutoRobo, a Windows-only desktop app.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <span class="tag after">AFTER</span>
+      <h2>A third place: Create Movie</h2>
+      <div class="bar"><span class="brand">PoRedoMedia</span><span class="pill">Create</span><span class="pill new">Create Movie</span><span class="pill">Library</span></div>
+      <ul>
+        <li><b>Template</b>: channel name, intro and outro drawn live, logo, mascot, sting, outro music, colour, layout, picture style.</li>
+        <li><b>Films</b>: what it's about, films from the Library, then the whole video in one go, or a script to look over first.</li>
+        <li><b>Voice-over</b>: clips in order; edit, play, record voices, generate pictures, put your own film on a clip.</li>
+        <li><b>Video</b>: render with chapters, subtitles and thumbnail; download, add to Library, upload to YouTube; upright teasers.</li>
+        <li>Undo everywhere; anything paid for shows its cost first; <b>General</b> by default, with <b>Robot</b> and <b>Kids</b> presets.</li>
+      </ul>
+      <p class="note">New: the dashed tab in the header. Everything below is the new page.</p>
+    </div>
+  </div>
+
+  <div class="shots">
+    <figure><img src="261109-create-movie/1-template.png" alt=""><figcaption><b>1 · Template.</b> The General series' intro, with the camera mascot the app draws when none is chosen.</figcaption></figure>
+    <figure><img src="261109-create-movie/3-voice-over.png" alt=""><figcaption><b>3 · Voice-over.</b> Eight clips in the Movie shape's beats; checklist and guide button above.</figcaption></figure>
+    <figure><img src="261109-create-movie/5-films-added.png" alt=""><figcaption><b>2 · Films.</b> Adding a film from the Library or a new upload.</figcaption></figure>
+    <figure><img src="261109-create-movie/6-preview.png" alt=""><figcaption><b>Preview</b> (advanced). Caption style changes without a rebuild.</figcaption></figure>
+    <figure><img src="261109-create-movie/4-video.png" alt=""><figcaption><b>4 · Video.</b> The finished video, with download and Add to Library.</figcaption></figure>
+    <figure><img src="261109-create-movie/7-teasers.png" alt=""><figcaption><b>Teasers.</b> Suggested, edited and rendered upright.</figcaption></figure>
+  </div>
+</body>
+</html>

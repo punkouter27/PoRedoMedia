@@ -9,10 +9,20 @@
 
 <RadzenStack Gap="1rem">
     <div class="picker-drop po-glass" @ref="_zone">
-        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Choose a photo or a video</RadzenText>
-        <RadzenText class="rz-m-0">Drop it here, paste it, pick a file, or use the camera for a photo or a video.</RadzenText>
-        <RadzenText class="rz-m-0">JPG, PNG, WEBP or GIF up to 10 MB. MP4, MOV or WEBM up to 200 MB and 1 minute.</RadzenText>
-        <FilePick @ref="_file" Text="Choose file" Disabled="Busy" OnChange="UploadAsync" />
+        @if (Multiple)
+        {
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Choose your videos</RadzenText>
+            <RadzenText class="rz-m-0">Drop them here, or pick several files at once. Each one goes in your Library and in the list.</RadzenText>
+            <RadzenText class="rz-m-0">MP4, MOV or WEBM, up to 200 MB and 1 minute each.</RadzenText>
+            <FilePick @ref="_file" Text="Choose files" Disabled="Busy" Accept="@Accept" Multiple="true" OnChange="UploadAsync" />
+        }
+        else
+        {
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Choose a photo or a video</RadzenText>
+            <RadzenText class="rz-m-0">Drop it here, paste it, pick a file, or use the camera for a photo or a video.</RadzenText>
+            <RadzenText class="rz-m-0">JPG, PNG, WEBP or GIF up to 10 MB. MP4, MOV or WEBM up to 200 MB and 1 minute.</RadzenText>
+            <FilePick @ref="_file" Text="Choose file" Disabled="Busy" Accept="@Accept" OnChange="UploadAsync" />
+        }
         @if (_hasCamera && !_cameraOn)
         {
             <RadzenButton Text="Use the camera" Icon="photo_camera" Variant="Variant.Outlined" Disabled="Busy" Click="StartCameraAsync" />
@@ -89,6 +99,18 @@
     /// <summary>Another app shared a file to this one: pick it up as if it had been chosen here.</summary>
     [Parameter] public bool TakeShared { get; set; }
 
+    /// <summary>Several files at once, each uploaded in turn and handed on as it is ready (a movie's films).</summary>
+    [Parameter] public bool Multiple { get; set; }
+
+    /// <summary>What the file chooser offers; every kind this app takes unless narrowed.</summary>
+    [Parameter] public string Accept { get; set; } = FilePick.MediaTypes;
+
+    /// <summary>Raised once every file of a choice has been uploaded (or refused).</summary>
+    [Parameter] public EventCallback BatchDone { get; set; }
+
+    /// <summary>The most files one choice takes.</summary>
+    private const int MostFiles = 20;
+
     private List<MediaDto> _recent = [];
     private double? _percent;
     private string? _error;
@@ -159,55 +181,67 @@
 
     private async Task UploadAsync(InputFileChangeEventArgs e)
     {
-        // A second file chosen while the first is still going is ignored.
+        // A second choice made while the first is still going is ignored.
         if (Busy)
             return;
 
         var input = _file!.Element;
-        // Read from the file's own header, so a clip that is too long is refused before it is sent.
-        // The server measures again after the upload; the slack is the one it allows.
-        if (await JS.InvokeAsync<double>("poMedia.videoSeconds", input) > 62)
+        var files = Multiple ? e.GetMultipleFiles(MostFiles) : [e.File];
+        var refused = new List<string>();
+        (_error, _cameraOn, _recording) = (null, false, false);
+        for (var i = 0; i < files.Count; i++)
         {
-            (_error, _cameraOn, _recording) = ("Videos can be up to 1 minute long. Shorten it, then choose it again.", false, false);
-            await JS.InvokeVoidAsync("poMedia.clearFile", input);
-            return;
-        }
-
-        (_percent, _error, _cameraOn, _recording) = (0, null, false, false);
-        var (media, error) = await Uploader.UploadAsync(input, e.File.Name, e.File.Size, percent =>
-        {
-            _percent = percent;
-            InvokeAsync(StateHasChanged);
-        });
-        (_percent, _error) = (null, error);
-
-        if (media is { Kind: MediaKind.Video })
-        {
-            // Analysed once, here, while the browser still has the file. Every later run reuses it.
-            _status = "Looking through the video…";
-            StateHasChanged();
-            await JS.InvokeAsync<int>("poMedia.analyseVideo", input, media.Id);
-
-            // No speech model on the server: the browser's own hears the video instead.
-            if ((await Config.GetAsync())?.ServerSpeech == false)
+            var file = files[i];
+            var which = files.Count > 1 ? $"{i + 1} of {files.Count} · {file.Name}: " : "";
+            // Read from the file's own header, so a clip that is too long is refused before it is sent.
+            // The server measures again after the upload; the slack is the one it allows.
+            if (await JS.InvokeAsync<double>("poMedia.videoSeconds", input, i) > 62)
             {
-                _status = "Listening to the video on your device…";
+                refused.Add(files.Count > 1 ? $"{file.Name} is longer than a minute." : "Videos can be up to 1 minute long. Shorten it, then choose it again.");
+                continue;
+            }
+
+            (_percent, _status) = (0, files.Count > 1 ? $"Uploading {which.TrimEnd(':', ' ')}" : null);
+            StateHasChanged();
+            var (media, error) = await Uploader.UploadAsync(input, file.Name, file.Size, percent =>
+            {
+                _percent = percent;
+                InvokeAsync(StateHasChanged);
+            }, i);
+            _percent = null;
+            if (error is not null)
+                refused.Add(files.Count > 1 ? $"{file.Name}: {error}" : error);
+
+            if (media is { Kind: MediaKind.Video })
+            {
+                // Analysed once, here, while the browser still has the file. Every later run reuses it.
+                _status = $"{which}Looking through the video…";
                 StateHasChanged();
-                using var progress = DotNetObjectReference.Create(new BlobUploadService.ProgressSink(percent =>
+                await JS.InvokeAsync<int>("poMedia.analyseVideo", input, media.Id, i);
+
+                // No speech model on the server: the browser's own hears the video instead.
+                if ((await Config.GetAsync())?.ServerSpeech == false)
                 {
-                    _status = percent >= 0 ? $"Getting the on-device speech model ready: {percent}%" : "Listening to the video on your device…";
-                    InvokeAsync(StateHasChanged);
-                }));
-                await JS.InvokeAsync<int>("poDeviceAi.transcribeVideo", input, media.Id, progress);
+                    _status = $"{which}Listening to the video on your device…";
+                    StateHasChanged();
+                    using var progress = DotNetObjectReference.Create(new BlobUploadService.ProgressSink(percent =>
+                    {
+                        _status = percent >= 0 ? $"Getting the on-device speech model ready: {percent}%" : $"{which}Listening to the video on your device…";
+                        InvokeAsync(StateHasChanged);
+                    }));
+                    await JS.InvokeAsync<int>("poDeviceAi.transcribeVideo", input, media.Id, progress, i);
+                }
             }
 
             _status = null;
+            if (media is not null)
+                await ValueChanged.InvokeAsync(media);
         }
 
+        _error = refused.Count > 0 ? string.Join(" ", refused) : null;
         // Emptied, so choosing the same file again is a change the input reports.
         await JS.InvokeVoidAsync("poMedia.clearFile", input);
-        if (media is not null)
-            await ValueChanged.InvokeAsync(media);
+        await BatchDone.InvokeAsync();
     }
 
     public async ValueTask DisposeAsync()

@@ -1,0 +1,81 @@
+@* Create Movie's settings, in a panel at the right: draft pictures, the monthly budget and what
+   has been spent, advanced controls and the video's size. Every change is saved as it is made. *@
+@inject MovieStore Store
+@inject AppSettings Switches
+
+<div class="mv-settings-shade" @onclick="Close"></div>
+<aside class="mv-settings" aria-label="Movie settings">
+    <div class="mv-row mv-between">
+        <h2 class="mv-open-title">Settings</h2>
+        <RadzenButton Icon="close" Variant="Variant.Text" Click="Close" aria-label="Close settings" title="Put Settings away. Every change is already saved." />
+    </div>
+
+    <h3 class="mv-section">Pictures</h3>
+    <div class="mv-row">
+        <RadzenSwitch Name="mv-set-draft" Value="@Store.Prefs.DraftPictures" Disabled="@(Store.Config?.DraftPictures != true)" Change="@(on => Store.SavePrefsAsync(Store.Prefs with { DraftPictures = on }))" />
+        <RadzenLabel Text="Draft-quality pictures" Component="mv-set-draft"
+                     title="Draw pictures at low quality: quicker and well under half the price. Once the draft video is right, Make final pictures on the Preview step draws them again at full quality. Only some picture models have a cheaper draft; with the others this changes nothing." />
+    </div>
+    @if (Store.Config?.DraftPictures != true)
+    {
+        <span class="mv-quiet">This server's picture model has no cheaper draft.</span>
+    }
+
+    <h3 class="mv-section">Spending</h3>
+    <div class="mv-field">
+        <RadzenLabel Text="Monthly budget in dollars (0 for none)" Component="mv-set-budget" />
+        <RadzenNumeric Name="mv-set-budget" TValue="decimal" Value="@Store.Prefs.MonthlyBudget" Min="0" Step="5" Change="@(v => Store.SavePrefsAsync(Store.Prefs with { MonthlyBudget = v }))"
+                       title="Once this month's spending across every movie would pass this, the app stops before making anything that costs money." />
+    </div>
+    <div class="mv-spend" title="What the open movie has spent so far, by kind and dearest first, and this month's total across every movie.">
+        @if (Store.Movie is not { } movie)
+        {
+            <span>No movie is open.</span>
+        }
+        else if (movie.SpendLines.Length == 0)
+        {
+            <span>Nothing spent on this movie yet.</span>
+        }
+        else
+        {
+            @foreach (var line in movie.SpendLines)
+            {
+                <span>@line</span>
+            }
+        }
+        <strong>This month, every movie: @MovieDialogs.Money(Store.Prefs.MonthSpent)</strong>
+    </div>
+
+    <h3 class="mv-section">Controls</h3>
+    <div class="mv-row">
+        <RadzenSwitch Name="mv-set-advanced" Value="@Store.Advanced" Change="AdvancedAsync" />
+        <RadzenLabel Text="Advanced controls" Component="mv-set-advanced"
+                     title="Shows the controls most movies never need: the quick Preview step before the video is rendered; each clip's depth (A, B or C), host switch, picture type, another take and earlier takes; the movie's number on the Films step; Remove unused media in the … menu; designing a host and the outro's length on the Template step; caption size, outline and any colour; each teaser's moments and framing; a scheduled publish date; and 4K or 60 fps video, just below. Turned off, the video size goes back to 1080p at 30 fps; anything already set away from the standard keeps its control in view." />
+    </div>
+    @if (Store.Advanced && Store.Config is { } config)
+    {
+        <div class="mv-field">
+            <RadzenLabel Text="Video size" Component="mv-set-size" />
+            <RadzenDropDown Name="mv-set-size" TValue="string" Data="@config.ExportPresets" TextProperty="Label" ValueProperty="Value" Value="@Store.Prefs.ExportPreset"
+                            Change="@(v => Store.SavePrefsAsync(Store.Prefs with { ExportPreset = v?.ToString() ?? "Hd30" }))"
+                            title="Size and smoothness of the finished video made on the Video step. 4K and 60 fps take much longer to render. Kept for next time, and back to 1080p at 30 fps when advanced controls are turned off." />
+        </div>
+    }
+
+    <h3 class="mv-section">Services</h3>
+    <span class="mv-quiet">@(Store.Config?.Notice ?? "Script, voice and pictures are live.")</span>
+</aside>
+
+@code {
+    [Parameter] public EventCallback Close { get; set; }
+
+    protected override async Task OnInitializedAsync() => await Store.RefreshPrefsAsync();
+
+    // A hidden choice must not change what is made: with advanced controls off, the video is the standard size again.
+    private async Task AdvancedAsync(bool on)
+    {
+        await Switches.SetAsync(AppSettings.MovieAdvanced, on);
+        if (!on && Store.Prefs.ExportPreset != "Hd30")
+            await Store.SavePrefsAsync(Store.Prefs with { ExportPreset = "Hd30" });
+    }
+}

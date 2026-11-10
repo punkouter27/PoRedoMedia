@@ -29,6 +29,9 @@ public sealed class VideoStep(
     /// <summary>Most frames sampled here from a video that arrived without any.</summary>
     private const int MaxSampledFrames = 40;
 
+    /// <summary>How far below their usual level meme sounds play under a narrator (<see cref="RunOptions.VideoVoiceFirst"/>).</summary>
+    internal const double VoiceFirstSoundsUnderDb = 6;
+
     /// <summary>The shortest stretch a trim may leave.</summary>
     internal const double MinTrimSeconds = 1;
 
@@ -85,13 +88,16 @@ public sealed class VideoStep(
         if (memeify)
             (cues, title) = await DirectAsync(context, labels, transcript, sourceAudio, duration, persona, ct);
 
-        var track = context.Has(MediaFunction.VideoRoast) ? await RoastAsync(context, labels, transcript, duration, ct) : null;
+        var narrated = context.Option(RunOptions.VideoRoastNarrated) == "1";
+        var track = context.Has(MediaFunction.VideoRoast) ? await RoastAsync(context, labels, transcript, duration, narrated, ct) : null;
         if (track is not null)
         {
             cues.AddRange(track.Lines.Select(l => new RenderVisualEntry(l.TimestampMs, l.BlobPath, null, null, null, Voice: true, DurationMs: l.DurationMs)));
 
             // Meme sounds and jokes take turns on one speaker (see TurnTaking).
-            var turns = TurnTaking.Arrange(cues, (long)(duration * 1000));
+            // Over a narrator, a joke waits for the end of the line it would cut into.
+            var turns = TurnTaking.Arrange(cues, (long)(duration * 1000),
+                narrated ? [.. transcript.Select(s => ((long)(s.StartSeconds * 1000), (long)(s.EndSeconds * 1000)))] : null);
             cues = turns.Cues;
             if (turns.JokesMoved + turns.JokesDropped + turns.SoundsWaited + turns.SoundsLeftOut > 0)
                 await context.ReportAsync(
@@ -129,7 +135,8 @@ public sealed class VideoStep(
             AspectRatio: context.Option(RunOptions.VideoAspect),
             Subtitles: captions && transcript.Count > 0 ? transcript : null,
             TrimStartSeconds: trimStart,
-            TrimSeconds: trimmed ? duration : null), ct);
+            TrimSeconds: trimmed ? duration : null,
+            SoundsUnderDb: context.Option(RunOptions.VideoVoiceFirst) == "1" ? VoiceFirstSoundsUnderDb : 0), ct);
 
         // The roast is stored with the source and replaced by the next one; the result keeps its own copy.
         if (track is not null)
@@ -378,14 +385,14 @@ public sealed class VideoStep(
     }
 
     private async Task<RoastTrack?> RoastAsync(
-        RunContext context, SceneLabel[] labels, IReadOnlyList<TranscriptSegmentDto> transcript, double duration, CancellationToken ct)
+        RunContext context, SceneLabel[] labels, IReadOnlyList<TranscriptSegmentDto> transcript, double duration, bool narrated, CancellationToken ct)
     {
         var voices = MediaRoast.Voices(configuration, environment);
         var voice = voices.FirstOrDefault(v => v == context.Option(RunOptions.VideoRoastVoice)) ?? voices[0];
         try
         {
             await context.ReportAsync("Writing the roast");
-            var track = await roast!.GenerateAsync(context.Source.Id, voice, labels, transcript, duration, ct);
+            var track = await roast!.GenerateAsync(context.Source.Id, voice, labels, transcript, duration, narrated, ct);
             if (track is null)
                 context.AddNote("Nothing in this video gave the roast anything to work with, so it was left out.");
             foreach (var line in track?.Lines ?? [])

@@ -44,6 +44,18 @@ public static class RunOptions
     /// <summary>The roast voice: "Comic", "Neural" or "Rap". Absent = the first one the server offers.</summary>
     public const string VideoRoastVoice = "VideoRoast.voice";
 
+    /// <summary>
+    /// "1" when what is said in the video is a narrator's voice-over (a Create Movie clip): the roast answers the
+    /// narrator, and its lines wait for the narrator's pauses. Absent = the speech is the video's own.
+    /// </summary>
+    public const string VideoRoastNarrated = "VideoRoast.narrated";
+
+    /// <summary>
+    /// "1" when the video's own sound carries a narrator who must stay on top (a Create Movie clip): the source plays at
+    /// full level and the meme sounds come in lower. Absent = the usual mix, where the meme sounds cut through.
+    /// </summary>
+    public const string VideoVoiceFirst = "Video.voiceFirst";
+
     /// <summary>One style prompt for Bulk styles, index 0 to 9. None sent = the user's saved set.</summary>
     public static string BulkPrompt(int index) => $"BulkStyles.prompt{index}";
 }

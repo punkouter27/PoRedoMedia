@@ -1,0 +1,103 @@
+using System.Text;
+
+namespace PoRedoMedia.Movie.Voice;
+
+public static class WavInfo
+{
+    public static TimeSpan Duration(string path)
+    {
+        using var reader = new BinaryReader(File.OpenRead(path));
+        var (byteRate, _, _, bytes) = Layout(reader, path);
+        return TimeSpan.FromSeconds((double)bytes / byteRate);
+    }
+
+    /// <summary>
+    /// Walks the file's chunks to its sound: the bytes a second and bits in a sample from the format block, and where
+    /// the samples start and how many bytes of them there are.
+    /// </summary>
+    private static (int ByteRate, int Bits, long Data, long Bytes) Layout(BinaryReader reader, string path)
+    {
+        var length = reader.BaseStream.Length;
+        if (length < 12 || Tag(reader) != "RIFF" || reader.ReadInt32() < 0 || Tag(reader) != "WAVE")
+            throw new InvalidDataException($"{path} is not a WAV file.");
+
+        var (byteRate, bits) = (0, 0);
+        while (reader.BaseStream.Position + 8 <= length)
+        {
+            var id = Tag(reader);
+            var size = reader.ReadUInt32();
+            if (id == "fmt ")
+            {
+                reader.BaseStream.Seek(8, SeekOrigin.Current);
+                byteRate = reader.ReadInt32();
+                reader.BaseStream.Seek(2, SeekOrigin.Current);
+                bits = reader.ReadInt16();
+                reader.BaseStream.Seek(size - 16, SeekOrigin.Current);
+            }
+            else if (id == "data" && byteRate > 0)
+            {
+                // Streamed writers can leave a wrong size here, so never trust it past the end of the file.
+                var data = reader.BaseStream.Position;
+                return (byteRate, bits, data, Math.Min(size, length - data));
+            }
+            else
+            {
+                reader.BaseStream.Seek(size + (size & 1), SeekOrigin.Current);
+            }
+        }
+        throw new InvalidDataException($"{path} has no audio data.");
+    }
+
+    /// <summary>
+    /// The loudest sample in each of <paramref name="count"/> equal stretches of the file, 0 to 1, for drawing a waveform.
+    /// Empty when the file is not 16-bit sound, which is all the narrators write.
+    /// </summary>
+    public static float[] Peaks(string path, int count)
+    {
+        if (count <= 0)
+            return [];
+        var bytes = File.ReadAllBytes(path);
+        int bits;
+        long data, size;
+        try
+        {
+            using var reader = new BinaryReader(new MemoryStream(bytes));
+            (_, bits, data, size) = Layout(reader, path);
+        }
+        catch (Exception e) when (e is InvalidDataException or EndOfStreamException or IOException)
+        {
+            return [];
+        }
+        if (bits != 16 || size < 2)
+            return [];
+        var samples = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, short>(bytes.AsSpan((int)data, (int)size & ~1));
+        var peaks = new float[count];
+        for (var i = 0; i < samples.Length; i++)
+        {
+            var bucket = (int)((long)i * count / samples.Length);
+            peaks[bucket] = Math.Max(peaks[bucket], Math.Abs(samples[i] / 32768f));
+        }
+        return peaks;
+    }
+
+    /// <summary>The opening of a plain 16-bit WAV file; the caller writes the samples after it, every channel in turn.</summary>
+    /// <param name="frames">How many samples each channel will have.</param>
+    public static void WriteHeader(BinaryWriter file, int rate, int channels, int frames)
+    {
+        var frame = channels * 2; // bytes for one sample of every channel
+        file.Write("RIFF"u8);
+        file.Write(36 + frames * frame);
+        file.Write("WAVEfmt "u8);
+        file.Write(16);                // length of the format block
+        file.Write((short)1);          // plain samples, not compressed
+        file.Write((short)channels);
+        file.Write(rate);
+        file.Write(rate * frame);      // bytes a second
+        file.Write((short)frame);
+        file.Write((short)16);         // bits in a sample
+        file.Write("data"u8);
+        file.Write(frames * frame);
+    }
+
+    private static string Tag(BinaryReader reader) => Encoding.ASCII.GetString(reader.ReadBytes(4));
+}

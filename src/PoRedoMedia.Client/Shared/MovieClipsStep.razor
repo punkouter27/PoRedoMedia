@@ -1,0 +1,280 @@
+@* Step 3, Voice-over: the movie's clips in running order. Cards to pick, drag and play; a strip
+   that shows each clip as long as it runs; and on the right the picked clip's words and picture. *@
+@implements IDisposable
+@inject MovieStore Store
+@inject MovieApi Api
+@inject IJSRuntime JS
+
+@if (Store.Movie is { } movie && Store.Config is { } config)
+{
+var clip = Store.SelectedClip;
+<div class="mv-two mv-clips">
+    <div class="mv-main mv-deck-area">
+        <div class="mv-deck" role="listbox" aria-label="Your clips in running order"
+             title="Your clips in running order. Click a card to edit its words and picture on the right; drag a card to move it.">
+            @foreach (var card in movie.Clips)
+            {
+                var c = card;
+                var progress = Store.Job is { State: "running", ClipProgress: { } all } && c.Number <= all.Length ? all[c.Number - 1] : 0;
+                <div class="mv-card @(c.Id == clip?.Id ? "selected" : null) @(_over == c.Id ? "over" : null)" role="option" aria-selected="@(c.Id == clip?.Id)" tabindex="0" draggable="true"
+                     @onclick="@(() => Select(c.Id))" @onkeydown="@(e => CardKeyAsync(e, c))"
+                     @ondragstart="@(() => _dragging = c.Id)" @ondragover:preventDefault="true" @ondragenter="@(() => _over = c.Id)" @ondrop="@(() => DropAsync(c.Id))" @ondragend="@(() => (_dragging, _over) = (null, null))">
+                    <div class="mv-card-picture">
+                        @if (c.ThumbUrl is not null)
+                        {
+                            <img src="@c.ThumbUrl" alt="" loading="lazy" draggable="false" />
+                        }
+                        else
+                        {
+                            <span class="mv-card-title-card">@c.Title</span>
+                        }
+                        <span class="mv-card-flags">
+                            @if (c.Memed)
+                            {
+                                <span class="mv-flag meme" title="Meme-ified: meme sounds, stickers, text and effects are in this clip, and a spoken roast unless it is a kids' video. Changing its words or film makes it again at the next render.">
+                                    <RadzenIcon Icon="sentiment_very_satisfied" /> Memes
+                                </span>
+                            }
+                            @if (c.Stale)
+                            {
+                                <span class="mv-flag warn" title="@c.Warnings.FirstOrDefault()"><RadzenIcon Icon="refresh" /></span>
+                            }
+                            @if (c.Warnings.Any(w => w.StartsWith("Shorter", StringComparison.Ordinal) || w.StartsWith("Longer", StringComparison.Ordinal)))
+                            {
+                                <span class="mv-flag" title="@c.Warnings.First(w => w.StartsWith("Shorter", StringComparison.Ordinal) || w.StartsWith("Longer", StringComparison.Ordinal))"><RadzenIcon Icon="schedule" /></span>
+                            }
+                            @if (c.Review is not null)
+                            {
+                                <span class="mv-flag caution" title="@($"Editor: {c.Review}\nCheck the words on the Words tab; an editor's note can be answered there.")"><RadzenIcon Icon="rate_review" /></span>
+                            }
+                        </span>
+                        <span class="mv-card-summary" title="Depth of explanation (A accessible, B applied, C advanced), picture type, and length: measured once the voice is recorded, estimated from the word count until then.">@c.Summary</span>
+                        <button type="button" class="mv-card-play" @onclick="@(() => PlayAsync(c.Id))" @onclick:stopPropagation="true" disabled="@(!config.Ffmpeg)"
+                                title="Watch this clip on its own, with its sound. Instant once the preview has been built." aria-label="@($"Play clip {c.Number}")">
+                            <RadzenIcon Icon="play_arrow" />
+                        </button>
+                        @if (progress is > 0 and < 1 || (Store.Waiting is "picture" or "play" && c.Id == _busy))
+                        {
+                            <span class="mv-card-busy"><RadzenProgressBarCircular ShowValue="false" Mode="@(progress > 0 ? ProgressBarMode.Determinate : ProgressBarMode.Indeterminate)" Value="@(progress * 100)" Size="ProgressBarCircularSize.Small" /></span>
+                        }
+                    </div>
+                    <strong class="mv-card-name" title="@($"{c.Number} · {c.Title}")">@c.Number · @c.Title</strong>
+                </div>
+            }
+        </div>
+
+        @* The clips end to end, each as wide as it runs. *@
+        @{ var scale = Math.Max(movie.RuntimeSeconds, 1); }
+        <div class="mv-strip" role="listbox" aria-label="Clips laid end to end" tabindex="0" @onkeydown="StripKeyAsync"
+             title="The clips end to end, each as wide as it runs. Click one to pick it; with the keyboard, the arrows pick and Ctrl with the arrows moves.">
+            @foreach (var block in movie.Clips)
+            {
+                var b = block;
+                <button type="button" class="mv-strip-block @(b.Id == clip?.Id ? "selected" : null) @(b.Warnings.Any(w => w.StartsWith("Shorter", StringComparison.Ordinal) || w.StartsWith("Longer", StringComparison.Ordinal)) ? "off" : null)"
+                        style="@FormattableString.Invariant($"flex:{b.Seconds / scale:0.####} 1 0")" tabindex="-1" @onclick="@(() => Select(b.Id))"
+                        title="@($"{b.Number} · {b.Title} · {TimeSpan.FromSeconds(b.Seconds):m\\:ss}")">@b.Number</button>
+            }
+        </div>
+    </div>
+
+    <div class="mv-side mv-inspector">
+        @if (clip is not null)
+        {
+            <div class="mv-row">
+                <RadzenTextBox Value="@clip.Title" MaxLength="120" Change="@(v => v.Trim().Length > 0 ? Store.EditAsync(new MovieEdit("clipTitle", clip.Id, v)) : Task.CompletedTask)" class="mv-grow" aria-label="This clip's title"
+                               title="This clip's title. It is shown in the chapter list. Enter saves it." />
+                <RadzenSplitButton Icon="more_horiz" Variant="Variant.Text" AlwaysOpenPopup="true" Click="@(choice => ClipMenuAsync(clip, choice))" aria-label="More for this clip"
+                                   title="Make a copy of this clip, or delete it. Undo puts either back.">
+                    <ChildContent>
+                        <RadzenSplitButtonItem Text="Make a copy" Value="duplicateClip" Icon="content_copy" />
+                        <RadzenSplitButtonItem Text="Delete this clip" Value="removeClip" Icon="delete" />
+                    </ChildContent>
+                </RadzenSplitButton>
+            </div>
+            <RadzenSelectBar TValue="string" @bind-Value="_tab" Size="ButtonSize.Small" aria-label="What to edit">
+                <Items>
+                    <RadzenSelectBarItem Text="Words" Value="@("words")" title="Edit what this clip says, and listen to how it sounds." />
+                    <RadzenSelectBarItem Text="Video" Value="@("picture")" title="This clip's video: watch it, swap it for another of yours, and choose its sound and its memes." />
+                </Items>
+            </RadzenSelectBar>
+
+            @if (_tab == "words")
+            {
+                @if (Store.Advanced || clip.Tier != "B")
+                {
+                    <RadzenSelectBar TValue="string" Value="@clip.Tier" Change="@(tier => Store.DoAsync($"clips/{clip.Id}/tier?tier={tier}", "tier"))" Size="ButtonSize.Small" Disabled="@(Store.Waiting == "tier")"
+                                     title="How deep this clip goes. Every clip starts on B; A and C are written the first time you pick them, which takes a few seconds." aria-label="Depth">
+                        <Items>
+                            <RadzenSelectBarItem Text="A · Accessible" Value="@("A")" />
+                            <RadzenSelectBarItem Text="B · Applied" Value="@("B")" />
+                            <RadzenSelectBarItem Text="C · Advanced" Value="@("C")" />
+                        </Items>
+                    </RadzenSelectBar>
+                }
+                <div class="mv-field">
+                    <RadzenLabel Text="Dialogue" Component="mv-dialogue" />
+                    <RadzenTextArea Name="mv-dialogue" Value="@Draft(clip)" Rows="9" @oninput="@(e => _draft = (clip.Id, e.Value?.ToString() ?? ""))" Change="@(v => ApplyWordsAsync(clip, v))" Disabled="@(Store.Waiting == "words")"
+                                    title="What the narrator says in this clip. Edit freely; the voice is re-recorded when you click away." />
+                    <span class="mv-quiet" title="How long the words above are, and roughly how long they take to say, updated as you type. The real length is measured once the voice is recorded.">
+                        @($"{Draft(clip).Length:N0} characters · about {Words(Draft(clip)) / 165.0 * 60:0} s")
+                    </span>
+                    @if (Draft(clip).Trim().Length == 0)
+                    {
+                        <span class="mv-caution">@(clip.OwnSound ? "No words: the film plays with its own sound and no captions." : "Dialogue cannot be empty. The clip keeps its last words.")</span>
+                    }
+                    @foreach (var warning in clip.Warnings.Where(w => !w.StartsWith("The picture", StringComparison.Ordinal)))
+                    {
+                        <span class="mv-caution">@warning</span>
+                    }
+                </div>
+                @if (clip.Review is not null)
+                {
+                    <RadzenButton Text="Rewrite to answer the note" Variant="Variant.Outlined" IsBusy="@(Store.Waiting == "answer")" Disabled="Store.IsWorking" Click="@(() => Store.DoAsync($"clips/{clip.Id}/answer", "answer"))"
+                                  title="Has the script model rewrite this clip's words to answer the editor's note. One request; undo puts the old words back." />
+                }
+                <RadzenButton Text="Play clip" Icon="play_arrow" IsBusy="@(Store.Waiting == "play")" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="@(() => PlayAsync(clip.Id))" class="mv-wide"
+                              title="Play this clip on its own, with its picture and sound, small and quick. Words just typed are applied first, and a line not yet recorded is recorded at the usual voice cost. Instant once the preview has been built." />
+            }
+            else
+            {
+                @* Only the intro and outro are not filmed: every clip in between is one of the user's own videos. *@
+                @if (clip.FilmUrl is { } filmUrl)
+                {
+                    <video class="mv-inspector-picture" src="@filmUrl" controls preload="metadata" playsinline aria-label="This clip's video"></video>
+                }
+                else
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" Title="No video yet" AllowClose="false" class="rz-m-0">Every clip is one of your own videos. Choose one below, or delete this clip; the movie is not rendered with a clip that has none.</RadzenAlert>
+                }
+                <RadzenButton Text="@(clip.HasFilm ? "Use another video" : "Choose a video")" Icon="video_library" Variant="Variant.Outlined" Disabled="Store.IsWorking" Click="@(() => _picking = !_picking)" class="mv-wide"
+                              title="Put another of your videos on this clip (5 seconds to 1 minute), from your Library or a new upload. The words are rewritten and re-voiced to match its length." />
+                @if (_picking)
+                {
+                    <div class="mv-add-films"><MediaPicker ValueChanged="@(media => AttachAsync(clip.Id, media))" Accept=".mp4,.mov,.webm" /></div>
+                }
+                @if (clip.HasFilm)
+                {
+                    <div class="mv-row">
+                        <RadzenSwitch Name="mv-own" Value="@clip.OwnSound" Disabled="Store.IsWorking" Change="@(on => OwnSoundAsync(clip.Id, on))" />
+                        <RadzenLabel Text="@(clip.OwnSound ? "My sound: the film plays with its own sound" : "Narrate: the narrator speaks over the film, its own sound quieter underneath")" Component="mv-own"
+                                     title="My sound keeps what the camera heard and nothing else; any words in the Dialogue box become its captions. Narrate rewrites the words to fit the film and records them, which takes a moment and is paid for like any narration." />
+                    </div>
+                    @if (movie.Show == "Robot" && (Store.Advanced || clip.RobotView))
+                    {
+                        <div class="mv-row">
+                            <RadzenSwitch Name="mv-eyes" Value="@clip.RobotView" Change="@(on => Store.EditAsync(new MovieEdit("robotView", clip.Id, Flag: on)))" />
+                            <RadzenLabel Text="@(clip.RobotView ? "Robot's eyes: depth colours, traced edges and a readout" : "As filmed")" Component="mv-eyes"
+                                         title="Show the film as the R1's own camera might see it, with the beat and the clip's title in its readout. Drawn here, so it costs nothing." />
+                        </div>
+                    }
+                }
+                @if (clip.CanMeme && config.Memes)
+                {
+                    <div class="mv-row">
+                        <RadzenSwitch Name="mv-memes" Value="@clip.MemesOn" Change="@(on => Store.EditAsync(new MovieEdit("memes", clip.Id, Flag: on)))" />
+                        <RadzenLabel Text="@(clip.MemesOn ? (movie.Show == "Kids" ? "Meme-ify: meme sounds, stickers, text and effects" : "Meme-ify: meme sounds, stickers, text, effects and a roast that answers the narrator") : "No memes: the clip plays as it is")" Component="mv-memes"
+                                     title="On (as every clip starts): before the movie is rendered, an AI watches this clip and adds meme sounds, stickers, text and effects, and a heckler's roast that answers the narrator in its pauses (no roast in a kids' video). Paid for once a clip, at the render. Off: this clip plays as it is, for a quiet or serious moment. Undo puts it back." />
+                    </div>
+                }
+            }
+        }
+    </div>
+</div>
+}
+@code {
+    private string _tab = "words";
+    private (Guid Clip, string Words)? _draft;
+    private Guid? _dragging;
+    private Guid? _over;
+    private Guid? _busy;
+    private bool _picking;
+
+    protected override void OnInitialized() => Store.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    /// <summary>The words in the box: what is being typed for this clip, else what the clip says.</summary>
+    private string Draft(MovieClipDto clip) => _draft is var (id, words) && id == clip.Id ? words : clip.Dialogue;
+
+    private static int Words(string text) => text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+
+    private void Select(Guid id)
+    {
+        (Store.Selected, _draft, _picking) = (id, null, false);
+        Store.Notify();
+    }
+
+    private async Task ApplyWordsAsync(MovieClipDto clip, string words)
+    {
+        if (words.Trim() == clip.Dialogue) return;
+        await Store.SetDialogueAsync(clip.Id, words);
+        _draft = null;
+    }
+
+    private async Task PlayAsync(Guid id)
+    {
+        // Words still in the box are applied first, so what plays is what is written.
+        if (_draft is var (draftOf, words) && draftOf == id && Store.Movie?.Clips.FirstOrDefault(c => c.Id == id) is { } clip)
+            await ApplyWordsAsync(clip, words);
+        _busy = id;
+        var reply = await Store.DoAsync($"clips/{id}/play", "play");
+        _busy = null;
+        if (reply?.Url is { } url) Store.Playing = (url, false);
+        Store.Notify();
+    }
+
+    private async Task AttachAsync(Guid id, MediaDto media)
+    {
+        _picking = false;
+        if (media.Kind != MediaKind.Video)
+        {
+            Store.Say(null, "That is a picture. Choose a video: an MP4, MOV or WEBM.");
+            return;
+        }
+        await Store.DoAsync($"clips/{id}/film?mediaId={media.Id}", job: true);
+    }
+
+    private Task OwnSoundAsync(Guid id, bool on) => Store.DoAsync($"clips/{id}/own-sound?on={(on ? "true" : "false")}", job: !on);
+
+    private async Task ClipMenuAsync(MovieClipDto clip, RadzenSplitButtonItem? choice)
+    {
+        if (choice?.Value is { } op) await Store.EditAsync(new MovieEdit(op, clip.Id));
+    }
+
+    // ---- Order ----
+
+    private async Task DropAsync(Guid onto)
+    {
+        var dragged = _dragging;
+        (_dragging, _over) = (null, null);
+        if (dragged is { } id && id != onto && Store.Movie is { } movie)
+            await MoveAsync(id, Array.FindIndex(movie.Clips, c => c.Id == onto));
+    }
+
+    private async Task MoveAsync(Guid id, int to)
+    {
+        if (Store.Movie is not { } movie) return;
+        var order = movie.Clips.Select(c => c.Id).ToList();
+        if (to < 0 || to >= order.Count || !order.Remove(id)) return;
+        order.Insert(to, id);
+        await Store.EditAsync(new MovieEdit("reorder", Order: [.. order]));
+    }
+
+    private async Task CardKeyAsync(KeyboardEventArgs e, MovieClipDto clip)
+    {
+        if (e.Key is "Enter" or " ") Select(clip.Id);
+        else if (e.Key == "Delete") await Store.EditAsync(new MovieEdit("removeClip", clip.Id));
+    }
+
+    // The arrows pick the clip before or after; with Ctrl they move the picked clip.
+    private async Task StripKeyAsync(KeyboardEventArgs e)
+    {
+        if (Store.Movie is not { } movie || Store.SelectedClip is not { } clip || e.Key is not ("ArrowLeft" or "ArrowRight")) return;
+        var to = clip.Number - 1 + (e.Key == "ArrowLeft" ? -1 : 1);
+        if (to < 0 || to >= movie.Clips.Length) return;
+        if (e.CtrlKey) await MoveAsync(clip.Id, to);
+        else Select(movie.Clips[to].Id);
+    }
+
+    public void Dispose() => Store.Changed -= OnChanged;
+}

@@ -2,9 +2,10 @@
 window.poMedia = {
     // Sends the chosen file straight from the browser to storage. The file never passes through
     // .NET memory, which matters for a 200 MB video.
-    upload(input, url, progress) {
+    // With several files chosen, <index> says which one.
+    upload(input, url, progress, index = 0) {
         return new Promise((resolve) => {
-            const file = input.files && input.files[0];
+            const file = input.files && input.files[index];
             if (!file) { resolve(false); return; }
             const xhr = new XMLHttpRequest();
             // The picker's drop zone, which the particles pour into while the bytes go up.
@@ -30,8 +31,8 @@ window.poMedia = {
 
     // How long the chosen video is, in seconds, from its header. -1 for anything that is not a
     // video this browser can read; the server decides about those.
-    videoSeconds(input) {
-        const file = input.files && input.files[0];
+    videoSeconds(input, index = 0) {
+        const file = input.files && input.files[index];
         if (!file || !file.type.startsWith('video/')) return Promise.resolve(-1);
         return new Promise((resolve) => {
             const video = document.createElement('video');
@@ -50,8 +51,8 @@ window.poMedia = {
     // one kept is skipped, so a static video costs a few frames of vision instead of forty.
     // Resolves to the number of moments found, or -1 when the browser could not read the video
     // (the server then samples the frames itself).
-    async analyseVideo(input, mediaId) {
-        const file = input.files && input.files[0];
+    async analyseVideo(input, mediaId, index = 0) {
+        const file = input.files && input.files[index];
         if (!file) return -1;
         const video = document.createElement('video');
         video.muted = true;
@@ -118,8 +119,13 @@ window.poMedia = {
     // Drop, paste and the camera all hand their file to the picker's own file input, so one
     // upload path serves every way of choosing media.
     setFile(input, file) {
+        window.poMedia.setFiles(input, [file]);
+    },
+
+    // The same for several files at once, for an input that takes several (a movie's films).
+    setFiles(input, files) {
         const transfer = new DataTransfer();
-        transfer.items.add(file);
+        for (const file of files) transfer.items.add(file);
         input.files = transfer.files;
         input.dispatchEvent(new Event('change', { bubbles: true }));
     },
@@ -148,10 +154,10 @@ window.poMedia = {
             zone.classList.remove('dragging');
             window.poBackdrop?.pulse(0);
             window.poParticles?.collapse(e.clientX, e.clientY);
-            const file = e.dataTransfer && e.dataTransfer.files[0];
+            const files = [...(e.dataTransfer ? e.dataTransfer.files : [])];
             // Disabled means an upload is going. The upload reads the input's file as it goes, so
             // swapping it now would analyse the new file under the first one's name.
-            if (file && !input.disabled) window.poMedia.setFile(input, file);
+            if (files.length && !input.disabled) window.poMedia.setFiles(input, input.multiple ? files : files.slice(0, 1));
         };
         const paste = (e) => {
             const file = [...(e.clipboardData ? e.clipboardData.files : [])][0];

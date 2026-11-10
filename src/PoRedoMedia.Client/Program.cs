@@ -33,6 +33,8 @@ builder.Services.AddScoped<UiStore>();
 builder.Services.AddScoped<Shortcuts>();
 builder.Services.AddScoped<AppSettings>();
 builder.Services.AddScoped<LocalAiService>();
+builder.Services.AddScoped<MovieApi>();
+builder.Services.AddScoped<MovieStore>();
 builder.Services.AddRadzenComponents();
 
 // Claims only, serialized by the server. The browser never holds a token.

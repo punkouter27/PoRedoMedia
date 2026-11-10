@@ -1,0 +1,168 @@
+@* The quick Preview, an advanced step: the whole movie small and fast, to watch before it is
+   rendered at full size. Its captions are drawn live over the video (js/movie.js), so a change of
+   style shows at once; the outro's music is set here too. *@
+@using Microsoft.AspNetCore.Components.Forms
+@implements IAsyncDisposable
+@inject MovieStore Store
+@inject MovieApi Api
+@inject DialogService Dialogs
+@inject IJSRuntime JS
+
+@if (Store.Movie is { } movie && Store.Config is { } config)
+{
+<div class="mv-two mv-preview">
+    <div class="mv-main" @ref="_root">
+        <div class="mv-screen">
+            @if (movie.Preview is { } preview)
+            {
+                <video src="@preview.Url" playsinline preload="auto" aria-label="The preview"></video>
+                <canvas aria-hidden="true"></canvas>
+            }
+            else
+            {
+                <RadzenButton Text="Build preview" Icon="play_circle" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="@(() => Store.DoAsync("preview", job: true))"
+                              title="Make a quick low-resolution version of the whole movie to watch here, before rendering it at full size. Any clip whose voice is not yet recorded is recorded first." />
+            }
+            <RadzenButton Text="Aa" Variant="Variant.Outlined" Click="@(() => _captions = !_captions)" class="mv-aa" aria-label="Caption style"
+                          title="How the burned-in captions look: their style, size, outline and colour. The words on the preview change as you do." />
+            @if (_captions)
+            {
+                var captions = movie.Captions;
+                <div class="mv-captions-panel">
+                    <strong>Captions</strong>
+                    <RadzenDropDown TValue="string" Data="@config.CaptionPresets" TextProperty="Label" ValueProperty="Value" Value="@captions.Preset" Change="@(v => CaptionsAsync(captions with { Preset = v?.ToString() ?? captions.Preset }))"
+                                    title="How the burned-in captions look: a word lit as it is spoken, a two-line block, plain subtitles or a comic banner. The preview shows each one as you pick it." aria-label="Caption style" />
+                    @if (Store.Advanced || captions.FontSize != 64 || captions.Stroke != 4)
+                    {
+                        <label class="mv-slider">Font size
+                            <RadzenSlider TValue="int" Min="32" Max="96" Step="2" Value="@captions.FontSize" Change="@(v => CaptionsAsync(captions with { FontSize = v }))"
+                                          title="How big the caption words are. Drag it and watch the preview; bigger is easier to read on a phone." />
+                        </label>
+                        <label class="mv-slider">Outline
+                            <RadzenSlider TValue="int" Min="0" Max="10" Step="1" Value="@captions.Stroke" Change="@(v => CaptionsAsync(captions with { Stroke = v }))"
+                                          title="How thick the edge drawn round each letter is, which keeps the words readable over a busy picture. 0 for none." />
+                        </label>
+                    }
+                    <span title="The colour of the word being spoken, or of the banner behind the words.">Accent colour</span>
+                    <div class="mv-swatches">
+                        @foreach (var (name, colour) in Swatches)
+                        {
+                            <button type="button" class="@(captions.Accent.Equals(colour, StringComparison.OrdinalIgnoreCase) ? "picked" : null)" style="@($"background:{colour}")" title="@name" aria-label="@name"
+                                    @onclick="@(() => CaptionsAsync(captions with { Accent = colour }))"></button>
+                        }
+                        @if (Store.Advanced || !Swatches.Any(s => s.Colour.Equals(captions.Accent, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            <input type="color" value="@captions.Accent" @onchange="@(e => CaptionsAsync(captions with { Accent = e.Value?.ToString() ?? captions.Accent }))" aria-label="Any colour"
+                                   title="Choose an accent colour not among the swatches, such as your channel's own colour." />
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (movie.Preview is { } built)
+        {
+            var length = Math.Max(1, built.Marks.Length > 0 ? built.Marks[^1].Start + 5 : movie.RuntimeSeconds);
+            <div class="mv-timeline" title="Where each clip starts. Click to jump to that point. With the keyboard: Space plays or pauses and the arrows step five seconds; L plays, and pressed again plays faster; K pauses; J steps back; comma and full stop step one frame while paused.">
+                @for (var i = 0; i < built.Marks.Length; i++)
+                {
+                    var mark = built.Marks[i];
+                    var end = i + 1 < built.Marks.Length ? built.Marks[i + 1].Start : length;
+                    <span class="mv-mark @(mark.Bookend ? "bookend" : null)" style="@FormattableString.Invariant($"flex:{Math.Max(0.01, end - mark.Start):0.###} 1 0")">@(mark.Bookend ? mark.Title : $"{i + (built.Marks[0].Bookend ? 0 : 1)} · {mark.Title}")</span>
+                }
+                <span class="mv-playhead"></span>
+            </div>
+            <div class="mv-transport">
+                <button type="button" class="mv-play" data-playing="no" title="Play or pause the preview. Clicking the picture does the same, and so do L (play) and K (pause)." aria-label="Play or pause">
+                    <RadzenIcon Icon="play_arrow" class="when-paused" /><RadzenIcon Icon="pause" class="when-playing" />
+                </button>
+                <input type="range" class="mv-scrub" min="0" max="1000" value="0" aria-label="Where you are in the preview" title="Where you are in the preview. Drag it to move to any point." />
+                <span class="mv-time mv-quiet" title="How far into the preview you are, and how long the whole preview runs.">0:00 / 0:00</span>
+                <RadzenButton Text="Rebuild" Variant="Variant.Outlined" Disabled="Store.IsWorking" Click="@(() => Store.DoAsync("preview", job: true))"
+                              title="Build the preview again, to see changes made to the clips since. Caption changes show without rebuilding." />
+            </div>
+        }
+    </div>
+
+    <div class="mv-side">
+        @if (movie.HasDraftPictures)
+        {
+            var drafts = movie.Clips.Count(c => c.Draft);
+            <strong>Draft pictures</strong>
+            <p class="mv-quiet">@(drafts == 1 ? "1 clip shows a draft picture" : $"{drafts} clips show draft pictures"). Once the draft video is right, draw them again at full quality for the finished video.</p>
+            <RadzenButton Text="Make final pictures" Disabled="@(Store.IsWorking || !config.Pictures)" Click="@(() => MovieDialogs.GeneratePicturesAsync(Dialogs, Store, Api, finals: true))" class="mv-wide"
+                          title="Draws every draft picture again at full quality, from the same description, for the finished video. You are shown the cost and asked first. Build the preview again afterwards to watch them." />
+        }
+        <h2 class="mv-section">This movie's outro music</h2>
+        <div class="mv-kit-row">
+            <span class="mv-quiet mv-grow">@(movie.MusicName is { } music ? $"Music · {music}" : "The series' music, or the app's own tune")</span>
+            <FilePick Text="Change…" Accept=".mp3,.wav,.m4a,.flac,.ogg" OnChange="MusicAsync" Filled="false"
+                      Title="Choose music for this movie's outro. It plays only there, at the end, never under the clips, repeating to fill it and fading out. Use music you have the right to publish." />
+            @if (movie.MusicName is not null)
+            {
+                <RadzenButton Icon="close" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => Store.EditAsync(new MovieEdit("removeMusic")))" aria-label="Use the standard outro music"
+                              title="Go back to the standard tune for this movie's outro." />
+            }
+        </div>
+        <p class="mv-quiet">A change to the music, or to a clip, shows in the next preview.</p>
+    </div>
+</div>
+}
+
+@code {
+    private static readonly (string Name, string Colour)[] Swatches =
+    [
+        ("Yellow", "#FFD400"), ("Green", "#22C55E"), ("Sky", "#38BDF8"), ("Orange", "#F97316"), ("Red", "#EF4444"), ("Violet", "#A855F7"), ("Pink", "#EC4899"), ("White", "#FFFFFF"),
+    ];
+
+    private ElementReference _root;
+    private string? _wired;
+    private bool _captions;
+
+    protected override void OnInitialized() => Store.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    // The player is wired once for each preview built; a caption change alone only tells it the new style.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Store.Movie?.Preview is not { } preview || preview.Url == _wired) return;
+        _wired = preview.Url;
+        var captions = Store.Movie.Captions;
+        // Plain lists and values, which cross to the script without any type of their own.
+        await JS.InvokeVoidAsync("poMovie.preview", _root, preview.Words.Select(w => w.Text).ToArray(), preview.Words.Select(w => w.Start).ToArray(), preview.Words.Select(w => w.Length).ToArray(),
+            captions.Preset, captions.Accent, captions.FontSize, captions.Stroke);
+    }
+
+    private async Task CaptionsAsync(MovieCaptionsDto captions)
+    {
+        await JS.InvokeVoidAsync("poMovie.setCaptions", captions.Preset, captions.Accent, captions.FontSize, captions.Stroke);
+        await Store.EditAsync(new MovieEdit("captions", Captions: captions));
+    }
+
+    private async Task MusicAsync(InputFileChangeEventArgs e)
+    {
+        if (Store.Movie is not { } movie) return;
+        try
+        {
+            Store.Apply(await Api.MusicAsync(movie.Id, e.File));
+        }
+        catch (IOException)
+        {
+            Store.Say(null, "That file is too large: 25 MB at most.");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Store.Changed -= OnChanged;
+        try
+        {
+            await JS.InvokeVoidAsync("poMovie.closePreview");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is going away, and the player with it.
+        }
+    }
+}

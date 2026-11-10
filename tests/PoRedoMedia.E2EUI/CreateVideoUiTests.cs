@@ -5,14 +5,14 @@ namespace PoRedoMedia.E2EUI;
 
 public sealed class CreateVideoUiTests : UiTestBase
 {
-    /// <summary>A three-second clip with a picture and a tone, made with the local ffmpeg.</summary>
-    private static async Task<byte[]> ClipAsync()
+    /// <summary>A short clip with a picture and a tone, three seconds unless asked otherwise, made with the local ffmpeg.</summary>
+    internal static async Task<byte[]> ClipAsync(int seconds = 3)
     {
         var path = Path.Combine(Path.GetTempPath(), $"poredomedia-e2e-{Guid.NewGuid():N}.mp4");
         try
         {
             using var ffmpeg = Process.Start(new ProcessStartInfo("ffmpeg",
-                $"-y -f lavfi -i testsrc=duration=3:size=320x240:rate=10 -f lavfi -i sine=frequency=440:duration=3 -pix_fmt yuv420p -shortest \"{path}\"")
+                $"-y -f lavfi -i testsrc=duration={seconds}:size=320x240:rate=10 -f lavfi -i sine=frequency=440:duration={seconds} -pix_fmt yuv420p -shortest \"{path}\"")
             {
                 RedirectStandardError = true,
             })!;

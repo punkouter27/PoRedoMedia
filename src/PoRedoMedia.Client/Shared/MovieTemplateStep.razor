@@ -1,0 +1,391 @@
+@* Step 1, Template: what every movie of a series shares. The channel's name, the intro and outro
+   that open and end each video, their logo, mascot and sounds, and the look new movies start in.
+   Set up once; every change is saved as it is made and the still on the right follows it. *@
+@using Microsoft.AspNetCore.Components.Forms
+@implements IDisposable
+@inject MovieStore Store
+@inject MovieApi Api
+@inject DialogService Dialogs
+
+@if (Store.Kit is { } kit && Store.Config is { } config)
+{
+<div class="mv-two">
+    <div class="mv-side">
+        <div class="mv-field">
+            <RadzenLabel Text="Series" Component="mv-show" />
+            <RadzenSelectBar Name="mv-show" TValue="string" Value="@Store.Show" Change="@(show => ChangeShowAsync(show))" Size="ButtonSize.Small"
+                             title="Which series to set up. Each has its own name, look, intro, outro, music and shape; changing one never touches the others. General is for a movie about anything; Robot and Kids are ready-made presets. The Films step makes the next video for the series chosen here. Free.">
+                <Items>
+                    @foreach (var show in config.Shows)
+                    {
+                        <RadzenSelectBarItem Text="@show.Value" Value="@show.Value" title="@show.Hint" />
+                    }
+                </Items>
+            </RadzenSelectBar>
+        </div>
+        <div class="mv-field">
+            <RadzenLabel Text="Channel name" Component="mv-channel" />
+            <RadzenTextBox Name="mv-channel" Value="@kit.ChannelName" MaxLength="60" Placeholder="My Movies" Change="@(v => SaveAsync(kit with { ChannelName = v }))"
+                           title="Your channel's name, shown large in every intro and outro. Type it once; it is saved as you go. Without one, movies are made with no intro or outro." />
+        </div>
+        <div class="mv-field">
+            <RadzenLabel Text="Tagline" Component="mv-tagline" />
+            <RadzenTextBox Name="mv-tagline" Value="@kit.Tagline" MaxLength="80" Placeholder="A short line under the name" Change="@(v => SaveAsync(kit with { Tagline = v }))"
+                           title="A short line shown under the channel name in the intro. Optional: leave it empty to show the name alone." />
+        </div>
+
+        <h2 class="mv-section">Look</h2>
+        <div class="mv-looks" title="Ready-made looks to start from. Click one to give the intro its colour and layout, then change either below. Your name, logo, mascot and sting stay as they are.">
+            @foreach (var start in config.IntroStarts)
+            {
+                <button type="button" class="mv-look @start.Layout.ToLowerInvariant()" @onclick="@(() => SaveAsync(kit with { Accent = start.Accent, Layout = start.Layout }))"
+                        title="Click to give the intro this colour and layout. The picture on the right shows it a moment later.">
+                    <span class="mv-look-tile" style="@($"--look:{start.Accent}")"><i></i><b></b><b></b></span>
+                    <span class="mv-quiet">@start.Name</span>
+                </button>
+            }
+        </div>
+        <div class="mv-field">
+            <RadzenLabel Text="Layout" Component="mv-layout" />
+            <RadzenSelectBar Name="mv-layout" TValue="string" Value="@kit.Layout" Change="@(v => SaveAsync(kit with { Layout = v }))" Size="ButtonSize.Small"
+                             title="Where the words and mascot sit in the intro. Side: words left, mascot right. Centre: mascot above, words centred under it. Lower band: words on a dark band across the bottom. The picture on the right shows each one as you pick it.">
+                <Items>
+                    @foreach (var place in config.Layouts)
+                    {
+                        <RadzenSelectBarItem Text="@place.Label" Value="@place.Value" />
+                    }
+                </Items>
+            </RadzenSelectBar>
+        </div>
+        <div class="mv-field">
+            <RadzenLabel Text="Accent colour" Component="mv-accent" />
+            <div class="mv-row">
+                <input type="color" value="@kit.Accent" @onchange="@(e => SaveAsync(kit with { Accent = e.Value?.ToString() ?? kit.Accent }))" aria-label="Pick the accent colour" class="mv-colour" />
+                <RadzenTextBox Name="mv-accent" Value="@kit.Accent" MaxLength="7" Placeholder="#FFD400" Change="@(v => SaveAsync(kit with { Accent = v }))"
+                               title="The series colour, typed as # and six letters or digits, such as #22CC88. It fills the intro and outro background and colours the section straps and captions of new movies." />
+            </div>
+        </div>
+
+        <h2 class="mv-section">Pictures</h2>
+        @KitFile("Logo", "logo", kit.LogoUrl is null ? null : "Your own", ".png,.jpg,.jpeg,.webp",
+            "Choose your logo: a PNG, best with a see-through background. It sits in a top corner of the intro and outro. The app keeps its own copy.",
+            "Go back to the logo the app makes for you, in the series colour.")
+        @KitFile("Mascot", "mascot", kit.MascotUrl is null ? null : "Your own", ".png,.jpg,.jpeg,.webp",
+            "Choose a PNG of your mascot, shown beside the words in the intro and outro.",
+            "Go back to the mascot the app makes for you, in the series colour.")
+        @if (config.Pictures)
+        {
+            <div class="mv-row">
+                <RadzenButton Text="Make 3 logos" Variant="Variant.Outlined" IsBusy="@(_drawing == "logos")" Disabled="@(_drawing is not null)" Click="@(() => CandidatesAsync(true))"
+                              title="Draws three logo designs for your channel, in the series colour and on nothing so they sit on any background. You are asked first, with the cost; then click the one to use." />
+            </div>
+            @if (_logos.Count > 0)
+            {
+                <div class="mv-candidates">
+                    @foreach (var url in _logos)
+                    {
+                        <button type="button" @onclick="@(() => UseAsync($"logo?token={Token(url)}"))" title="Use this logo. The intro picture shows it a moment later, and the kit keeps its own copy.">
+                            <img src="@url" alt="A logo design" />
+                        </button>
+                    }
+                </div>
+            }
+        }
+
+        @if (Store.Show == "Robot" && (Store.Advanced || kit.HasHostDesign))
+        {
+            <h2 class="mv-section">Host</h2>
+            <p class="mv-quiet">The cartoon robot that presents every episode. Pick one design and every new picture keeps it, so the character always looks the same.</p>
+            <div class="mv-row">
+                @if (config.Pictures)
+                {
+                    <RadzenButton Text="Make 3 hosts" Variant="Variant.Outlined" IsBusy="@(_drawing == "hosts")" Disabled="@(_drawing is not null)" Click="@(() => CandidatesAsync(false))"
+                                  title="Draws three possible designs for the host; click the one to keep. It costs three pictures; you are shown the cost and asked first." />
+                }
+                <FilePick Text="Use my own image…" Accept=".png,.jpg,.jpeg,.webp" OnChange="@(e => FileAsync("host", e))" Filled="false"
+                          Title="Choose a picture of your own design to be the host. It is kept straight away for every new picture. Free." />
+            </div>
+            @if (_hosts.Count > 0)
+            {
+                <div class="mv-candidates wide">
+                    @foreach (var url in _hosts)
+                    {
+                        <button type="button" @onclick="@(() => UseAsync($"host?token={Token(url)}"))" title="Keep this design as the host, so every new picture shows the same character. Pictures already made are not changed.">
+                            <img src="@url" alt="A host design" />
+                        </button>
+                    }
+                </div>
+            }
+            <RadzenButton Text="Use the host design as the mascot" Variant="Variant.Outlined" Disabled="@(!kit.HasHostDesign)" Click="@(() => UseAsync("host-as-mascot"))"
+                          title="Uses the cartoon robot that presents your episodes as the mascot of the intro and outro. It is already made, so this costs nothing. Greyed out until a host has been chosen just above." />
+        }
+
+        <h2 class="mv-section">Sound</h2>
+        @KitSound("Sting", "sting", kit.StingName, false,
+            "Listen to the intro's sting as it will play: yours cut to five seconds, or the one the app makes. Press again to stop. Costs nothing.",
+            "Choose a few seconds of music for the intro (MP3, WAV, M4A, FLAC or OGG). Anything past five seconds is cut. With none, the app makes one that fits the swarm of light.",
+            "Go back to the sting the app makes for you.")
+        @KitSound("Outro", "music", kit.MusicName, true,
+            "Listen to the outro's music as it will play, for the outro's whole length: yours, repeated to fill it if it is short, or the tune the app makes. Press again to stop. Costs nothing.",
+            "Use your own music for the outro of every new movie (MP3, WAV, M4A, FLAC or OGG). Music plays only over the intro and outro, never under the clips. Use music you have the right to publish.",
+            "Go back to the app's own outro tune.")
+        @if (_sound is not null)
+        {
+            <audio src="@_sound" autoplay @onended="@(() => _sound = null)"></audio>
+        }
+
+        @if (Store.Advanced || kit.OutroSeconds != 15)
+        {
+            <div class="mv-field">
+                <RadzenLabel Text="Outro length (seconds)" Component="mv-outro" />
+                <RadzenNumeric Name="mv-outro" TValue="int" Value="@kit.OutroSeconds" Min="5" Max="20" Step="1" Change="@(v => SaveAsync(kit with { OutroSeconds = v }))"
+                               title="How long the outro at the end of every movie runs, 5 to 20 seconds; 15 unless changed. YouTube's end-screen cards (subscribe, next video) can be placed over it when you upload." />
+            </div>
+        }
+        @if (Store.Advanced || kit.Grain)
+        {
+            <div class="mv-row">
+                <RadzenCheckBox Name="mv-grain" TValue="bool" Value="@kit.Grain" Change="@(v => SaveAsync(kit with { Grain = v }))" />
+                <RadzenLabel Text="Film grain and vignette" Component="mv-grain"
+                             title="Gives every clip, the intro and the outro a film look: fine grain that moves and slightly darker corners. Use it for a warmer, less digital feel. Clips are drawn again at the next render; it costs nothing." />
+            </div>
+        }
+
+        <h2 class="mv-section">New movies</h2>
+        <div class="mv-field">
+            <RadzenLabel Text="Told as" Component="mv-structure" />
+            <RadzenSelectBar Name="mv-structure" TValue="string" Value="@kit.Structure" Change="@(v => SaveAsync(kit with { Structure = v }))" Size="ButtonSize.Small"
+                             title="The shape every movie of the series follows, so each is told the same way.">
+                <Items>
+                    @foreach (var structure in Store.ShowInfo?.Structures ?? [])
+                    {
+                        <RadzenSelectBarItem Text="@structure.Label" Value="@structure.Value" />
+                    }
+                </Items>
+            </RadzenSelectBar>
+            <span class="mv-quiet" title="The beats in order. Your footage goes in the ones marked with a camera.">@(Store.ShowInfo?.Structures.FirstOrDefault(s => s.Value == kit.Structure)?.Hint)</span>
+        </div>
+        <div class="mv-field">
+            <RadzenLabel Text="Picture style" Component="mv-look" />
+            <RadzenDropDown Name="mv-look" TValue="string" Data="@config.Looks" TextProperty="Label" ValueProperty="Value" Value="@kit.Look" Change="@(v => SaveAsync(kit with { Look = v?.ToString() ?? kit.Look }))"
+                            title="The art style new movies' pictures are drawn in: comic book, photograph, flat vector or cinematic. Movies already made keep theirs; the button below, when it shows, gives it to the open one." />
+        </div>
+        @if (Store.Movie is { OffSeriesLook: true } movie && movie.Show == Store.Show)
+        {
+            <RadzenButton Text="Give the open movie this look" Variant="Variant.Outlined" Click="@(() => Store.EditAsync(new MovieEdit("seriesLook")))"
+                          title="The open movie was made before the series' picture style, captions or outro music changed. This gives it the series look, as one step Undo reverses. Pictures already drawn are not redrawn, and nothing is paid for." />
+        }
+    </div>
+
+    <div class="mv-main mv-stage-area">
+        <p class="mv-quiet">The picture below follows your changes as you make them. The intro runs about five seconds, the same at the start of every movie: the swarm of light, your logo and mascot, the channel name and tagline, then the movie's number and title, over the sting. The outro at the end has the same look, with room on the right for YouTube's end-screen cards.</p>
+        <div class="mv-stage">
+            @if (_video is not null)
+            {
+                <video src="@_video" controls autoplay playsinline aria-label="The intro or outro last drawn"
+                       title="The intro or outro last drawn. Change anything on the left to go back to the still."></video>
+            }
+            else if (_still is not null)
+            {
+                <img src="@_still" alt="@(_outro ? "The outro as it will look" : "The intro as it will look")"
+                     title="The intro as it will look once its words are in, redrawn a moment after each change on the left. Press Show the intro to watch it move, with its sound." />
+                <span class="mv-badge">Still · follows your changes</span>
+            }
+            else if (!config.Ffmpeg)
+            {
+                <span class="mv-quiet">FFmpeg is needed to draw the intro, and it was not found on this server.</span>
+            }
+            else
+            {
+                <div class="po-skeleton mv-stage-wait" aria-label="Drawing"></div>
+            }
+        </div>
+        <div class="mv-row">
+            <RadzenLabel Text="Episode number" Component="mv-template-number" />
+            <RadzenNumeric Name="mv-template-number" TValue="int" Value="@Store.Number" Min="1" Max="999" class="mv-narrow"
+                           Change="@(n => { Store.Number = n; _video = null; Redraw(300); })"
+                           title="The number the next movie gets, as the intro will show it (#3 · its title). The next in the series is filled in; type your own to redo or skip one. The next movie made on the Films step gets this number." />
+        </div>
+        <div class="mv-row mv-equal">
+            <RadzenButton Text="Show the intro" Icon="play_arrow" ButtonStyle="@(Store.IntroWatched ? ButtonStyle.Base : ButtonStyle.Primary)" Variant="@(Store.IntroWatched ? Variant.Outlined : Variant.Filled)"
+                          IsBusy="@(_showing == "intro")" Disabled="@(_showing is not null || !config.Ffmpeg)" Click="@(() => ShowAsync(false))"
+                          title="Plays the intro in full, moving and with its sound: the swarm of light gathering into the picture above, for the next movie's number. Takes a few seconds to draw; it costs nothing." />
+            <RadzenButton Text="Show the outro" Icon="play_arrow" Variant="Variant.Outlined" IsBusy="@(_showing == "outro")" Disabled="@(_showing is not null || !config.Ffmpeg)" Click="@(() => ShowAsync(true))"
+                          title="Draws the outro that ends every movie, at its full length, and plays it. The two faint frames on the right are where YouTube's end-screen cards go. It costs nothing." />
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    private string? _still;
+    private string? _video;
+    private string? _sound;
+    private string? _showing;
+    private string? _drawing;
+    private bool _outro;
+    private List<string> _logos = [];
+    private List<string> _hosts = [];
+    private CancellationTokenSource? _redraw;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += OnChanged;
+        Redraw(0);
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private static string Token(string url) => url[(url.LastIndexOf('/') + 1)..].Split('?')[0];
+
+    private async Task ChangeShowAsync(string show)
+    {
+        (_logos, _hosts, _video) = ([], [], null);
+        await Store.SetShowAsync(show);
+        Redraw(0);
+    }
+
+    /// <summary>Saves the kit with one thing changed, then draws the still again.</summary>
+    private async Task SaveAsync(MovieKitDto kit)
+    {
+        var (saved, error) = await Api.SaveKitAsync(Store.Show, new MovieKitUpdate(kit.ChannelName, kit.Tagline, kit.OutroSeconds, kit.Grain, kit.Structure, kit.Look, kit.Layout, kit.CaptionPreset, kit.Accent, kit.FontSize, kit.Stroke));
+        Took(saved, error);
+    }
+
+    private void Took(MovieKitDto? kit, string? error)
+    {
+        if (kit is null)
+        {
+            Store.Say(null, error);
+            return;
+        }
+        Store.UseKit(kit);
+        _video = null;
+        Redraw(300);
+    }
+
+    /// <summary>Draws the still a moment after the last change, so a run of changes draws it once.</summary>
+    private void Redraw(int wait)
+    {
+        _redraw?.Cancel();
+        var redraw = _redraw = new CancellationTokenSource();
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(wait);
+            if (redraw.IsCancellationRequested || Store.Config?.Ffmpeg != true) return;
+            var reply = await Api.KitStillAsync(Store.Show, _outro, Store.Number);
+            if (redraw.IsCancellationRequested) return;
+            _still = reply.Url ?? _still;
+            StateHasChanged();
+        });
+    }
+
+    private async Task ShowAsync(bool outro)
+    {
+        (_showing, _outro) = (outro ? "outro" : "intro", outro);
+        var reply = await Api.KitVideoAsync(Store.Show, outro, Store.Number);
+        _showing = null;
+        if (reply.Url is null)
+        {
+            Store.Say(null, reply.Error);
+            return;
+        }
+        _video = reply.Url;
+        if (!outro) Store.IntroWatched = true;
+        Store.Notify();
+    }
+
+    private async Task PlaySoundAsync(bool outro)
+    {
+        if (_sound is not null)
+        {
+            _sound = null;
+            return;
+        }
+        var reply = await Api.KitSoundAsync(Store.Show, outro);
+        if (reply.Url is null) Store.Say(null, reply.Error);
+        _sound = reply.Url;
+    }
+
+    private async Task FileAsync(string role, InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var (kit, error) = await Api.SetKitFileAsync(Store.Show, role, e.File);
+            Took(kit, error);
+        }
+        catch (IOException)
+        {
+            Store.Say(null, role is "sting" or "music" ? "That file is too large: 25 MB at most." : "That picture is too large: 10 MB at most.");
+        }
+    }
+
+    private async Task ClearAsync(string role)
+    {
+        var (kit, error) = await Api.ClearKitFileAsync(Store.Show, role);
+        Took(kit, error);
+    }
+
+    private async Task UseAsync(string what)
+    {
+        var (kit, error) = await Api.KitUseAsync(Store.Show, what);
+        Took(kit, error);
+        if (kit is null) return;
+        if (what.StartsWith("logo", StringComparison.Ordinal)) _logos = [];
+        if (what.StartsWith("host?", StringComparison.Ordinal))
+        {
+            _hosts = [];
+            Store.Say("Host locked. New pictures will use this character.");
+        }
+    }
+
+    /// <summary>Three logos, or three host designs, to choose between: shown the cost first, as anything paid for is.</summary>
+    private async Task CandidatesAsync(bool logos)
+    {
+        var estimate = await Api.CandidatesEstimateAsync(Store.Show, logos);
+        if (estimate is null) return;
+        if (estimate.Refusal is not null)
+        {
+            Store.Say(null, estimate.Refusal);
+            return;
+        }
+        if (!await MovieDialogs.ConfirmSpendAsync(Dialogs, Store, logos ? "Make 3 logos?" : "Make 3 host designs?", estimate.Summary, "Make them", estimate.Dollars ?? 0)) return;
+        _drawing = logos ? "logos" : "hosts";
+        var (urls, error) = await Api.CandidatesAsync(Store.Show, logos);
+        _drawing = null;
+        if (error is not null) Store.Say(null, error);
+        else if (logos) _logos = urls;
+        else _hosts = urls;
+        if (error is null) Store.Say(logos ? "Three logos drawn. Click the one to use." : "Three host designs drawn. Click the one to keep.");
+        _ = Store.RefreshPrefsAsync();
+    }
+
+    // One row of the kit: what it is, whether it is the user's own, and the buttons to pick one or go back.
+    private RenderFragment KitFile(string label, string role, string? own, string accept, string pickHint, string clearHint) => @<div class="mv-kit-row">
+        <span class="mv-kit-name">@label</span>
+        <span class="mv-quiet mv-grow">@(own ?? "Made for you")</span>
+        <FilePick Text="Pick…" Accept="@accept" OnChange="@(e => FileAsync(role, e))" Filled="false" Title="@pickHint" />
+        @if (own is not null)
+        {
+            <RadzenButton Icon="close" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => ClearAsync(role))" title="@clearHint" aria-label="@($"Use the app's own {label.ToLowerInvariant()}")" />
+        }
+    </div>;
+
+    private RenderFragment KitSound(string label, string role, string? own, bool outro, string playHint, string pickHint, string clearHint) => @<div class="mv-kit-row">
+        <span class="mv-kit-name">@label</span>
+        <span class="mv-quiet mv-grow">@(own ?? "Made for you")</span>
+        <RadzenButton Icon="@(_sound is null ? "play_arrow" : "stop")" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => PlaySoundAsync(outro))" title="@playHint" aria-label="@($"Listen to the {label.ToLowerInvariant()}")" />
+        <FilePick Text="Pick…" Accept=".mp3,.wav,.m4a,.flac,.ogg" OnChange="@(e => FileAsync(role, e))" Filled="false" Title="@pickHint" />
+        @if (own is not null)
+        {
+            <RadzenButton Icon="close" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => ClearAsync(role))" title="@clearHint" aria-label="@($"Use the app's own {label.ToLowerInvariant()}")" />
+        }
+    </div>;
+
+    public void Dispose()
+    {
+        Store.Changed -= OnChanged;
+        _redraw?.Cancel();
+        _redraw?.Dispose();
+    }
+}

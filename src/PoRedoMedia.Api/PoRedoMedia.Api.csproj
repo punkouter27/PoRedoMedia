@@ -32,6 +32,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PoRedoMedia.Client\PoRedoMedia.Client.csproj" />
+    <ProjectReference Include="..\PoRedoMedia.Movie\PoRedoMedia.Movie.csproj" />
     <ProjectReference Include="..\PoRedoMedia.Shared\PoRedoMedia.Shared.csproj" />
   </ItemGroup>
 </Project>

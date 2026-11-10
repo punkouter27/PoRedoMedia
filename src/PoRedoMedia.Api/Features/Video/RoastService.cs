@@ -67,6 +67,13 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         Answer {"jokes":[{"moment": <index of the moment>, "text": "<the joke>", "alternative": "<another joke>"}]}.
         """;
 
+    /// <summary>
+    /// For a clip a narrator speaks over (a Create Movie clip): the roast is a heckler answering the narrator, not a
+    /// second voice-over. Its lines are spoken in the narrator's pauses (<see cref="TurnTaking"/>).
+    /// </summary>
+    internal const string NarratorBrief =
+        "The lines marked said: are a narrator's voice-over, telling the story of the clip. Play off the narrator like a heckler in the front row: answer, contradict or one-up what they just said, or mock how they put it. At least half of the jokes answer a said: line, aimed at that line's moment. Each joke is spoken in the pause right after the line it answers.\n";
+
     private const string ComicDelivery =
         "A brash stand-up comedian mid-set at a roast: loud, fast, incredulous, mocking. Land hard on the last words of the line.";
 
@@ -108,13 +115,14 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         IReadOnlyList<SceneLabel> labels,
         IReadOnlyList<TranscriptSegmentDto> transcript,
         double durationSeconds,
+        bool narrated,
         CancellationToken ct)
     {
         var moments = Moments(labels, transcript);
         if (moments.Count == 0)
             return null;
 
-        var jokes = await WriteJokesAsync(mediaId, moments, durationSeconds, ct);
+        var jokes = await WriteJokesAsync(mediaId, moments, durationSeconds, narrated, ct);
         if (jokes.Count == 0)
             return null;
 
@@ -183,13 +191,15 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
             .Take(MaxMoments)];
 
     private async Task<List<(long AtMs, string Text)>> WriteJokesAsync(
-        MediaId mediaId, List<(double AtSeconds, string What)> moments, double durationSeconds, CancellationToken ct)
+        MediaId mediaId, List<(double AtSeconds, string What)> moments, double durationSeconds, bool narrated, CancellationToken ct)
     {
         var inv = CultureInfo.InvariantCulture;
         // A spoken joke runs about seven seconds; more than one per seven would not fit.
         var max = Math.Clamp((int)(durationSeconds / 7), 1, MaxJokes);
         var prompt = new StringBuilder()
-            .Append(inv, $"The clip is {durationSeconds:0.#} seconds long. Write {max} joke(s), fewer only when there are fewer moments.\n\nMoments:\n");
+            .Append(inv, $"The clip is {durationSeconds:0.#} seconds long. Write {max} joke(s), fewer only when there are fewer moments.\n")
+            .Append(narrated ? NarratorBrief : "")
+            .Append("\nMoments:\n");
         for (var i = 0; i < moments.Count; i++)
             prompt.Append(inv, $"[{i}] t={moments[i].AtSeconds:0.0}s {moments[i].What}\n");
 

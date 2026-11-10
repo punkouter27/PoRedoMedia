@@ -1,0 +1,328 @@
+@* Step 4, Video: render the finished video, with its chapters, thumbnail and upload details, put
+   it in the Library or send it to YouTube; and the short upright teasers cut from it. *@
+@implements IDisposable
+@inject MovieStore Store
+@inject MovieApi Api
+@inject DialogService Dialogs
+@inject IJSRuntime JS
+@inject RunApi Runs
+
+@if (Store.Movie is { } movie && Store.Config is { } config)
+{
+var publish = movie.Publish;
+<div class="mv-two mv-video">
+    <div class="mv-main">
+        <h2 class="mv-section">Teasers</h2>
+        <p class="mv-quiet">Optional: three ten-second upright cuts of this movie for other video sites. Suggest them, change a hook, untick the ones you do not want, then render the rest.</p>
+        <div class="mv-row">
+            <RadzenButton Text="Suggest teasers" Icon="lightbulb" Variant="Variant.Outlined" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="@(() => Store.DoAsync("teasers/suggest", job: true))"
+                          title="Three ten-second upright cuts of this movie for other video sites, each a hook over one to three moments. One quick request to the script service." />
+            @if (movie.Teasers.Length > 0)
+            {
+                var kept = movie.Teasers.Count(t => t.Keep);
+                <RadzenButton Text="@(kept == 1 ? "Render 1 teaser" : $"Render {kept} teasers")" Disabled="@(Store.IsWorking || kept == 0)" Click="@(() => Store.DoAsync("teasers/render", job: true))"
+                              title="Builds each kept teaser as a 1080 by 1920 video, from the clips already made. Nothing new is paid for." />
+                <span title="Send each rendered teaser to your channel as a YouTube Short, titled with its hook and #Shorts, as private, unlisted or public as chosen for the finished video. Free.">
+                    <RadzenButton Text="Upload as Shorts" Variant="Variant.Outlined" Disabled="@(Store.IsWorking || !config.YouTube || publish.TeaserUrls.Length == 0)" Click="@(() => UploadAsync(shorts: true))" />
+                </span>
+            }
+        </div>
+        <div class="mv-teasers">
+            @for (var i = 0; i < movie.Teasers.Length; i++)
+            {
+                var (index, teaser) = (i, movie.Teasers[i]);
+                var poster = teaser.Moments.FirstOrDefault() is { Clip: >= 1 } first && first.Clip <= movie.Clips.Length ? movie.Clips[first.Clip - 1].ThumbUrl : null;
+                <div class="mv-teaser">
+                    <div class="mv-teaser-poster">
+                        @if (poster is not null)
+                        {
+                            <img src="@poster" alt="" />
+                        }
+                        <span class="mv-teaser-hook">@teaser.Hook</span>
+                        <button type="button" class="mv-card-play shown" @onclick="@(() => PlayTeaserAsync(index))" disabled="@(Store.IsWorking || _playing is not null)"
+                                title="Watch this teaser as it stands, small and quick, before rendering it. Costs nothing." aria-label="@($"Play teaser {index + 1}")">
+                            <RadzenIcon Icon="play_arrow" />
+                        </button>
+                        @if (_playing == index)
+                        {
+                            <span class="mv-card-busy"><RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" /></span>
+                        }
+                    </div>
+                    <div class="mv-teaser-body">
+                        <RadzenTextArea Value="@teaser.Hook" MaxLength="80" Rows="2" Placeholder="Hook" Change="@(v => TeaserAsync(index, teaser with { Hook = v }))" aria-label="Hook"
+                                        title="Shown across the top of the teaser. Eight words at most; any more are left off." />
+                        @if (Store.Advanced)
+                        {
+                            @for (var m = 0; m < teaser.Moments.Length; m++)
+                            {
+                                var (at, moment) = (m, teaser.Moments[m]);
+                                var latest = moment.Clip >= 1 && moment.Clip <= movie.Clips.Length ? Math.Max(0, movie.Clips[moment.Clip - 1].Seconds - moment.Length) : 0;
+                                <div class="mv-moment">
+                                    <RadzenDropDown TValue="int" Data="@movie.Clips" TextProperty="Title" ValueProperty="Number" Value="@moment.Clip" Change="@(v => MomentAsync(index, at, moment with { Clip = v is int clip ? clip : moment.Clip, Start = 0 }))"
+                                                    title="The clip this moment is cut from. Pick another to swap the moment, then drag the slider to choose where it starts." aria-label="Clip" />
+                                    <RadzenSlider TValue="double" Min="0" Max="@((decimal)Math.Max(0.5, latest))" Step="0.5" Value="@Math.Min(moment.Start, latest)" Change="@(v => MomentAsync(index, at, moment with { Start = v }))"
+                                                  title="Where in its clip this moment starts, in seconds: left is the clip's start. Drag it, then watch the teaser to check." />
+                                    <span class="mv-quiet">@($"{moment.Length:0.0} s")</span>
+                                </div>
+                            }
+                            <div class="mv-row">
+                                <RadzenCheckBox TValue="bool" Name="@($"mv-fill-{index}")" Value="@teaser.Fill" Change="@(v => TeaserAsync(index, teaser with { Fill = v }))" />
+                                <RadzenLabel Text="Fill" Component="@($"mv-fill-{index}")" title="Crop the picture to fill the upright frame, instead of showing it whole over a blurred copy of itself. Fuller, but the sides are lost: watch it to check." />
+                            </div>
+                        }
+                        <div class="mv-row">
+                            <RadzenCheckBox TValue="bool" Name="@($"mv-keep-{index}")" Value="@teaser.Keep" Change="@(v => TeaserAsync(index, teaser with { Keep = v }))" />
+                            <RadzenLabel Text="Keep" Component="@($"mv-keep-{index}")" title="Ticked teasers are rendered when you press Render teasers. Untick one to leave it out." />
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+        @if (publish.TeaserUrls.Length > 0)
+        {
+            <h3 class="mv-section">Rendered teasers</h3>
+            <div class="mv-row mv-wrap">
+                @for (var i = 0; i < publish.TeaserUrls.Length; i++)
+                {
+                    var url = publish.TeaserUrls[i];
+                    <span class="mv-row">
+                        <RadzenButton Text="@($"Teaser {i + 1}")" Icon="play_arrow" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => { Store.Playing = (url, true); Store.Notify(); })" />
+                        <RadzenButton Icon="download" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => JS.InvokeVoidAsync("poMedia.download", url))" aria-label="@($"Download teaser {i + 1}")" title="Download this teaser." />
+                    </span>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="mv-side">
+        <strong>Finished video</strong>
+        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it. Every film and AI video clip goes through Meme-ify first@(movie.Show == "Kids" ? " (sounds, stickers, text and effects; no roast in a kids' video)" : ""), and the movie goes in your Library.</p>
+        <RadzenButton Text="Render finished video" Icon="movie" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
+                      title="Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description, and put it in your Library. Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked. A movie can be up to 10 minutes, each clip under one." />
+        @if (publish.MasterUrl is { } master)
+        {
+            <video class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>
+            <span class="mv-quiet">@publish.MasterName · @publish.MasterSize</span>
+            <div class="mv-row mv-equal">
+                <RadzenButton Text="Download" Icon="download" Variant="Variant.Outlined" Click="@(() => JS.InvokeVoidAsync("poMedia.download", master))" title="Save the finished video to this device." />
+                <RadzenButton Text="@(publish.LibraryId is null ? "Add to Library" : "In your Library")" Icon="photo_library" Variant="Variant.Outlined" IsBusy="@(Store.Waiting == "library")"
+                              Disabled="@(Store.IsWorking || publish.LibraryId is not null)" Click="@(() => Store.DoAsync("library", "library"))"
+                              title="Put the finished video in your Library, beside everything else you have made, where it can be shared by link or used as the source of a run." />
+            </div>
+        }
+
+        <h2 class="mv-section">Chapters</h2>
+        <p class="mv-quiet">@(publish.MasterUrl is null ? "Render the finished video to see its chapters."
+            : publish.Chapters.Trim().Length == 0 ? "No chapters: YouTube shows them only for three or more of ten seconds or longer, and this video is too short for that."
+            : "Chapters, a beat to each, as YouTube reads them in a description. They are already in the description below.")</p>
+        @if (publish.Chapters.Trim().Length > 0)
+        {
+            <pre class="mv-chapters">@publish.Chapters</pre>
+        }
+
+        <div class="mv-row mv-between">
+            <h2 class="mv-section">Thumbnail</h2>
+            <RadzenButton Text="Make thumbnails" Variant="Variant.Outlined" Size="ButtonSize.Small" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="@(() => Store.DoAsync("thumbnails", job: true))"
+                          title="Make three 1280 by 720 thumbnails from your films and the movie's pictures, with its title in the series' colour. Then click the one to use. Free." />
+        </div>
+        <p class="mv-quiet">@(publish.ThumbnailUrl is null ? "No thumbnail chosen: YouTube picks a frame itself." : "Thumbnail chosen. It is sent with the upload.")</p>
+        @if (publish.ThumbnailChoices.Length > 0)
+        {
+            <div class="mv-candidates wide" title="Click the thumbnail to use. It is kept with the movie and sent with the upload.">
+                @for (var i = 0; i < publish.ThumbnailChoices.Length; i++)
+                {
+                    var choice = i;
+                    <button type="button" @onclick="@(() => Store.DoAsync($"thumbnail?index={choice}"))"><img src="@publish.ThumbnailChoices[choice]" alt="@($"Thumbnail {choice + 1}")" /></button>
+                }
+            </div>
+        }
+        else if (publish.ThumbnailUrl is not null)
+        {
+            <img class="mv-inspector-picture" src="@publish.ThumbnailUrl" alt="The chosen thumbnail" />
+        }
+
+        <h2 class="mv-section">YouTube</h2>
+        @if (publish.MasterUrl is null)
+        {
+            <p class="mv-quiet">Render the finished video first: its title, description and chapters are filled in from it, ready to send.</p>
+        }
+        else
+        {
+            Seed(movie);
+            <div class="mv-field">
+                <RadzenLabel Text="Title" Component="mv-up-title" />
+                <div class="mv-row">
+                    <RadzenTextBox Name="mv-up-title" @bind-Value="_title" MaxLength="100" class="mv-grow" title="The video's title on YouTube, up to 100 characters. Filled in from the titles written with the finished video." />
+                    <RadzenButton Icon="content_copy" Variant="Variant.Text" Click="@(() => CopyAsync("Title", _title))" aria-label="Copy the title" title="Copy the title, to paste into YouTube's own upload page. Free." />
+                </div>
+            </div>
+            <div class="mv-field">
+                <RadzenLabel Text="Description" Component="mv-up-description" />
+                <div class="mv-row mv-top">
+                    <RadzenTextArea Name="mv-up-description" @bind-Value="_description" Rows="6" class="mv-grow" title="The video's description on YouTube, with the chapter list in it so the video shows chapters. Change it as you like." />
+                    <RadzenButton Icon="content_copy" Variant="Variant.Text" Click="@(() => CopyAsync("Description", _description))" aria-label="Copy the description" title="Copy the whole description, chapters and hashtags included, to paste into YouTube's own upload page. Free." />
+                </div>
+            </div>
+            <div class="mv-field">
+                <RadzenLabel Text="Tags" Component="mv-up-tags" />
+                <div class="mv-row">
+                    <RadzenTextBox Name="mv-up-tags" @bind-Value="_tags" Placeholder="family, weekend" class="mv-grow" title="Search tags, separated by commas. YouTube keeps 500 characters of them; the rest are left off." />
+                    <RadzenButton Icon="content_copy" Variant="Variant.Text" Click="@(() => CopyAsync("Tags", _tags))" aria-label="Copy the tags" title="Copy the tags, to paste into the Tags box under Show more on YouTube's upload page. Free." />
+                </div>
+            </div>
+            <div class="mv-field">
+                <RadzenLabel Text="Who can watch" Component="mv-up-privacy" />
+                <RadzenDropDown Name="mv-up-privacy" TValue="string" Data="@Privacies" @bind-Value="_privacy"
+                                title="Private: only you. Unlisted: anyone with the link. Public: everyone. Private is safest; change it on YouTube once you have watched it there." />
+            </div>
+            @if (movie.Show == "Kids")
+            {
+                <p class="mv-quiet">Kids' video: uploaded as made for kids, as YouTube asks. Comments and personalised ads are off on it.</p>
+            }
+            @if (Store.Advanced)
+            {
+                <div class="mv-field">
+                    <RadzenLabel Text="Goes public on (optional)" Component="mv-up-when" />
+                    <RadzenDatePicker Name="mv-up-when" TValue="DateTime?" @bind-Value="_publishAt" ShowTime="true" HourFormat="24" DateFormat="d MMM yyyy, HH:mm" Placeholder="Not scheduled" AllowClear="true"
+                                      title="The day and time the video goes public by itself. It is uploaded private until then, whatever is chosen above. Leave it empty for no schedule." />
+                </div>
+            }
+            <span title="@(config.YouTube
+                ? "Send the finished video to your YouTube channel with this title, description, tags and privacy, and the chosen thumbnail. A new tab opens to sign in to Google each time; nothing is kept. Free."
+                : "Uploading needs this server's Google sign-in: a Google Cloud OAuth client of the Web application kind, with the YouTube Data API on, set as YouTube:ClientId and YouTube:ClientSecret.")">
+                <RadzenButton Text="Upload to YouTube" Icon="upload" Disabled="@(Store.IsWorking || !config.YouTube)" Click="@(() => UploadAsync(shorts: false))" class="mv-wide" />
+            </span>
+            @if (!config.YouTube)
+            {
+                <p class="mv-quiet">Uploading to YouTube is not set up on this server. Download the video, or copy the title, description and tags, and upload it on YouTube's own page.</p>
+            }
+        }
+        @if (_signIn is not null)
+        {
+            <LinkButton Href="@_signIn" Text="Sign in to Google" Icon="login" target="_blank" rel="noopener" title="Opens Google in a new tab to sign in for this upload alone. Nothing is kept." />
+        }
+        @if (publish.VideoLink is { } links)
+        {
+            @foreach (var link in links.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                <a href="@link" target="_blank" rel="noopener" title="Open what was just uploaded on YouTube.">@link</a>
+            }
+        }
+    </div>
+</div>
+}
+
+@code {
+    private static readonly string[] Privacies = ["Private", "Unlisted", "Public"];
+
+    private string _title = "", _description = "", _tags = "", _privacy = "Private";
+    private string? _seeded;
+    private DateTime? _publishAt;
+    private int? _playing;
+    private string? _signIn;
+
+    protected override void OnInitialized() => Store.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    /// <summary>Fills the upload form from the finished video's notes, once for each render, so what is typed over them is kept.</summary>
+    private void Seed(MovieDto movie)
+    {
+        var key = $"{movie.Id}|{movie.Publish.MasterUrl}";
+        if (_seeded == key) return;
+        (_seeded, _title, _description, _tags) = (key, movie.Publish.Title, movie.Publish.Description, movie.Publish.Tags);
+    }
+
+    /// <summary>
+    /// Says what rendering will do (put the clips still to go through Meme-ify, at their cost, and use one of the day's
+    /// runs), and renders once that is agreed to. With nothing to pay for and runs not counted, it just renders.
+    /// </summary>
+    private async Task RenderAsync()
+    {
+        if (Store.Movie is not { } movie) return;
+        var memes = await Api.EstimateAsync(movie.Id, "memes/estimate");
+        if (memes?.Refusal is { } refusal)
+        {
+            Store.Say(null, refusal);
+            return;
+        }
+        var runs = await MovieDialogs.RunsLeftAsync(Runs);
+        var paid = memes is { NothingToDo: false };
+        if ((paid || runs.Length > 0)
+            && !await MovieDialogs.ConfirmSpendAsync(Dialogs, Store, "Render the finished video?",
+                (paid ? memes!.Summary : "Renders the movie and puts it in your Library.") + runs, "Render", paid ? memes!.Dollars ?? 0 : 0))
+            return;
+        await Store.DoAsync($"render?preset={Store.Prefs.ExportPreset}", job: true);
+    }
+
+    private async Task CopyAsync(string what, string text)
+    {
+        await JS.InvokeAsync<bool>("poMedia.copyText", text);
+        Store.Say($"{what} copied. Paste it into YouTube's upload page.");
+    }
+
+    private async Task TeaserAsync(int index, MovieTeaserDto teaser)
+    {
+        if (Store.Movie is not { } movie) return;
+        var teasers = movie.Teasers.ToArray();
+        teasers[index] = teaser;
+        Store.Apply(await Api.TeasersAsync(movie.Id, teasers));
+    }
+
+    private Task MomentAsync(int index, int at, MovieTeaserMomentDto moment)
+    {
+        var teaser = Store.Movie!.Teasers[index];
+        var moments = teaser.Moments.ToArray();
+        moments[at] = moment;
+        return TeaserAsync(index, teaser with { Moments = moments });
+    }
+
+    private async Task PlayTeaserAsync(int index)
+    {
+        _playing = index;
+        var reply = await Store.DoAsync($"teasers/{index}/play");
+        _playing = null;
+        if (reply?.Url is { } url) Store.Playing = (url, true);
+        Store.Notify();
+    }
+
+    /// <summary>Asks, then opens Google's sign-in in a new tab; the upload starts when Google sends that tab back.</summary>
+    private async Task UploadAsync(bool shorts)
+    {
+        if (Store.Movie is not { } movie) return;
+        var when = Store.Advanced && _publishAt is { } at ? new DateTimeOffset(at) : (DateTimeOffset?)null;
+        var seen = when is { } then ? $"private until {then:d MMM yyyy, HH:mm}, then public" : _privacy.ToLowerInvariant();
+        var (title, message) = shorts
+            ? ($"Upload {movie.Publish.TeaserUrls.Length} teasers as YouTube Shorts?", $"Each goes to your channel as a Short, {seen}, titled with its hook and #Shorts. A new tab opens to sign in to Google first; that sign-in is used for these uploads only. It costs nothing.")
+            : ("Upload to YouTube?", $"Uploads {movie.Publish.MasterName} to your channel as “{_title}”, {seen}{(movie.Publish.ThumbnailUrl is null ? "" : ", with the chosen thumbnail")}. A new tab opens to sign in to Google first; that sign-in is used for this upload only. It costs nothing.");
+        if (!await MovieDialogs.ConfirmAsync(Dialogs, title, message, "Upload")) return;
+        var reply = await Api.UploadAsync(movie.Id, new MovieUploadRequest(_title, _description, _tags, _privacy, when, shorts));
+        if (reply.Url is null)
+        {
+            Store.Say(null, reply.Error);
+            return;
+        }
+        // A link the user presses themselves: a tab opened from here, after the question, is one browsers block.
+        _signIn = reply.Url;
+        Store.Say("Press Sign in to Google. The upload starts once you have signed in there.");
+        _ = WaitForUploadAsync();
+    }
+
+    // The upload begins on the server when Google sends the other tab back: watch for it for a few minutes.
+    private async Task WaitForUploadAsync()
+    {
+        for (var i = 0; i < 150 && !Store.IsWorking; i++)
+        {
+            await Task.Delay(2000);
+            if (await Api.JobAsync() is { State: "running" })
+            {
+                _signIn = null;
+                await Store.FollowJobAsync();
+                return;
+            }
+        }
+        _signIn = null;
+    }
+
+    public void Dispose() => Store.Changed -= OnChanged;
+}
