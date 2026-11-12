@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 docker compose up -d                                   # Azurite (local Tables + Blobs); the app hangs at startup without it
 dotnet run --project src/PoRedoMedia.Api               # http://localhost:4100 (also serves the Blazor client)
 dotnet build PoRedoMedia.slnx                          # warnings are errors, so this is the lint step too
-dotnet test tests/PoRedoMedia.UnitTests --filter "FullyQualifiedName~MemeRenderingTests"   # one class / test
+dotnet test tests/PoRedoMedia.Unit --filter "FullyQualifiedName~MemeRenderingTests"   # one class / test
 dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound library, then exits (the app also does this at startup)
 ```
 
