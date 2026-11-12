@@ -81,11 +81,11 @@ Modes: fake auth via `X-Fake-User` (Dev/Test), cookie-only (throws in Production
 **Settings.** `/settings` (anonymous-capable; the header's account button links to it) holds look and sound plus the
 Advanced switches in `Client/Services/AppSettings` (On-device AI, Recipes, Cost estimates, Visual
 effects). Every switch starts **off**, so the default app is the simple one; a switch
-only hides UI, never access. Switches live in `localStorage` (`po.adv.*`, `po.fx`) and are read synchronously
+only hides UI, never access. Switches live in `localStorage` (`poredomedia:adv:*`, `poredomedia:fx`) and are read synchronously
 through in-process JS. Signed in, `Services/PreferenceSync` pulls `/api/preferences` once from the layout (the account
-wins) and PUTs the whole synced set (`po.adv.*`, `po.fx`, `po.sfx.*`, `po.recipes`) a second after any change; recipes
+wins) and PUTs the whole synced set (`poredomedia:adv:*`, `poredomedia:fx`, `poredomedia:sfx:*`, `poredomedia:recipes`) a second after any change; recipes
 are read through `RecipeBook`, which skips functions that no longer exist. Every function the server can run is always offered. E2E tests turn switches on with
-`SignedInPageAsync(path, "po.adv.device-ai", ...)`.
+`SignedInPageAsync(path, "poredomedia:adv:device-ai", ...)`.
 
 **Client pages.** Each page wraps its body in `Shared/PageBoundary` (retry without a reload, then a reload); the
 layout's own `ErrorBoundary` is the last resort. Create is split into `CreateSteps`, `RecipeBar` and `RunView`; the
@@ -97,8 +97,8 @@ pages take keys with `Shortcuts.Register` and dispose the handle. Components tha
 **Client effects.** `wwwroot/js/fx/` holds the visual effects (WebGPU fluid backdrop `fluid.js`, which stands in for
 the glass one in `js/backdrop.js` when it can run; particles; shader reveal `dissolve.js` with the pixel-flow
 `morph.js` as its fallback; run orb; confetti and download/share sparks; roast concert; track waveform
-`waveform.js`; Library card tilt `tilt.js`); `sfx.js` synthesises every sound, in three themes (`po.sfx.theme`). Both
-are off until switched on in Settings (`po.fx = 'on'`, `po.sfx.muted = '0'`), and effects stay off for reduced
+`waveform.js`; Library card tilt `tilt.js`); `sfx.js` synthesises every sound, in three themes (`poredomedia:sfx:theme`). Both
+are off until switched on in Settings (`poredomedia:fx = 'on'`, `poredomedia:sfx:muted = '0'`), and effects stay off for reduced
 motion. Elements that exist only for an effect carry `.po-fx-only`; effects that need no element listen on the
 document instead of being called from pages. Blazor never awaits an effect: the .NET-facing entry points
 (`poMorph.start`, `poConfetti.burst`, `poSfx.runEnded`) return nothing. On-device models (Florence-2 vision, Whisper
@@ -143,7 +143,7 @@ needs `YouTube:ClientId`/`YouTube:ClientSecret` (an OAuth client of the *Web app
 `/api/movies/youtube/callback`); the sign-in is used for that one upload and nothing is kept. Routes are under
 `/api/movies` (`Features/Movies/MovieEndpoints`); the client is `Pages/CreateMovie` with one component per step
 (`Shared/Movie*Step`), state in `Services/MovieStore`, and `wwwroot/js/movie.js` for undo keys and the preview's
-live captions. Its advanced controls are the `po.adv.movie` switch.
+live captions. Its advanced controls are the `poredomedia:adv:movie` switch.
 
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,

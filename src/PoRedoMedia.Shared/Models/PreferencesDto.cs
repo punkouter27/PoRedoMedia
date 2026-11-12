@@ -2,7 +2,7 @@ namespace PoRedoMedia.Shared.Models;
 
 /// <summary>
 /// A user's preferences as the account keeps them: string keys to string values, such as the
-/// Settings switches (<c>po.adv.*</c>). The server stores them and never reads them.
+/// Settings switches (<c>poredomedia:adv:*</c>). The server stores them and never reads them.
 /// </summary>
 public sealed record PreferencesDto(Dictionary<string, string> Values)
 {
