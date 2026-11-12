@@ -189,7 +189,8 @@ public static class MovieAi
             { new StringContent("word"), "timestamp_granularities[]" },
         };
         using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"{endpoint.TrimEnd('/')}/openai/deployments/{Uri.EscapeDataString(deployment)}/audio/transcriptions?api-version=2024-06-01") { Content = form };
+            $"{endpoint.TrimEnd('/')}/openai/deployments/{Uri.EscapeDataString(deployment)}/audio/transcriptions?api-version=2024-06-01")
+        { Content = form };
         request.Headers.Add("api-key", key);
         using var response = await http.CreateClient(HttpClientName).SendAsync(request, ct);
         var body = await response.Content.ReadAsStringAsync(ct);

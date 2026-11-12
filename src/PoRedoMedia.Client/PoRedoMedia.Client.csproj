@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
   <PropertyGroup>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
     <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
     <!-- Trim- and AOT-unsafe code breaks the build (the trim analyzer is on for every project in

@@ -386,7 +386,7 @@ window.poMedia = {
         try {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key && key.startsWith('po.')) all[key] = localStorage.getItem(key);
+                if (key && key.startsWith('poredomedia:')) all[key] = localStorage.getItem(key);
             }
         } catch { /* private mode: nothing is remembered */ }
         return JSON.stringify(all);
@@ -400,7 +400,7 @@ window.poMedia = {
         document.documentElement.dataset.theme = theme;
         const link = document.getElementById('po-theme');
         if (link) link.href = `_content/Radzen.Blazor/css/${theme === 'dark' ? 'material-dark-base' : 'material-base'}.css`;
-        window.poMedia.write('po.theme', theme);
+        window.poMedia.write('poredomedia:theme', theme);
         window.poBackdrop?.retint();
     },
 
@@ -452,5 +452,14 @@ window.poMedia = {
 
     scrollIntoView(selector) {
         document.querySelector(selector)?.scrollIntoView({ block: 'nearest' });
+    },
+
+    releaseMedia(el) {
+        if (!el || typeof el.pause !== 'function') return;
+        try {
+            el.pause();
+            el.removeAttribute('src');
+            el.load();
+        } catch { }
     },
 };

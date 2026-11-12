@@ -1,0 +1,68 @@
+/* PoRedoMedia design tokens: light-dark() + :root[data-theme] mapped onto --rz-* Radzen variables.
+   Fonts and icons resolve from Radzen's bundled static web assets so UI rendering works offline too. */
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("/_content/Radzen.Blazor/fonts/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Material Symbols Outlined";
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: block;
+    src: url("/_content/Radzen.Blazor/fonts/MaterialSymbolsOutlined.woff2") format("woff2");
+}
+
+:root {
+    color-scheme: light dark;
+    --po-font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --po-radius: 14px;
+    --po-radius-sm: 8px;
+    --po-shell-max: 1600px;
+    --po-header-height: 56px;
+
+    /* 4px / 8px spacing scale */
+    --po-space-1: 4px;
+    --po-space-2: 8px;
+    --po-space-3: 12px;
+    --po-space-4: 16px;
+    --po-space-6: 24px;
+    --po-space-8: 32px;
+
+    /* Per-app accent override */
+    --po-brand-a: #4340d2;
+    --po-brand-b: #7c3aed;
+    --po-ink-on-brand: #ffffff;
+    --po-ink-on-bright: #16181d;
+    --po-surface: light-dark(#ffffff, #181a24);
+    --po-surface-subtle: light-dark(#f5f6fb, #10121a);
+    --po-ink: light-dark(#16181d, #eef0f6);
+    --po-ink-muted: light-dark(#525866, #a3a9b8);
+    --po-glass: color-mix(in srgb, var(--rz-base-background-color) 82%, transparent);
+    --po-line: color-mix(in srgb, var(--rz-text-color) 14%, transparent);
+    --po-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --po-safe-top: env(safe-area-inset-top, 0px);
+    --po-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --po-safe-left: env(safe-area-inset-left, 0px);
+    --po-safe-right: env(safe-area-inset-right, 0px);
+
+    /* Radzen design token bridge */
+    --rz-font-family: var(--po-font-sans);
+    --rz-primary: var(--po-brand-a);
+    --rz-secondary: var(--po-brand-b);
+    --rz-card-border-radius: var(--po-radius);
+    --rz-border-radius: var(--po-radius-sm);
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+}

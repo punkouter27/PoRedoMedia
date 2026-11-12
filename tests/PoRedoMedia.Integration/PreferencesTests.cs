@@ -16,7 +16,7 @@ public sealed class PreferencesTests(AzuriteFixture azurite)
 
         Assert.Empty((await me.GetFromJsonAsync("/api/preferences", WireJson.Default.PreferencesDto))!.Values);
 
-        var mine = new PreferencesDto(new() { ["po.adv.costs"] = "on", ["po.theme"] = "dark" });
+        var mine = new PreferencesDto(new() { ["poredomedia:adv:costs"] = "on", ["poredomedia:theme"] = "dark" });
         Assert.Equal(HttpStatusCode.NoContent, (await me.PutAsJsonAsync("/api/preferences", mine, WireJson.Default.PreferencesDto)).StatusCode);
         Assert.Equal(mine.Values, (await me.GetFromJsonAsync("/api/preferences", WireJson.Default.PreferencesDto))!.Values);
         Assert.Empty((await someoneElse.GetFromJsonAsync("/api/preferences", WireJson.Default.PreferencesDto))!.Values);

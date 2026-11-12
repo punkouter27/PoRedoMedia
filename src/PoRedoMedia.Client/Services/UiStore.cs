@@ -11,8 +11,8 @@ namespace PoRedoMedia.Client.Services;
 /// </summary>
 public sealed class UiStore(IJSRuntime js, PreferenceSync sync)
 {
-    public const string LastOptions = "po.options";
-    public const string Recipes = "po.recipes";
+    public const string LastOptions = "poredomedia:options";
+    public const string Recipes = "poredomedia:recipes";
 
     public async Task<T?> ReadAsync<T>(string key, JsonTypeInfo<T> type)
     {

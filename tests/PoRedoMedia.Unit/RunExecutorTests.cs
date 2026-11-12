@@ -20,8 +20,15 @@ public sealed class RunExecutorTests
 
     private MediaItem NewMedia(MediaKind kind = MediaKind.Image, string origin = "Upload") => _media.Add(new MediaItem
     {
-        Owner = Owner, Id = MediaId.New(), Kind = kind, Status = MediaStatus.Ready, Origin = origin,
-        Title = origin, ContentType = "x/y", Extension = ".x", CreatedAt = DateTimeOffset.UtcNow,
+        Owner = Owner,
+        Id = MediaId.New(),
+        Kind = kind,
+        Status = MediaStatus.Ready,
+        Origin = origin,
+        Title = origin,
+        ContentType = "x/y",
+        Extension = ".x",
+        CreatedAt = DateTimeOffset.UtcNow,
     });
 
     private static Run NewRun(MediaItem source, params MediaFunction[] functions) =>
@@ -47,8 +54,11 @@ public sealed class RunExecutorTests
         _summarizer = new NamingSummarizer();
         var meter = new AiMeter(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["AiPricing:Models:nano:Input"] = "1", ["AiPricing:Models:nano:CachedInput"] = "0.1", ["AiPricing:Models:nano:Output"] = "4",
-            ["AiPricing:TextUsd"] = "0.002", ["AiPricing:ImageUsd"] = "0.04",
+            ["AiPricing:Models:nano:Input"] = "1",
+            ["AiPricing:Models:nano:CachedInput"] = "0.1",
+            ["AiPricing:Models:nano:Output"] = "4",
+            ["AiPricing:TextUsd"] = "0.002",
+            ["AiPricing:ImageUsd"] = "0.04",
         }).Build(), NullLogger<AiMeter>.Instance);
         var source = NewMedia();
         MediaItem? seenByCaption = null, seenByVideo = null;
@@ -186,7 +196,12 @@ public sealed class RunExecutorTests
         var (busy, other) = (new UserId("dev|busy"), new UserId("dev|other"));
         Run For(UserId owner, string name) => new()
         {
-            Owner = owner, Id = RunId.New(), SourceId = MediaId.New(), Functions = [Restyle], CreatedAt = DateTimeOffset.UtcNow, Log = [name],
+            Owner = owner,
+            Id = RunId.New(),
+            SourceId = MediaId.New(),
+            Functions = [Restyle],
+            CreatedAt = DateTimeOffset.UtcNow,
+            Log = [name],
         };
 
         foreach (var run in new[] { For(busy, "b1"), For(busy, "b2"), For(busy, "b3"), For(other, "o1"), For(other, "o2") })
@@ -213,7 +228,11 @@ public sealed class RunExecutorTests
         // Cut short in the caption step, after the restyle had finished and become the working picture.
         var interrupted = NewRun(source, Restyle, MemeCaption, PhotoToVideo) with
         {
-            Status = RunStatus.Queued, CurrentStep = MemeCaption, Attempts = 2, OutputIds = [restyled.Id], WorkingId = restyled.Id,
+            Status = RunStatus.Queued,
+            CurrentStep = MemeCaption,
+            Attempts = 2,
+            OutputIds = [restyled.Id],
+            WorkingId = restyled.Id,
             Log = ["Restyle"],
         };
 

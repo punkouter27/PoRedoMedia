@@ -7,7 +7,7 @@ public sealed class LoginUiTests : UiTestBase
     [LiveServerFact]
     public async Task A_signed_out_visitor_is_sent_to_login_and_can_sign_in_and_out()
     {
-        var page = await Browser.NewPageAsync();
+        var page = await NewTrackedPageAsync();
 
         await page.GotoAsync(BaseUrl + "/");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Sign in" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
@@ -30,7 +30,7 @@ public sealed class LoginUiTests : UiTestBase
     [LiveServerFact]
     public async Task A_sign_in_that_arrives_from_another_site_lands_signed_in()
     {
-        var page = await Browser.NewPageAsync();
+        var page = await NewTrackedPageAsync();
         var signIn = $"{BaseUrl}/dev-login?email={Uri.EscapeDataString($"e2e-{Guid.NewGuid():N}@localhost")}&returnUrl=%2Fgallery";
         await page.RouteAsync("http://identity.example/**", route => route.FulfillAsync(new()
         {

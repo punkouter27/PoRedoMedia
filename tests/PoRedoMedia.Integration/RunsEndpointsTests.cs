@@ -37,8 +37,15 @@ public sealed class RunsEndpointsTests(AzuriteFixture azurite) : IDisposable
     {
         var item = new MediaItem
         {
-            Owner = new UserId(user), Id = MediaId.New(), Kind = kind, Status = MediaStatus.Ready, Origin = "Upload",
-            Title = "source", ContentType = "image/png", Extension = ".png", CreatedAt = DateTimeOffset.UtcNow,
+            Owner = new UserId(user),
+            Id = MediaId.New(),
+            Kind = kind,
+            Status = MediaStatus.Ready,
+            Origin = "Upload",
+            Title = "source",
+            ContentType = "image/png",
+            Extension = ".png",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         await factory.Services.GetRequiredService<IMediaRepository>().SaveAsync(item);
         return item;
@@ -184,14 +191,27 @@ public sealed class RunsEndpointsTests(AzuriteFixture azurite) : IDisposable
         {
             var source = new MediaItem
             {
-                Owner = owner, Id = MediaId.New(), Kind = MediaKind.Image, Status = MediaStatus.Ready, Origin = "Upload",
-                Title = "source", ContentType = "image/png", Extension = ".png", CreatedAt = DateTimeOffset.UtcNow,
+                Owner = owner,
+                Id = MediaId.New(),
+                Kind = MediaKind.Image,
+                Status = MediaStatus.Ready,
+                Origin = "Upload",
+                Title = "source",
+                ContentType = "image/png",
+                Extension = ".png",
+                CreatedAt = DateTimeOffset.UtcNow,
             };
             await media.SaveAsync(source);
             var run = new Run
             {
-                Owner = owner, Id = RunId.New(), SourceId = source.Id, Functions = [MediaFunction.MemeCaption], Status = RunStatus.Running,
-                CurrentStep = MediaFunction.MemeCaption, Attempts = attempts, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2),
+                Owner = owner,
+                Id = RunId.New(),
+                SourceId = source.Id,
+                Functions = [MediaFunction.MemeCaption],
+                Status = RunStatus.Running,
+                CurrentStep = MediaFunction.MemeCaption,
+                Attempts = attempts,
+                CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2),
             };
             await runs.SaveAsync(run);
             return run;

@@ -133,7 +133,11 @@ public static class TurnTaking
                     output.Add(WithoutSound(sound));
                 output.Add(sound with
                 {
-                    TimestampMs = start, VisualEffect = null, CaptionText = null, CaptionPosition = null, OverlayPath = null,
+                    TimestampMs = start,
+                    VisualEffect = null,
+                    CaptionText = null,
+                    CaptionPosition = null,
+                    OverlayPath = null,
                 });
                 waited++;
             }

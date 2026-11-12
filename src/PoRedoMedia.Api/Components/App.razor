@@ -15,12 +15,14 @@
     <script>
         (function () {
             try {
-                var theme = localStorage.getItem('po.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                var theme = localStorage.getItem('poredomedia:theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
                 document.documentElement.dataset.theme = theme;
                 if (theme === 'dark') document.getElementById('po-theme').href = '_content/Radzen.Blazor/css/material-dark-base.css';
             } catch (e) { document.documentElement.dataset.theme = 'light'; }
         })();
     </script>
+    <link rel="stylesheet" href="css/po-tokens.css" />
+    <link rel="stylesheet" href="css/po-motion.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="css/movie.css" />
     <link rel="stylesheet" href="PoRedoMedia.Api.styles.css" />

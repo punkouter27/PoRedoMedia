@@ -24,20 +24,20 @@ public sealed class AppSettings
         sync.Pulled += () => Changed?.Invoke();
     }
 
-    public static readonly AppSetting OnDeviceAi = new("po.adv.device-ai", "On-device AI",
+    public static readonly AppSetting OnDeviceAi = new("poredomedia:adv:device-ai", "On-device AI",
         "Describe pictures in this browser, for free. Downloads about 230 MB the first time.");
 
-    public static readonly AppSetting Recipes = new("po.adv.recipes", "Recipes",
+    public static readonly AppSetting Recipes = new("poredomedia:adv:recipes", "Recipes",
         "Save a set of ticked functions and use it again with one tap.");
 
-    public static readonly AppSetting CostEstimates = new("po.adv.costs", "Cost estimates",
+    public static readonly AppSetting CostEstimates = new("poredomedia:adv:costs", "Cost estimates",
         "What each run is likely to cost in AI fees, and the total for this tab.");
 
     /// <summary>Kept under the key the effects layer reads (js/fx/fx-core.js), which also honours reduced motion.</summary>
-    public static readonly AppSetting VisualEffects = new("po.fx", "Visual effects",
+    public static readonly AppSetting VisualEffects = new("poredomedia:fx", "Visual effects",
         "A moving backdrop, particles, the run orb, picture reveals, confetti and sparks, track waveforms and tilting cards.");
 
-    public static readonly AppSetting MovieAdvanced = new("po.adv.movie", "Movie advanced controls",
+    public static readonly AppSetting MovieAdvanced = new("poredomedia:adv:movie", "Movie advanced controls",
         "In Create Movie: the quick Preview step, each clip's depth, picture type and takes, caption size and outline, teaser moments, a publish date, and 4K or 60 fps video.");
 
     public static readonly AppSetting[] Advanced = [OnDeviceAi, Recipes, CostEstimates, VisualEffects, MovieAdvanced];

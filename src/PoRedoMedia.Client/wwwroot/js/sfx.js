@@ -13,15 +13,15 @@ window.poSfx = (() => {
     let pad = null, whoosh = null, whooshStop = 0;
     const THEMES = ['studio', 'arcade', 'soft'];
     const storedTheme = () => {
-        const stored = window.poMedia.read('po.sfx.theme');
+        const stored = window.poMedia.read('poredomedia:sfx:theme');
         return THEMES.includes(stored) ? stored : 'studio';
     };
     let theme = storedTheme();
 
     // Off until switched on in Settings: the simplest app is a quiet one.
-    const muted = () => window.poMedia.read('po.sfx.muted') !== '0';
+    const muted = () => window.poMedia.read('poredomedia:sfx:muted') !== '0';
     const volume = () => {
-        const stored = parseFloat(window.poMedia.read('po.sfx.volume') ?? '0.5');
+        const stored = parseFloat(window.poMedia.read('poredomedia:sfx:volume') ?? '0.5');
         return isFinite(stored) ? Math.min(1, Math.max(0, stored)) : 0.5;
     };
 
@@ -332,14 +332,14 @@ window.poSfx = (() => {
         themes: () => [...THEMES],
         setTheme(name) {
             theme = THEMES.includes(name) ? name : 'studio';
-            window.poMedia.write('po.sfx.theme', theme === 'studio' ? null : theme);
+            window.poMedia.write('poredomedia:sfx:theme', theme === 'studio' ? null : theme);
         },
         setMuted(on) {
-            window.poMedia.write('po.sfx.muted', on ? '1' : '0');
+            window.poMedia.write('poredomedia:sfx:muted', on ? '1' : '0');
             if (on) window.poSfx.pad(false);
         },
         setVolume(value) {
-            window.poMedia.write('po.sfx.volume', String(value));
+            window.poMedia.write('poredomedia:sfx:volume', String(value));
             if (context) master.gain.setTargetAtTime(volume() * 0.55, context.currentTime, 0.05);
         },
     };

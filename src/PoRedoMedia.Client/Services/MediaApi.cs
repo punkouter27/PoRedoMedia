@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using PoRedoMedia.Shared.Models;
 
 namespace PoRedoMedia.Client.Services;
@@ -70,6 +69,13 @@ public sealed class MediaApi(HttpClient http)
         return response.IsSuccessStatusCode ? null : await ReasonAsync(response);
     }
 
+    public Task<byte[]> GetBytesAsync(string url) => http.GetByteArrayAsync(url);
+
+    public async Task SignOutAsync()
+    {
+        using var _ = await http.PostAsync("logout", null);
+    }
+
     public async Task<string?> StopSharingAsync(Guid id)
     {
         using var response = await http.DeleteAsync($"api/media/{id}/share");
@@ -77,19 +83,5 @@ public sealed class MediaApi(HttpClient http)
     }
 
     /// <summary>The <c>detail</c> of a failed response, or a plain fallback.</summary>
-    public static async Task<string> ReasonAsync(HttpResponseMessage response)
-    {
-        try
-        {
-            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            if (problem.RootElement.TryGetProperty("detail", out var reason) && reason.ValueKind == JsonValueKind.String && reason.GetString() is { Length: > 0 } text)
-                return text;
-        }
-        catch (JsonException)
-        {
-            // Not a problem document; fall through.
-        }
-
-        return $"The request failed ({(int)response.StatusCode}).";
-    }
+    public static Task<string> ReasonAsync(HttpResponseMessage response) => ProblemDetailsParser.ReadReasonAsync(response);
 }

@@ -1,6 +1,6 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
-using PoRedoMedia.Client.Pages;
+using PoRedoMedia.Client.Features.Settings;
 using PoRedoMedia.Client.Services;
 using Radzen;
 
@@ -14,6 +14,7 @@ public sealed class SettingsTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddRadzenComponents();
         ctx.Services.AddSingleton(new HttpClient());
+        ctx.Services.AddSingleton<MediaApi>();
         ctx.Services.AddSingleton<PreferenceSync>();
         ctx.Services.AddSingleton<AppSettings>();
         // An instance, so the sync-disposed container leaves its async-only Dispose alone.

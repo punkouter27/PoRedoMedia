@@ -9,8 +9,8 @@
 $ErrorActionPreference = 'Stop'
 
 $Budgets = [ordered]@{
-    'PoRedoMedia.UnitTests'        = 100
-    'PoRedoMedia.IntegrationTests' = 50
+    'PoRedoMedia.Unit'        = 100
+    'PoRedoMedia.Integration' = 50
     'PoRedoMedia.E2EAPI'           = 25
     'PoRedoMedia.E2EUI'            = 25
 }

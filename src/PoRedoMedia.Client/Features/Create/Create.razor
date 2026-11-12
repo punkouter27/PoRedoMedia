@@ -7,7 +7,6 @@
 @inject AppConfigService Config
 @inject SessionCostService Cost
 @inject LocalAiService LocalAi
-@inject HttpClient Http
 @inject UiStore Store
 @inject AppSettings Settings
 @inject Shortcuts Keys
@@ -15,7 +14,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>PoRedoMedia</PageTitle>
+<PageTitle>Create · PoRedoMedia</PageTitle>
 
 <PageBoundary>
 <div class="create-page">
@@ -321,7 +320,7 @@
         {
             _localStatus = "Looking at the picture on your device…";
             StateHasChanged();
-            var image = await Http.GetByteArrayAsync(_source!.Url);
+            var image = await Media.GetBytesAsync(_source!.Url);
             var outcome = await LocalAi.DescribeImageAsync(image, prompt: null, new Progress<LocalInferenceStatus>(status =>
             {
                 _localStatus = status.LoadPercent is { } percent ? $"Getting the on-device model ready: {percent}%" : "Looking at the picture on your device…";

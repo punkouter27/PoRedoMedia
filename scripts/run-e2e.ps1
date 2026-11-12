@@ -26,7 +26,7 @@ try {
     if (-not $up) { Write-Error "The app did not start on $url." }
 
     $env:E2E_BASE_URL = $url
-    $testArgs = @('test', 'tests/PoRedoMedia.E2EUI', '--no-build')
+    $testArgs = @('test', 'tests/PoRedoMedia.E2EUI', '--no-build', '--', 'xUnit.ParallelizeTestCollections=false')
     if ($Filter) { $testArgs += @('--filter', "FullyQualifiedName~$Filter") }
     dotnet @testArgs
     $code = $LASTEXITCODE

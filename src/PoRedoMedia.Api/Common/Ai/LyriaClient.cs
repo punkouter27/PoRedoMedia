@@ -72,9 +72,9 @@ public sealed class LyriaMusicService : IMusicGenerationService
         // contract, and System.Text.Json source generation cannot describe anonymous types. This
         // assembly is server-side only and is never trimmed, so the reflective writer is safe here.
         // Scoped to the single statement so the analyzer (Directory.Build.props) stays live elsewhere.
-        #pragma warning disable IL2026
+#pragma warning disable IL2026
         request.Content = JsonContent.Create(body);
-        #pragma warning restore IL2026
+#pragma warning restore IL2026
 
         using var response = await client.SendAsync(request, ct);
         var elapsed = (long)Stopwatch.GetElapsedTime(start).TotalMilliseconds;

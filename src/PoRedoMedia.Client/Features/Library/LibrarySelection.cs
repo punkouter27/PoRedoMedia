@@ -1,6 +1,6 @@
 using PoRedoMedia.Shared.Models;
 
-namespace PoRedoMedia.Client.Shared;
+namespace PoRedoMedia.Client.Features.Library;
 
 /// <summary>
 /// What the Library's drawer shows, shared between the page and the drawer: a side dialog is drawn

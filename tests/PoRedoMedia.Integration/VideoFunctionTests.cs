@@ -58,8 +58,16 @@ public sealed class VideoFunctionTests(AzuriteFixture azurite) : IDisposable
             "-f lavfi -i testsrc=duration=4:size=320x240:rate=10 -f lavfi -i sine=frequency=440:duration=4 -pix_fmt yuv420p -shortest", ".mp4");
         var item = new MediaItem
         {
-            Owner = new UserId(user), Id = MediaId.New(), Kind = MediaKind.Video, Status = MediaStatus.Ready, Origin = "Upload",
-            Title = "party.mp4", ContentType = "video/mp4", Extension = ".mp4", DurationSeconds = 4, CreatedAt = DateTimeOffset.UtcNow,
+            Owner = new UserId(user),
+            Id = MediaId.New(),
+            Kind = MediaKind.Video,
+            Status = MediaStatus.Ready,
+            Origin = "Upload",
+            Title = "party.mp4",
+            ContentType = "video/mp4",
+            Extension = ".mp4",
+            DurationSeconds = 4,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         await Factory.Services.GetRequiredService<BlobStorageService>().UploadAsync(item.SourcePath, clip, "video/mp4");
         await Factory.Services.GetRequiredService<IMediaRepository>().SaveAsync(item);

@@ -34,6 +34,9 @@ public sealed class GalleryUiTests : UiTestBase
         await Assertions.Expect(page.GetByText("Nothing here yet")).ToBeVisibleAsync(new() { Timeout = 30_000 });
 
         // An empty Library is its own drop zone: the file goes straight in, no Add media first.
+        AllowError(msg =>
+            msg.Contains("http://localhost:4100/api/media/sas", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("status of 400 (Bad Request)", StringComparison.Ordinal));
         await page.SetInputFilesAsync("input[type=file]", new FilePayload { Name = "notes.txt", MimeType = "text/plain", Buffer = "hello"u8.ToArray() });
 
         await Assertions.Expect(page.GetByText("That file type is not supported")).ToBeVisibleAsync();

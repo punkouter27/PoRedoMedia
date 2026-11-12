@@ -30,8 +30,15 @@ public sealed class ImageFunctionTests(AzuriteFixture azurite) : IDisposable
         var services = _factory.Value.Services;
         var item = new MediaItem
         {
-            Owner = new UserId(user), Id = MediaId.New(), Kind = MediaKind.Image, Status = MediaStatus.Ready, Origin = "Upload",
-            Title = "beach.png", ContentType = "image/png", Extension = ".png", CreatedAt = DateTimeOffset.UtcNow,
+            Owner = new UserId(user),
+            Id = MediaId.New(),
+            Kind = MediaKind.Image,
+            Status = MediaStatus.Ready,
+            Origin = "Upload",
+            Title = "beach.png",
+            ContentType = "image/png",
+            Extension = ".png",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         await services.GetRequiredService<BlobStorageService>().UploadAsync(item.SourcePath, png.ToArray(), "image/png");
         await services.GetRequiredService<IMediaRepository>().SaveAsync(item);
@@ -175,8 +182,15 @@ public sealed class ImageFunctionTests(AzuriteFixture azurite) : IDisposable
         using var png = new MemoryStream(ImageBytes.ToPng(image));
         var source = new MediaItem
         {
-            Owner = new UserId(user), Id = MediaId.New(), Kind = MediaKind.Image, Status = MediaStatus.Ready, Origin = "Upload",
-            Title = "a.png", ContentType = "image/png", Extension = ".png", CreatedAt = DateTimeOffset.UtcNow,
+            Owner = new UserId(user),
+            Id = MediaId.New(),
+            Kind = MediaKind.Image,
+            Status = MediaStatus.Ready,
+            Origin = "Upload",
+            Title = "a.png",
+            ContentType = "image/png",
+            Extension = ".png",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         await factory.Services.GetRequiredService<BlobStorageService>().UploadAsync(source.SourcePath, png.ToArray(), "image/png");
         await factory.Services.GetRequiredService<IMediaRepository>().SaveAsync(source);
@@ -260,8 +274,15 @@ public sealed class ImageFunctionTests(AzuriteFixture azurite) : IDisposable
         using var png = new MemoryStream(ImageBytes.ToPng(image));
         var source = new MediaItem
         {
-            Owner = new UserId(user), Id = MediaId.New(), Kind = MediaKind.Image, Status = MediaStatus.Ready, Origin = "Upload",
-            Title = "a.png", ContentType = "image/png", Extension = ".png", CreatedAt = DateTimeOffset.UtcNow,
+            Owner = new UserId(user),
+            Id = MediaId.New(),
+            Kind = MediaKind.Image,
+            Status = MediaStatus.Ready,
+            Origin = "Upload",
+            Title = "a.png",
+            ContentType = "image/png",
+            Extension = ".png",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         await services.GetRequiredService<BlobStorageService>().UploadAsync(source.SourcePath, png.ToArray(), "image/png");
         await services.GetRequiredService<IMediaRepository>().SaveAsync(source);

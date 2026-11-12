@@ -1,0 +1,43 @@
+/* Shared motion and loading skeleton rules for PoRedoMedia. */
+
+.po-skeleton {
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--rz-text-color) 6%, transparent) 25%,
+        color-mix(in srgb, var(--rz-text-color) 12%, transparent) 37%,
+        color-mix(in srgb, var(--rz-text-color) 6%, transparent) 63%);
+    background-size: 400% 100%;
+    animation: po-shimmer 1.4s ease infinite;
+}
+
+@keyframes po-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+.po-pop {
+    animation: po-pop 420ms var(--po-spring) both;
+}
+
+@keyframes po-pop {
+    from { opacity: 0; transform: scale(0.92) translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
+.rz-button {
+    transition: transform 140ms var(--po-spring);
+}
+
+.rz-button:active:not(.rz-state-disabled) {
+    transform: scale(0.96);
+}
+
+@keyframes runs-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .po-skeleton, .po-pop, .rz-button, .runs-busy .rzi {
+        animation: none;
+        transition: none;
+    }
+}

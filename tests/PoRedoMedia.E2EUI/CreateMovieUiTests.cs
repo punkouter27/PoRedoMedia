@@ -57,6 +57,7 @@ public sealed class CreateMovieUiTests : UiTestBase
         await Assertions.Expect(page.GetByRole(AriaRole.Alertdialog)).ToContainTextAsync("one of your runs for today");
         await page.GetByRole(AriaRole.Alertdialog).GetByRole(AriaRole.Button, new() { Name = "Render", Exact = true }).ClickAsync();
         await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 180_000 });
+        await page.WaitForFunctionAsync("() => { const v = document.querySelector('video[aria-label=\"The finished video\"]'); return v !== null && v.readyState >= 2; }");
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "In your Library" })).ToBeVisibleAsync();
         await ShotAsync(page, "4-video");
 
@@ -72,7 +73,7 @@ public sealed class CreateMovieUiTests : UiTestBase
     [LiveServerFact]
     public async Task Films_become_a_whole_video_in_one_go_and_it_can_be_previewed_and_cut_into_teasers()
     {
-        var page = await SignedInPageAsync("/movie", "po.adv.movie");
+        var page = await SignedInPageAsync("/movie", "poredomedia:adv:movie");
         await page.SetViewportSizeAsync(1440, 900);
 
         // Films: two of the user's own, chosen together and uploaded from the form itself; long enough to narrate over

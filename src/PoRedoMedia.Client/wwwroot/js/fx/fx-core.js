@@ -2,11 +2,11 @@
 // device when there is one, page-wide overlay canvases for effects that leave their element, and
 // the small helpers the effects share (shader programs, colours, palettes, audio analysis).
 //
-// Effects are off until switched on in Settings ('po.fx' = 'on' in this browser's storage, which
+// Effects are off until switched on in Settings ('poredomedia:fx' = 'on' in this browser's storage, which
 // is also how screenshots of them are taken), and always off for a request for reduced motion.
 window.poFx = (() => {
     const still = matchMedia('(prefers-reduced-motion: reduce)');
-    const setting = () => window.poMedia.read('po.fx');
+    const setting = () => window.poMedia.read('poredomedia:fx');
     let gpu = null;
     let worker = null, nextJob = 0;
     const jobs = new Map();
@@ -215,7 +215,7 @@ window.poFx = (() => {
 
         /** The settings switch. */
         setEnabled(on) {
-            window.poMedia.write('po.fx', on ? 'on' : null);
+            window.poMedia.write('poredomedia:fx', on ? 'on' : null);
             refresh();
         },
 

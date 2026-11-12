@@ -4,7 +4,7 @@
    sign out. Open before sign-in too, where only the look and sound show. *@
 @implements IDisposable
 @inject IJSRuntime JS
-@inject HttpClient Http
+@inject MediaApi Media
 @inject NavigationManager Navigation
 @inject AppSettings Switches
 @inject PreferenceSync Preferences
@@ -196,7 +196,7 @@
         _leaving = true;
         try
         {
-            using var response = await Http.PostAsync("logout", null);
+            await Media.SignOutAsync();
         }
         catch (HttpRequestException)
         {

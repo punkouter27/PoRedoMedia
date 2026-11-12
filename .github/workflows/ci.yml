@@ -53,4 +53,4 @@ jobs:
         run: ./scripts/check-test-budgets.ps1
 
       - name: Unit tests
-        run: dotnet test tests/PoRedoMedia.UnitTests --no-build --configuration Release --verbosity normal
+        run: dotnet test tests/PoRedoMedia.Unit --no-build --configuration Release --verbosity normal

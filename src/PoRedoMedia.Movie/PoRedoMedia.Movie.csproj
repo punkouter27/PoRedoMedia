@@ -4,6 +4,7 @@
        FFmpeg render. Brought over from PoAutoRobo's core, which has no window in it. It works on files in one folder
        per movie and reaches every outside service through a delegate, which the Api fills with its own providers. -->
   <PropertyGroup>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <IsAotCompatible>true</IsAotCompatible>
     <!-- The unused-using check only runs on build when documentation is generated; undocumented members are not an error. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -20,8 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="PoRedoMedia.UnitTests" />
-    <InternalsVisibleTo Include="PoRedoMedia.IntegrationTests" />
+    <InternalsVisibleTo Include="PoRedoMedia.Unit" />
+    <InternalsVisibleTo Include="PoRedoMedia.Integration" />
   </ItemGroup>
 
 </Project>

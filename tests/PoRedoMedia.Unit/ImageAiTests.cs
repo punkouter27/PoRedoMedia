@@ -192,9 +192,17 @@ public sealed class ImageAiTests
         var blobs = new BlobStorageService(new StorageClients(new ConfigurationBuilder().Build()));
         var roast = new MediaItem
         {
-            Owner = new UserId("dev|a"), Id = MediaId.New(), Kind = PoRedoMedia.Shared.Enums.MediaKind.Audio, Status = MediaStatus.Ready,
-            Origin = "RapRoast", Title = "Roast · dog", ContentType = "audio/mpeg", Extension = ".mp3", CreatedAt = DateTimeOffset.UtcNow,
-            Text = "[Verse] You sat on the remote", Detail = "A dog on a sofa",
+            Owner = new UserId("dev|a"),
+            Id = MediaId.New(),
+            Kind = PoRedoMedia.Shared.Enums.MediaKind.Audio,
+            Status = MediaStatus.Ready,
+            Origin = "RapRoast",
+            Title = "Roast · dog",
+            ContentType = "audio/mpeg",
+            Extension = ".mp3",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Text = "[Verse] You sat on the remote",
+            Detail = "A dog on a sofa",
         };
         var chat = new StubChat("""{"title":"\"The Dog Who Sat On The Remote Again.\"","summary":" A stand-up roast of a dog hogging the sofa. "}""");
 

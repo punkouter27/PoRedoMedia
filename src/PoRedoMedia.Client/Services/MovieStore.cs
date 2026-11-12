@@ -36,7 +36,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 {
     public const string Template = "template", Films = "films", Clips = "clips", Preview = "preview", Video = "video";
 
-    private const string LastKey = "po.movie.last";
+    private const string LastKey = "poredomedia:movie:last";
     private CancellationTokenSource? _polling;
     private bool _started;
     private bool _chosen;

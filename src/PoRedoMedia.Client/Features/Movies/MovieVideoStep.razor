@@ -1,6 +1,6 @@
 @* Step 4, Video: render the finished video, with its chapters, thumbnail and upload details, put
    it in the Library or send it to YouTube; and the short upright teasers cut from it. *@
-@implements IDisposable
+@implements IAsyncDisposable
 @inject MovieStore Store
 @inject MovieApi Api
 @inject DialogService Dialogs
@@ -101,7 +101,7 @@ var publish = movie.Publish;
                       title="Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description, and put it in your Library. Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked. A movie can be up to 10 minutes, each clip under one." />
         @if (publish.MasterUrl is { } master)
         {
-            <video class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>
+            <video @ref="_masterVideo" class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>
             <span class="mv-quiet">@publish.MasterName · @publish.MasterSize</span>
             <div class="mv-row mv-equal">
                 <RadzenButton Text="Download" Icon="download" Variant="Variant.Outlined" Click="@(() => JS.InvokeVoidAsync("poMedia.download", master))" title="Save the finished video to this device." />
@@ -324,5 +324,18 @@ var publish = movie.Publish;
         _signIn = null;
     }
 
-    public void Dispose() => Store.Changed -= OnChanged;
+    private ElementReference _masterVideo;
+
+    public async ValueTask DisposeAsync()
+    {
+        Store.Changed -= OnChanged;
+        try
+        {
+            await JS.InvokeVoidAsync("poMedia.releaseMedia", _masterVideo);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or ObjectDisposedException)
+        {
+            // Element was never rendered or circuit already tore down.
+        }
+    }
 }

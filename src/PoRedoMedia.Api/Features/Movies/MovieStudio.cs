@@ -104,7 +104,10 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
 
     public static readonly IReadOnlyDictionary<string, ExportPreset> Presets = new Dictionary<string, ExportPreset>
     {
-        ["Hd30"] = ExportPreset.Hd30, ["Hd60"] = ExportPreset.Hd60, ["Uhd30"] = ExportPreset.Uhd30, ["Uhd60"] = ExportPreset.Uhd60,
+        ["Hd30"] = ExportPreset.Hd30,
+        ["Hd60"] = ExportPreset.Hd60,
+        ["Uhd30"] = ExportPreset.Uhd30,
+        ["Uhd60"] = ExportPreset.Uhd60,
     };
 
     private ExportPreset Preset(string? name = null) => Presets.GetValueOrDefault(name ?? Preferences.ExportPreset, ExportPreset.Hd30);
@@ -438,14 +441,23 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
     {
         if (_job is { State: JobState.Running, MovieId: var busy } && busy == id) return Busy;
         _open.TryRemove(id, out _);
-        try
+        var folder = Path.Combine(Episodes, id);
+        for (var attempt = 0; ; attempt++)
         {
-            Directory.Delete(Path.Combine(Episodes, id), recursive: true);
-            return null;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            return $"The movie could not be deleted: {e.Message}";
+            try
+            {
+                if (Directory.Exists(folder))
+                    Directory.Delete(folder, recursive: true);
+                return null;
+            }
+            catch (Exception e) when ((e is IOException or UnauthorizedAccessException) && attempt < 5)
+            {
+                Thread.Sleep(100);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return $"The movie could not be deleted: {e.Message}";
+            }
         }
     }
 

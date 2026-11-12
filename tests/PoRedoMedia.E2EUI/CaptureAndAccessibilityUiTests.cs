@@ -51,7 +51,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
             failures.AddRange(result.Violations.Select(v => $"{name}: {v.Id} ({v.Impact}) {v.Help} -> {string.Join(" | ", v.Nodes.Take(3).Select(n => n.Html))}"));
         }
 
-        var anonymous = await Browser.NewPageAsync();
+        var anonymous = await NewTrackedPageAsync();
         await anonymous.GotoAsync(BaseUrl + "/login");
         await Assertions.Expect(anonymous.GetByRole(AriaRole.Heading, new() { Name = "Sign in" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await ScanAsync(anonymous, "login");
@@ -64,7 +64,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
         Assert.Contains(json.GetProperty("icons").EnumerateArray(), i => i.GetProperty("sizes").GetString() == "512x512");
         Assert.Equal(1, await anonymous.Locator("link[rel=manifest]").CountAsync());
 
-        var page = await SignedInPageAsync("/", "po.adv.device-ai", "po.adv.costs", "po.adv.recipes");
+        var page = await SignedInPageAsync("/", "poredomedia:adv:device-ai", "poredomedia:adv:costs", "poredomedia:adv:recipes");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Choose a photo or a video" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await ScanAsync(page, "create-1-media");
 
@@ -94,7 +94,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
     [LocalAiFact]
     public async Task The_on_device_model_describes_the_picture_and_the_run_completes()
     {
-        var page = await SignedInPageAsync("/settings", "po.adv.device-ai", "po.adv.costs");
+        var page = await SignedInPageAsync("/settings", "poredomedia:adv:device-ai", "poredomedia:adv:costs");
         var log = new List<string>();
         page.Console += (_, m) => { if (m.Type is "error" or "warning") log.Add($"{m.Type}: {m.Text}"); };
 

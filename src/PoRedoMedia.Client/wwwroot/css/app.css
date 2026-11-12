@@ -3,23 +3,6 @@
    dark themes both work without a second set of rules.
    Breakpoints, the same in every stylesheet: phones up to 720px, one column up to 1024px. */
 
-:root {
-    --po-radius: 14px;
-    --po-radius-sm: 8px;
-    --po-shell-max: 1600px;
-    --po-brand-a: #4340d2;
-    --po-brand-b: #7c3aed;
-    --po-ink-on-brand: #ffffff;
-    --po-ink-on-bright: #16181d;
-    --po-glass: color-mix(in srgb, var(--rz-base-background-color) 82%, transparent);
-    --po-line: color-mix(in srgb, var(--rz-text-color) 14%, transparent);
-    --po-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-    --po-safe-top: env(safe-area-inset-top, 0px);
-    --po-safe-bottom: env(safe-area-inset-bottom, 0px);
-    --po-safe-left: env(safe-area-inset-left, 0px);
-    --po-safe-right: env(safe-area-inset-right, 0px);
-}
-
 html, body {
     min-height: 100%;
 }
@@ -152,6 +135,15 @@ html.po-fx-fluid #po-backdrop {
 .po-inherit { color: inherit; }
 .po-narrow { max-width: 420px; width: 100%; }
 .po-muted { opacity: 0.8; }
+.po-sr-only {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    font-size: 0;
+    line-height: 0;
+    white-space: nowrap;
+}
 
 /* A file input kept for the keyboard and assistive technology, shown as its label's button. */
 .po-file {
@@ -381,10 +373,6 @@ html.po-fx-fluid #po-backdrop {
 
 .runs-busy .rzi {
     animation: runs-spin 1.4s linear infinite;
-}
-
-@keyframes runs-spin {
-    to { transform: rotate(360deg); }
 }
 
 @media (max-width: 720px) {

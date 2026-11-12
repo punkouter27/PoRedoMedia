@@ -47,8 +47,16 @@ public sealed class ConfigurationTests
         var now = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
         MediaItem Item(MediaStatus status, int ageDays, bool pinned = false) => new()
         {
-            Owner = new UserId("u"), Id = MediaId.New(), Kind = PoRedoMedia.Shared.Enums.MediaKind.Image, Status = status, Origin = "Upload",
-            Title = "t", ContentType = "image/png", Extension = ".png", Pinned = pinned, CreatedAt = now.AddDays(-ageDays),
+            Owner = new UserId("u"),
+            Id = MediaId.New(),
+            Kind = PoRedoMedia.Shared.Enums.MediaKind.Image,
+            Status = status,
+            Origin = "Upload",
+            Title = "t",
+            ContentType = "image/png",
+            Extension = ".png",
+            Pinned = pinned,
+            CreatedAt = now.AddDays(-ageDays),
         };
         var verdict = (MediaItem item, int days) => PoRedoMedia.Api.Features.Housekeeping.HousekeepingService.Classify(item, now, days).ToString();
 

@@ -29,8 +29,17 @@ public sealed class HousekeepingTests(AzuriteFixture azurite)
         {
             var item = new MediaItem
             {
-                Owner = owner, Id = MediaId.New(), Kind = MediaKind.Image, Status = MediaStatus.Ready, Origin = "Upload", Title = "t",
-                ContentType = "image/png", Extension = ".png", Pinned = pinned, ShareToken = shareToken, CreatedAt = DateTimeOffset.UtcNow.AddDays(-ageDays),
+                Owner = owner,
+                Id = MediaId.New(),
+                Kind = MediaKind.Image,
+                Status = MediaStatus.Ready,
+                Origin = "Upload",
+                Title = "t",
+                ContentType = "image/png",
+                Extension = ".png",
+                Pinned = pinned,
+                ShareToken = shareToken,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-ageDays),
             };
             await blobs.UploadAsync(item.SourcePath, [1, 2, 3], "image/png");
             await media.SaveAsync(item);
@@ -57,8 +66,12 @@ public sealed class HousekeepingTests(AzuriteFixture azurite)
         await quota.TryConsumeAsync(owner);
         var lost = new Run
         {
-            Owner = owner, Id = RunId.New(), SourceId = recent.Id, Functions = [MediaFunction.MemeCaption],
-            Status = RunStatus.Running, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+            Owner = owner,
+            Id = RunId.New(),
+            SourceId = recent.Id,
+            Functions = [MediaFunction.MemeCaption],
+            Status = RunStatus.Running,
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
         };
         await runs.SaveAsync(lost);
 

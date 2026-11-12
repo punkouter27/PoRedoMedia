@@ -27,8 +27,8 @@
     <Content Include="..\..\scripts\meme-sounds\sounds-metadata.json" Link="meme-sounds\sounds-metadata.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="PoRedoMedia.UnitTests" />
-    <InternalsVisibleTo Include="PoRedoMedia.IntegrationTests" />
+    <InternalsVisibleTo Include="PoRedoMedia.Unit" />
+    <InternalsVisibleTo Include="PoRedoMedia.Integration" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PoRedoMedia.Client\PoRedoMedia.Client.csproj" />

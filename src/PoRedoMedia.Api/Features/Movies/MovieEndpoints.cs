@@ -260,16 +260,32 @@ public static class MovieEndpoints
 
     private static readonly Dictionary<string, string> ContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        [".mp4"] = "video/mp4", [".mov"] = "video/quicktime", [".webm"] = "video/webm", [".png"] = "image/png", [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg",
-        [".webp"] = "image/webp", [".wav"] = "audio/wav", [".mp3"] = "audio/mpeg", [".m4a"] = "audio/mp4", [".flac"] = "audio/flac", [".ogg"] = "audio/ogg",
-        [".srt"] = "text/plain; charset=utf-8", [".txt"] = "text/plain; charset=utf-8",
+        [".mp4"] = "video/mp4",
+        [".mov"] = "video/quicktime",
+        [".webm"] = "video/webm",
+        [".png"] = "image/png",
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".webp"] = "image/webp",
+        [".wav"] = "audio/wav",
+        [".mp3"] = "audio/mpeg",
+        [".m4a"] = "audio/mp4",
+        [".flac"] = "audio/flac",
+        [".ogg"] = "audio/ogg",
+        [".srt"] = "text/plain; charset=utf-8",
+        [".txt"] = "text/plain; charset=utf-8",
     };
 
     /// <summary>A media file, with ranges so a player can seek. Anything that is not media the browser plays or shows is not served.</summary>
-    private static IResult Served(string? path) =>
-        path is not null && ContentTypes.TryGetValue(Path.GetExtension(path), out var type)
-            ? Results.File(path, type, enableRangeProcessing: true, lastModified: File.GetLastWriteTimeUtc(path))
-            : Results.NotFound();
+    private static IResult Served(string? path)
+    {
+        if (path is null || !ContentTypes.TryGetValue(Path.GetExtension(path), out var type) || !File.Exists(path))
+            return Results.NotFound();
+
+        // FileShare.Delete lets the user delete a movie cleanly even while a range request finishes closing on Windows.
+        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, bufferSize: 64 * 1024, useAsync: true);
+        return Results.Stream(stream, type, lastModified: File.GetLastWriteTimeUtc(path), enableRangeProcessing: true);
+    }
 
     // ---- Shapes the routes share ----
 

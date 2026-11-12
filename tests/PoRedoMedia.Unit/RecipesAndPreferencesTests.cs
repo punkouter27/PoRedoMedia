@@ -37,15 +37,22 @@ public sealed class RecipesAndPreferencesTests
     {
         var local = new Dictionary<string, string>
         {
-            ["po.adv.costs"] = "on", ["po.adv.recipes"] = "on", ["po.fx"] = "on", ["po.options"] = "{}", ["po.theme"] = "dark",
+            ["poredomedia:adv:costs"] = "on",
+            ["poredomedia:adv:recipes"] = "on",
+            ["poredomedia:fx"] = "on",
+            ["poredomedia:options"] = "{}",
+            ["poredomedia:theme"] = "dark",
         };
-        var account = new Dictionary<string, string> { ["po.adv.costs"] = "on", ["po.sfx.muted"] = "0", ["po.recipes"] = "{}", ["other"] = "x" };
+        var account = new Dictionary<string, string> { ["poredomedia:adv:costs"] = "on", ["poredomedia:sfx:muted"] = "0", ["poredomedia:recipes"] = "{}", ["other"] = "x" };
 
         var changes = PreferenceSync.Changes(local, account);
 
         Assert.Equal(new Dictionary<string, string?>
         {
-            ["po.sfx.muted"] = "0", ["po.recipes"] = "{}", ["po.adv.recipes"] = null, ["po.fx"] = null,
+            ["poredomedia:sfx:muted"] = "0",
+            ["poredomedia:recipes"] = "{}",
+            ["poredomedia:adv:recipes"] = null,
+            ["poredomedia:fx"] = null,
         }, changes);
     }
 

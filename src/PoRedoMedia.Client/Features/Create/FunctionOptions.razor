@@ -3,7 +3,7 @@
 
 @if (Functions.Any(f => FunctionStack.KindOf(f) == MediaKind.Video))
 {
-    <RadzenFieldset Text="Video" AllowCollapse="true" class="rz-mt-2">
+    <RadzenFieldset Text="Video" AllowCollapse="false" class="rz-mt-2">
         <RadzenStack Gap="0.75rem">
             @if (Functions.Contains(MediaFunction.Memeify))
             {
@@ -55,7 +55,7 @@
 @if (Functions.Contains(MediaFunction.BulkStyles))
 {
     @* One card per style: tick it to draw it, edit it in place. An empty slot is simply not shown. *@
-    <RadzenFieldset Text="Bulk styles" AllowCollapse="true" class="rz-mt-2">
+    <RadzenFieldset Text="Bulk styles" AllowCollapse="false" class="rz-mt-2">
         <div class="bulk">
             <div class="bulk-head">
                 <span class="bulk-count" aria-live="polite">
@@ -140,7 +140,7 @@
 
 @if (Functions.Contains(MediaFunction.Restyle))
 {
-    <RadzenFieldset Text="Restyle" AllowCollapse="true" class="rz-mt-2">
+    <RadzenFieldset Text="Restyle" AllowCollapse="false" class="rz-mt-2">
         <RadzenFormField Text="Describe the new look (optional)" class="po-fill">
             <RadzenTextBox Value="@Get(RunOptions.RestylePrompt)" MaxLength="400" aria-label="Describe the new look" Change="@(v => Set(RunOptions.RestylePrompt, v))" />
         </RadzenFormField>
@@ -149,7 +149,7 @@
 
 @if (Functions.Contains(MediaFunction.PhotoToVideo))
 {
-    <RadzenFieldset Text="Photo to video" AllowCollapse="true" class="rz-mt-2">
+    <RadzenFieldset Text="Photo to video" AllowCollapse="false" class="rz-mt-2">
         <RadzenFormField Text="What should happen in the clip?" class="po-fill">
             <RadzenTextArea Value="@Get(RunOptions.VideoPrompt)" Rows="3" MaxLength="1200" aria-label="What should happen in the clip" Change="@(v => Set(RunOptions.VideoPrompt, v))" />
         </RadzenFormField>

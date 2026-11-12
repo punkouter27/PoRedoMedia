@@ -25,8 +25,8 @@ public sealed class PreferenceSync(HttpClient http, IJSRuntime js) : IDisposable
 
     /// <summary>The browser-storage keys that follow the account.</summary>
     public static bool IsSynced(string key) =>
-        key.StartsWith("po.adv.", StringComparison.Ordinal) || key.StartsWith("po.sfx.", StringComparison.Ordinal)
-        || key is "po.fx" || key == UiStore.Recipes;
+        key.StartsWith("poredomedia:adv:", StringComparison.Ordinal) || key.StartsWith("poredomedia:sfx:", StringComparison.Ordinal)
+        || key is "poredomedia:fx" || key == UiStore.Recipes;
 
     /// <summary>
     /// What to write into this browser: every key the account has, and null (remove) for each
@@ -61,8 +61,8 @@ public sealed class PreferenceSync(HttpClient http, IJSRuntime js) : IDisposable
 
             foreach (var (key, value) in changes)
                 await js.InvokeVoidAsync("poMedia.write", key, value);
-            if (changes.ContainsKey("po.fx"))
-                await js.InvokeVoidAsync("poFx.setEnabled", account.GetValueOrDefault("po.fx") == "on");
+            if (changes.ContainsKey("poredomedia:fx"))
+                await js.InvokeVoidAsync("poFx.setEnabled", account.GetValueOrDefault("poredomedia:fx") == "on");
             Pulled?.Invoke();
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or JSException or TaskCanceledException)
