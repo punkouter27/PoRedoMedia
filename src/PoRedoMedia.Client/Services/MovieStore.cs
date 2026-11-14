@@ -59,6 +59,9 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public string? Error { get; private set; }
 
+    /// <summary>Something worth knowing that is not a failure (a film could not be heard); stays until it is closed.</summary>
+    public string? Notice { get; private set; }
+
     /// <summary>The selected clip on the Voice-over step.</summary>
     public Guid? Selected { get; set; }
 
@@ -150,7 +153,13 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public void Say(string? status, string? error = null)
     {
-        (Status, Error) = (error is null ? status : null, error);
+        (Status, Error, Notice) = (error is null ? status : null, error, null);
+        Notify();
+    }
+
+    public void Warn(string notice)
+    {
+        (Status, Error, Notice) = (null, null, notice);
         Notify();
     }
 

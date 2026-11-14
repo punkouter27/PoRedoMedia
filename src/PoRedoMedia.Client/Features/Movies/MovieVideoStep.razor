@@ -96,9 +96,9 @@ var publish = movie.Publish;
 
     <div class="mv-side">
         <strong>Finished video</strong>
-        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it. Every film and AI video clip goes through Meme-ify first@(movie.Show == "Kids" ? " (sounds, stickers, text and effects; no roast in a kids' video)" : ""), and the movie goes in your Library.</p>
+        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it.@(config.Memes ? $" Every film and AI video clip goes through Meme-ify first{(movie.Show == "Kids" ? " (sounds, stickers, text and effects; no roast in a kids' video)" : "")}," : " Meme-ify is not set up on this server, so the clips are joined as they are,") and the movie goes in your Library.</p>
         <RadzenButton Text="Render finished video" Icon="movie" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
-                      title="Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description, and put it in your Library. Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked. A movie can be up to 10 minutes, each clip under one." />
+                      title="@($"Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description, and put it in your Library.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
         @if (publish.MasterUrl is { } master)
         {
             <video @ref="_masterVideo" class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>

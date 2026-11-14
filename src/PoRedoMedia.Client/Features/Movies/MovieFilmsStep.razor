@@ -242,7 +242,7 @@ var info = Store.ShowInfo;
         var lines = await JS.InvokeAsync<int>("poDeviceAi.transcribeMedia", film.Media.Url, film.Media.Id, progress);
         (film.Listening, film.Heard) = (null, lines >= 0);
         if (lines < 0)
-            Store.Say(null, $"What is said in “{film.Media.Title}” could not be heard on this device, so its captions are yours to type.");
+            Store.Warn($"What is said in “{film.Media.Title}” could not be heard on this device, so its captions are yours to type.");
         Store.Notify();
     }
 

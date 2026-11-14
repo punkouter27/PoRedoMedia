@@ -146,6 +146,10 @@
         {
             <RadzenAlert AlertStyle="AlertStyle.Danger" Title="Something went wrong" AllowClose="true" Close="Store.Dismiss" class="rz-m-0 mv-message">@error</RadzenAlert>
         }
+        else if (Store.Notice is { } heads)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" AllowClose="true" Close="Store.Dismiss" class="rz-m-0 mv-message">@heads</RadzenAlert>
+        }
         else if (Store.Status is { } status)
         {
             <RadzenAlert AlertStyle="AlertStyle.Success" AllowClose="true" Close="Store.Dismiss" class="rz-m-0 mv-message">@status</RadzenAlert>

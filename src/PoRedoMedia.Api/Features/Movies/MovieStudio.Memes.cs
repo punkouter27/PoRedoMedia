@@ -106,11 +106,8 @@ public sealed partial class MovieStudio
         var clips = ToMeme(open);
         var failures = new List<string>();
         if (clips.Count == 0) return failures;
-        if (!CanMeme)
-        {
-            failures.Add("Meme-ify is not set up on this server, so the clips were joined as they are.");
-            return failures;
-        }
+        // Without Meme-ify the clips are simply joined as they are: the Video step says so before, so it is not a failure.
+        if (!CanMeme) return failures;
         if (OverBudget(clips.Count * MemePrice) is { } refusal)
         {
             failures.Add($"The clips were joined without memes. {refusal}");
