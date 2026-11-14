@@ -152,7 +152,7 @@
         }
         else if (Store.Status is { } status)
         {
-            <RadzenAlert AlertStyle="AlertStyle.Success" AllowClose="true" Close="Store.Dismiss" class="rz-m-0 mv-message">@status</RadzenAlert>
+            <RadzenAlert AlertStyle="@(Store.StatusIsInfo ? AlertStyle.Info : AlertStyle.Success)" AllowClose="true" Close="Store.Dismiss" class="rz-m-0 mv-message">@status</RadzenAlert>
         }
     </div>
 

@@ -27,6 +27,40 @@ public static class Files
 
     public static string ContentHash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
+    /// <summary>
+    /// Puts <paramref name="source"/> where <paramref name="target"/> is, even while the old target is being played.
+    /// Windows refuses to move a file over one that is open ("Access to the path is denied"), but lets an open file
+    /// shared for deleting (as the movie endpoints serve them) be renamed and deleted. So the old one steps aside
+    /// first, and is deleted once the new one is in place; if it is still held open, it goes when the reader lets go.
+    /// </summary>
+    public static void ReplaceInUse(string source, string target)
+    {
+        if (!File.Exists(target))
+        {
+            File.Move(source, target);
+            return;
+        }
+        var aside = $"{target}.{Guid.NewGuid():N}.old";
+        File.Move(target, aside);
+        try
+        {
+            File.Move(source, target);
+        }
+        catch
+        {
+            File.Move(aside, target); // put the old one back, so a failed swap leaves things as they were
+            throw;
+        }
+        try
+        {
+            File.Delete(aside);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Still held open somewhere that did not share delete; it is only a stale copy.
+        }
+    }
+
     /// <summary>A new empty folder for one job's working files. The job deletes it when it ends; <see cref="SweepScratch"/> catches the rest.</summary>
     public static string NewScratchFolder(string job) =>
         Directory.CreateDirectory(Path.Combine(ScratchRoot, $"{job}-{Guid.NewGuid():N}")).FullName;

@@ -8,7 +8,7 @@ namespace PoRedoMedia.Movie.Library;
 public enum BeatStructure { Story, Tutorial, HookFirst, ToyReview, Highlights, Movie, HowTo, DayOut }
 
 /// <summary>
-/// Which series an episode belongs to: teaching the robot, a little boy playing (for young children), or General, a
+/// Which series an episode belongs to: teaching the robot, a little one playing (for young children), or General, a
 /// movie about anything, which is what a new one is unless a preset is chosen. Each has its own brand kit, shapes,
 /// prompts and numbering. An episode's shape says which it is, so nothing more is saved. New shows go on the end.
 /// </summary>
@@ -123,8 +123,9 @@ public static class BeatPlan
         Scripts = note.OwnSound ? clip.Scripts.ToDictionary(s => s.Key, s => s.Value with { Dialogue = "" }) : clip.Scripts,
     };
 
+    // A title, not a sentence cut off: the first few words of the note, without its closing stop.
     private static string Title(FootageNote note) =>
-        Described(note) is { } words ? words.Length > 40 ? words[..40].TrimEnd() + "…" : words : "Your footage";
+        Described(note) is { } words ? string.Join(' ', words.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(5)).TrimEnd('.', ',', ';', ':') : "Your footage";
 
     /// <summary>What a film shows, in the owner's words or else in those of the model that watched it; null for neither.</summary>
     private static string? Described(FootageNote note) =>

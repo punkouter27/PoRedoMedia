@@ -84,13 +84,20 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
         var name = Path.ChangeExtension(output, null);
         var intro = marks.Count > episode.Clips.Count ? 1 : 0;
         var chapters = PublishPack.Chapters(marks.Select((m, i) => (m.Start, m.Bookend ? m.Title : episode.Clips[i - intro].Beat ?? m.Title)), end);
+        // All in one beat (a kids' highlights reel is) leaves too few chapters: then a chapter to each clip, by its title.
+        if (chapters.Length == 0)
+            chapters = PublishPack.Chapters(marks.Select(m => (m.Start, m.Title)), end);
         if (chapters.Length > 0)
             await File.WriteAllTextAsync(name + ".chapters.txt", chapters, ct);
         else
             File.Delete(name + ".chapters.txt");
         await File.WriteAllTextAsync(name + ".srt", PublishPack.Srt(segments), ct);
         if (episode.Cover() is { } cover)
-            File.Copy(cover, name + ".thumbnail.png", overwrite: true);
+        {
+            var thumbnail = Files.NewScratchFile(".png");
+            File.Copy(cover, thumbnail);
+            Files.ReplaceInUse(thumbnail, name + ".thumbnail.png"); // may be showing on the page too
+        }
         return output;
     }
 
@@ -193,7 +200,7 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
                 await File.WriteAllBytesAsync(Path.Combine(work, "whoosh.wav"), Synth.Whoosh(), ct);
             await ffmpeg.RunAsync(FfmpegArgs.Join("clips.txt", [.. sounds.Select(n => n.AudioPath)], partial, cuts.Count > 0 ? "whoosh.wav" : null, cuts), work, total, joinProgress, ct);
 
-            File.Move(partial, output, overwrite: true);
+            Files.ReplaceInUse(partial, output); // the last copy may be playing in the preview
             progress?.Report(new RenderProgress("Done", 1));
             var marks = narrations.Select((n, i) => new ClipMark(episode.Clips[i].Title, slots[i + first].Start, n.AudioPath)).ToList();
             if (ends is not null)

@@ -32,5 +32,10 @@ public sealed class RoastServiceTests
         // Seven 5 s jokes with room for all: the seventh would be second 31–35 of speech.
         var capped = RoastService.Schedule([.. Enumerable.Range(0, 7).Select(i => (i * 10_000L, 5_000))], videoMs: 600_000);
         Assert.Equal(6, capped.Count);
+
+        Assert.Contains("vulgar and profane", RoastService.PromptFor(crude: true));
+        Assert.Contains("without any swearing", RoastService.PromptFor(crude: false));
+        Assert.Contains("Profanity is expected", RoastService.RubricFor(crude: true));
+        Assert.Contains("no profanity", RoastService.RubricFor(crude: false));
     }
 }

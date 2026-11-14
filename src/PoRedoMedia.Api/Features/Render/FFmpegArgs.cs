@@ -60,7 +60,8 @@ internal static class FFmpegArgs
         string? aspectRatio = null,
         IReadOnlyList<TranscriptSegmentDto>? subtitles = null,
         double trimStartSeconds = 0,
-        double sourceVolume = 0.85)
+        double sourceVolume = 0.85,
+        bool keepBottomClear = false)
     {
         var sb = new StringBuilder();
 
@@ -87,7 +88,7 @@ internal static class FFmpegArgs
             sb.Append(CultureInfo.InvariantCulture, $" -i \"{distinctOverlays[i]}\"");
         }
 
-        var videoChain = BuildVideoFilterChain(entries, aggressiveVisuals, aspectRatio, subtitles);
+        var videoChain = BuildVideoFilterChain(entries, aggressiveVisuals, aspectRatio, subtitles, keepBottomClear);
         var hasBaseVideoFilters = !string.IsNullOrWhiteSpace(videoChain);
 
         // Cue-scoped visual effects. Each is applied on a full-size branch that is overlaid back
@@ -251,7 +252,8 @@ internal static class FFmpegArgs
         IReadOnlyList<RenderVisualEntry> sounds,
         bool aggressiveVisuals,
         string? aspectRatio = null,
-        IReadOnlyList<TranscriptSegmentDto>? subtitles = null)
+        IReadOnlyList<TranscriptSegmentDto>? subtitles = null,
+        bool keepBottomClear = false)
     {
         var filters = new List<string>();
 
@@ -287,10 +289,12 @@ internal static class FFmpegArgs
             var sanitized = SanitizeForDrawtext(s.CaptionText.Trim().ToUpperInvariant());
             var startSec = (s.TimestampMs / 1000.0).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
             var endSec = (s.TimestampMs / 1000.0 + 2.5).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+            // With the bottom kept for captions burned in later (a movie clip), bottom text goes to the top.
             var yPos = s.CaptionPosition?.ToLowerInvariant() switch
             {
                 "top" => "40",
                 "center" => "(h-text_h)/2",
+                _ when keepBottomClear => "40",
                 _ => "h-text_h-50"
             };
             filters.Add($"drawtext=text='{sanitized}':expansion=none{fontArg}:fontsize=36:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y={yPos}:enable='between(t\\,{startSec}\\,{endSec})'");

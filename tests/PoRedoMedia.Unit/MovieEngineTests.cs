@@ -1,3 +1,4 @@
+using PoRedoMedia.Api.Common;
 using PoRedoMedia.Api.Features.Movies;
 using PoRedoMedia.Api.Features.Render;
 using PoRedoMedia.Api.Features.Video;
@@ -55,7 +56,12 @@ public sealed class MovieEngineTests
         Assert.Contains("Never describe a picture of the people in the topic", prompts[0]);
         // The presets are as they were.
         Assert.Contains("Unitree R1", ScriptSchemas.OutlineSystem(kinds, Show.Robot));
-        Assert.Contains("Never describe a picture of the boy", ScriptSchemas.OutlineSystem(kinds, Show.Kids));
+        var kids = ScriptSchemas.OutlineSystem(kinds, Show.Kids);
+        Assert.Contains("Never describe a picture of the little", kids);
+        // The owner wants the child called "it": no prompt of the kids' series names a boy.
+        Assert.Contains("call the child \"the little one\" or \"it\"", kids);
+        Assert.All([kids, ScriptSchemas.ClipSystem(Show.Kids), ScriptSchemas.WatchSystem(Show.Kids), ScriptSchemas.PublishSystem(Show.Kids), ScriptSchemas.ShotsSystem(Show.Kids)],
+            prompt => Assert.DoesNotContain("little boy", prompt));
     }
 
     [Fact]
@@ -114,11 +120,24 @@ public sealed class MovieEngineTests
         HashSet<MediaFunction> everything = [MediaFunction.Memeify, MediaFunction.VideoRoast, MediaFunction.Captions];
         Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], MovieStudio.MemeRun(Show.General, everything, narrated: false).Functions);
         Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], MovieStudio.MemeRun(Show.Robot, everything, narrated: true).Functions);
-        // No spoken insults over a little boy, and the mildest director.
+        // By default, kids' clips skip the spoken roast; choosing a roast voice (like Rap) + crude turns it on while keeping sitcom + "it".
         var kids = MovieStudio.MemeRun(Show.Kids, everything, narrated: true);
         Assert.Equal([MediaFunction.Memeify], kids.Functions);
         Assert.Equal("sitcom", kids.Options[RunOptions.VideoPersona]);
         Assert.Equal("1", kids.Options[RunOptions.VideoVoiceFirst]); // the narrator stays on top of the meme sounds, kids' clips too
+        Assert.Equal("1", kids.Options[RunOptions.VideoKeepBottomClear]); // meme text keeps off the captions burned in later
+        Assert.Equal("1", kids.Options[RunOptions.VideoChildIsIt]); // the child is "it" in the meme text too
+        Assert.False(MovieStudio.MemeRun(Show.General, everything, narrated: true).Options.ContainsKey(RunOptions.VideoChildIsIt));
+
+        var kidsRapCrude = MovieStudio.MemeRun(Show.Kids, everything, narrated: true, roastVoice: "Rap", crudeRoast: true);
+        Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], kidsRapCrude.Functions);
+        Assert.Equal(MediaRoast.Rap, kidsRapCrude.Options[RunOptions.VideoRoastVoice]);
+        Assert.Equal("1", kidsRapCrude.Options[RunOptions.VideoRoastCrude]);
+        Assert.Equal("sitcom", kidsRapCrude.Options[RunOptions.VideoPersona]);
+        Assert.Equal("1", kidsRapCrude.Options[RunOptions.VideoChildIsIt]);
+
+        Assert.Equal([MediaFunction.Memeify], MovieStudio.MemeRun(Show.General, everything, narrated: true, roastVoice: "Off").Functions);
+        Assert.Equal("0", MovieStudio.MemeRun(Show.General, everything, narrated: false, roastVoice: "Comic", crudeRoast: false).Options[RunOptions.VideoRoastCrude]);
         // A server with no roast voice still meme-ifies.
         Assert.Equal([MediaFunction.Memeify], MovieStudio.MemeRun(Show.General, new HashSet<MediaFunction> { MediaFunction.Memeify }, narrated: true).Functions);
 

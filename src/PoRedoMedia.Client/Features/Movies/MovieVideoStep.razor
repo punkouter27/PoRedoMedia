@@ -96,7 +96,12 @@ var publish = movie.Publish;
 
     <div class="mv-side">
         <strong>Finished video</strong>
-        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it.@(config.Memes ? $" Every film and AI video clip goes through Meme-ify first{(movie.Show == "Kids" ? " (sounds, stickers, text and effects; no roast in a kids' video)" : "")}," : " Meme-ify is not set up on this server, so the clips are joined as they are,") and the movie goes in your Library.</p>
+        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it.@(config.Memes ? $" Every film and AI video clip goes through Meme-ify first ({(string.Equals(movie.RoastVoice, "Off", StringComparison.OrdinalIgnoreCase) || config.RoastVoices is not { Length: > 0 } ? "sounds, stickers, text and effects; roast off" : $"sounds, stickers, text, effects and a {(movie.CrudeRoast ? "crude " : "")}{(string.Equals(movie.RoastVoice, "Rap", StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}")})," : " Meme-ify is not set up on this server, so the clips are joined as they are,") and the movie goes in your Library.</p>
+        @if (config.Memes)
+        {
+            <MovieRoastOptions Voices="config.RoastVoices" Voice="@movie.RoastVoice" VoiceChanged="@(v => Store.EditAsync(new MovieEdit("roastVoice", Text: v)))"
+                               Crude="@movie.CrudeRoast" CrudeChanged="@(on => Store.EditAsync(new MovieEdit("crudeRoast", Flag: on)))" Disabled="Store.IsWorking" IdPrefix="mv-video-roast" />
+        }
         <RadzenButton Text="Render finished video" Icon="movie" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
                       title="@($"Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description, and put it in your Library.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
         @if (publish.MasterUrl is { } master)

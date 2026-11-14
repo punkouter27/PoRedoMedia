@@ -71,7 +71,8 @@ public sealed record DirectedScript(ScriptEntry[] Entries, string? Title = null)
 /// Everything the director knows about a run beyond the scene labels: who is directing (persona),
 /// and what is being said (speech transcript).
 /// </summary>
-public sealed record DirectorContext(string? MemePersona, IReadOnlyList<TranscriptSegmentDto> Transcript)
+/// <param name="ChildIsIt">The video stars a child the owner wants called "it": no gendered word in any text on screen.</param>
+public sealed record DirectorContext(string? MemePersona, IReadOnlyList<TranscriptSegmentDto> Transcript, bool ChildIsIt = false)
 {
     public static readonly DirectorContext Empty = new(null, []);
 }
@@ -135,7 +136,9 @@ public interface IVideoRoast
 {
     /// <summary>Null when the clip gave nothing to roast.</summary>
     /// <param name="narrated">What is said in the clip is a narrator's voice-over: the roast plays off it, as a heckler would.</param>
+    /// <param name="crude">True for brutal, profane insults; false for clean jokes without swearing.</param>
+    /// <param name="childIsIt">True when a little child on screen should be called "it" or "the little one".</param>
     Task<RoastTrack?> GenerateAsync(
         MediaId mediaId, string voice, IReadOnlyList<SceneLabel> labels, IReadOnlyList<TranscriptSegmentDto> transcript,
-        double durationSeconds, bool narrated, CancellationToken ct);
+        double durationSeconds, bool narrated, CancellationToken ct, bool crude = true, bool childIsIt = false);
 }

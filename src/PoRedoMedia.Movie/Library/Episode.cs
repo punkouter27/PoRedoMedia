@@ -97,7 +97,9 @@ public sealed record Episode(
     int MixSeed,
     CaptionStyle? Captions = null,
     MixPercentages? Mix = null,
-    IReadOnlyList<Shot>? Shots = null)
+    IReadOnlyList<Shot>? Shots = null,
+    string? RoastVoice = null,
+    bool CrudeRoast = false)
 {
     public CaptionStyle Captions { get; init; } = Captions ?? new();
 

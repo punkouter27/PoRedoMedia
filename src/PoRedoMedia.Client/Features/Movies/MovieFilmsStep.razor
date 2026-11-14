@@ -21,6 +21,12 @@ var info = Store.ShowInfo;
             <p class="mv-topic" title="What this movie's script was written from, as it was typed in. To change what the movie says, edit its clips on the Voice-over step.">@open.Topic</p>
             <h3 class="mv-section">My footage</h3>
             <p class="mv-quiet">@(open.Clips.Count(c => c.HasFilm) switch { 0 => "No films: made of pictures only.", 1 => "1 of your films is in it.", var n => $"{n} of your films are in it." })</p>
+            @if (config.Memes)
+            {
+                <MovieRoastOptions Voices="config.RoastVoices" Voice="@Store.RoastVoice" VoiceChanged="@(v => { Store.RoastVoice = v; Store.Notify(); })"
+                                   Crude="@Store.CrudeRoast" CrudeChanged="@(on => { Store.CrudeRoast = on; Store.Notify(); })" Disabled="Store.IsWorking" IdPrefix="mv-films-roast" />
+            }
+
             <div class="mv-pinned">
                 <RadzenButton Text="New movie" Icon="add" Click="@(() => { Store.StartingNew = true; Store.Notify(); })" class="mv-wide"
                               title="Start the next movie, of any series: say what it is about, add your films and write its script. This movie stays saved, and stays open until the new script is written. Free until you write the script." />
@@ -35,7 +41,7 @@ var info = Store.ShowInfo;
             <div class="mv-field">
                 <RadzenLabel Text="Kind of video" Component="mv-kind" />
                 <RadzenSelectBar Name="mv-kind" TValue="string" Value="@Store.Show" Change="@(show => Store.SetShowAsync(show))" Disabled="Store.IsWorking" Size="ButtonSize.Small"
-                                 title="General: a movie about anything. Robot lesson: an episode of the R1 series. Kids' video: your son playing, told for young children and uploaded as made for kids. Each has its own intro, outro, look and numbers, set on the Template step. Switching costs nothing.">
+                                 title="General: a movie about anything. Robot lesson: an episode of the R1 series. Kids' video: your child playing, told for young children and uploaded as made for kids. Each has its own intro, outro, look and numbers, set on the Template step. Switching costs nothing.">
                     <Items>
                         @foreach (var show in config.Shows)
                         {
@@ -113,6 +119,12 @@ var info = Store.ShowInfo;
                                        title="A few words on what this film shows. The script uses them to place the film in the beat it fits. The eye button can suggest some." />
                     </div>
                 </div>
+            }
+
+            @if (config.Memes)
+            {
+                <MovieRoastOptions Voices="config.RoastVoices" Voice="@Store.RoastVoice" VoiceChanged="@(v => { Store.RoastVoice = v; Store.Notify(); })"
+                                   Crude="@Store.CrudeRoast" CrudeChanged="@(on => { Store.CrudeRoast = on; Store.Notify(); })" Disabled="Store.IsWorking" IdPrefix="mv-films-roast" />
             }
 
             <div class="mv-pinned">
@@ -201,7 +213,7 @@ var info = Store.ShowInfo;
         }
         if (Store.FilmList.Any(f => f.Media.Id == media.Id))
         {
-            Store.Say("That film is already in the list.");
+            Store.Tell("That film is already in the list.");
             return;
         }
         if (Store.FilmList.Count >= (Store.Config?.MaxFilms ?? 20))
@@ -259,9 +271,10 @@ var info = Store.ShowInfo;
     {
         var n = Store.FilmList.Count;
         var config = Store.Config!;
-        var memes = !config.Memes ? "" : Store.Show == "Kids"
-            ? $" Each clip then goes through Meme-ify for meme sounds, stickers, text and effects (no spoken roast in a kids' video), about {MovieDialogs.Money(n * config.MemePrice)}."
-            : $" Each clip then goes through Meme-ify for meme sounds, stickers, text, effects and a roast that heckles the narrator, about {MovieDialogs.Money(n * config.MemePrice)}.";
+        var roastOff = string.Equals(Store.RoastVoice, "Off", StringComparison.OrdinalIgnoreCase) || config.RoastVoices is not { Length: > 0 };
+        var roastDesc = roastOff ? "(roast off)"
+            : $"and a {(Store.CrudeRoast ? "crude " : "")}{(string.Equals(Store.RoastVoice, "Rap", StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}";
+        var memes = !config.Memes ? "" : $" Each clip then goes through Meme-ify for meme sounds, stickers, text and effects {roastDesc}, about {MovieDialogs.Money(n * config.MemePrice)}.";
         var plan = $"Watches your {(n == 1 ? "film" : $"{n} films")}, writes a voice-over for each that fits its length and records it over the film's own sound.{memes} Then it joins them between the series' intro and outro, renders the finished video and puts it in your Library. No pictures are drawn. You can stop it at any point, and change any clip afterwards."
             + await MovieDialogs.RunsLeftAsync(Runs);
         if (await MovieDialogs.ConfirmSpendAsync(Dialogs, Store, "Make the video from your films?", plan, "Make it", config.Memes ? n * config.MemePrice : 0))

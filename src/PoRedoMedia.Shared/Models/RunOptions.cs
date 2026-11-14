@@ -45,6 +45,11 @@ public static class RunOptions
     public const string VideoRoastVoice = "VideoRoast.voice";
 
     /// <summary>
+    /// "1" for brutal, profane roast jokes; "0" for sharp jokes without profanity. Absent = "1" (the default on Create).
+    /// </summary>
+    public const string VideoRoastCrude = "VideoRoast.crude";
+
+    /// <summary>
     /// "1" when what is said in the video is a narrator's voice-over (a Create Movie clip): the roast answers the
     /// narrator, and its lines wait for the narrator's pauses. Absent = the speech is the video's own.
     /// </summary>
@@ -55,6 +60,15 @@ public static class RunOptions
     /// full level and the meme sounds come in lower. Absent = the usual mix, where the meme sounds cut through.
     /// </summary>
     public const string VideoVoiceFirst = "Video.voiceFirst";
+
+    /// <summary>
+    /// "1" when captions will be burned along the bottom of the result afterwards (a Create Movie clip): meme text meant
+    /// for the bottom is drawn at the top instead, so the two never cover each other. Absent = text goes where directed.
+    /// </summary>
+    public const string VideoKeepBottomClear = "Video.keepBottomClear";
+
+    /// <summary>"1" when the video stars a child to be called "it" (a Kids' movie clip): meme text uses no gendered word for it.</summary>
+    public const string VideoChildIsIt = "Video.childIsIt";
 
     /// <summary>One style prompt for Bulk styles, index 0 to 9. None sent = the user's saved set.</summary>
     public static string BulkPrompt(int index) => $"BulkStyles.prompt{index}";

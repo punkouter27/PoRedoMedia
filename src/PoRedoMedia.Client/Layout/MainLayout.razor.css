@@ -125,21 +125,6 @@
     padding: 0.75rem 1rem 2.5rem;
 }
 
-/* Sits under any bottom sheet and never takes a tap. */
-.shell-build {
-    position: fixed;
-    right: calc(0.5rem + var(--po-safe-right));
-    bottom: calc(0.35rem + var(--po-safe-bottom));
-    z-index: 1;
-    /* Hovered for its tooltip (commit and build time); nothing else to click. */
-    cursor: help;
-    font-size: 0.7rem;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.04em;
-    color: var(--rz-text-secondary-color);
-    opacity: 0.8;
-}
-
 @media (max-width: 720px) {
     .shell-bar {
         padding: 0.15rem 0.5rem;
@@ -154,10 +139,5 @@
 
     .shell-main {
         padding: 0.5rem 0.75rem 1.5rem;
-    }
-
-    /* Above the tab bar, still in the corner. */
-    .shell-build {
-        bottom: calc(3.75rem + var(--po-safe-bottom));
     }
 }

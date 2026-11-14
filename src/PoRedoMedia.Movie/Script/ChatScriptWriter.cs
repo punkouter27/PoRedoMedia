@@ -104,6 +104,7 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
         if (outline.Clips.Count < length.MinClips)
             throw new InvalidDataException($"The script came back with only {outline.Clips.Count} clips. Please try again.");
 
+        outline = outline with { Clips = SpreadFootage(outline.Clips, lesson.Footage.Count, beats) };
         var subject = outline.Subject?.Trim() is { Length: > 0 } said ? said : null;
         var (title, written) = await WriteClipsAsync(request, outline, kinds, lesson.Footage, length, show, clipsWritten, ct);
         var footage = lesson.Footage;
@@ -149,6 +150,25 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
         foreach (var snippet in grounding)
             prompt.AppendLine().Append(Fenced("reference", $" source=\"{Attribute(snippet.Repo)} · {Attribute(snippet.Path)}\" url=\"{Attribute(snippet.Url)}\"", snippet.Text));
         return prompt.ToString();
+    }
+
+    /// <summary>
+    /// Puts each of the owner's films in a planned clip before any clip is written, so every film gets words written
+    /// for it. The model sometimes gives two clips the same film, or none to a clip in a footage beat; left alone, the
+    /// repair after writing dropped those clips and made the films' clips from their bare notes (a title cut off at 40
+    /// characters, and the note itself as the words). A clip keeps the first film it named; a film no clip has then goes
+    /// to the next clip without one, those in the beats where footage belongs first.
+    /// </summary>
+    private static List<PlannedClipDto> SpreadFootage(IReadOnlyList<PlannedClipDto> clips, int films, IReadOnlyList<Beat> beats)
+    {
+        var taken = new HashSet<int>();
+        var result = clips.Select(c => c.Footage >= 1 && c.Footage <= films && taken.Add(c.Footage) ? c : c with { Footage = 0 }).ToList();
+        var footageBeats = beats.Where(b => b.ForFootage).Select(b => b.Name).ToHashSet();
+        var open = result.Select((c, i) => (c, i)).Where(x => x.c.Footage == 0)
+            .OrderBy(x => footageBeats.Contains(x.c.Beat) ? 0 : 1).ThenBy(x => x.i).Select(x => x.i).ToList();
+        foreach (var (film, slot) in Enumerable.Range(1, films).Where(f => !taken.Contains(f)).Zip(open))
+            result[slot] = result[slot] with { Footage = film };
+        return result;
     }
 
     /// <summary>What a clip the model would not write says until the user writes it.</summary>

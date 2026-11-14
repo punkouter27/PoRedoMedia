@@ -27,7 +27,8 @@ public sealed record MovieConfigDto(
     bool Ffmpeg, bool Script, bool Voice, bool Pictures, bool DraftPictures, bool YouTube,
     MovieShowDto[] Shows, MovieOption[] Looks, MovieOption[] Kinds, MovieOption[] CaptionPresets, MovieOption[] Layouts,
     MovieOption[] ExportPresets, MovieIntroStart[] IntroStarts, string? Notice, int MaxFilms, int MaxTopicLength,
-    bool Memes = false, decimal MemePrice = 0, int MaxClipSeconds = 60, int MaxMovieSeconds = 600, bool ServerSpeech = true);
+    bool Memes = false, decimal MemePrice = 0, int MaxClipSeconds = 60, int MaxMovieSeconds = 600, bool ServerSpeech = true,
+    string[]? RoastVoices = null);
 
 /// <summary>A ready-made colour and layout for the intro.</summary>
 public sealed record MovieIntroStart(string Name, string Accent, string Layout);
@@ -88,7 +89,7 @@ public sealed record MovieDto(
     string Id, string Title, string Topic, int Number, string Show, string Structure, string Look, MovieCaptionsDto Captions,
     MovieClipDto[] Clips, double RuntimeSeconds, string Meta, bool CanUndo, bool CanRedo, string? MusicName,
     int PicturesToMake, bool HasDraftPictures, bool OffSeriesLook, MoviePreviewDto? Preview, MoviePublishDto Publish,
-    MovieTeaserDto[] Teasers, string[] SpendLines);
+    MovieTeaserDto[] Teasers, string[] SpendLines, string? RoastVoice = null, bool CrudeRoast = false);
 
 /// <summary>The one long job a user has under way, or the one that just ended.</summary>
 /// <param name="State">"running", "done", "stopped" or "failed".</param>
@@ -106,7 +107,8 @@ public sealed record MovieFilmDto(Guid MediaId, string Note, bool OwnSound);
 
 /// <summary>What a new movie is written from.</summary>
 public sealed record MovieLessonRequest(
-    string Show, string Structure, string Topic, string Second, int Number, MovieFilmDto[] Films, string? ExportPreset = null);
+    string Show, string Structure, string Topic, string Second, int Number, MovieFilmDto[] Films, string? ExportPreset = null,
+    string? RoastVoice = null, bool CrudeRoast = false);
 
 /// <summary>What a model saw in one film.</summary>
 public sealed record MovieWatchReply(string? Note, string? Timeline, string? Error);

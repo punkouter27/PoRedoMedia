@@ -146,13 +146,18 @@ internal static class DirectorPrompt
         string soundsCompact,
         bool hasRealVisionData,
         string? memePersona,
-        IReadOnlyList<TranscriptSegmentDto>? transcript)
+        IReadOnlyList<TranscriptSegmentDto>? transcript,
+        bool childIsIt = false)
     {
         var visionNote = hasRealVisionData
             ? "Labels come from real frame analysis and speech."
             : "Labels are TIME-BASED PLACEHOLDERS (opening scene, mid-video action, final moments), not what is on screen.";
+        // The owner wants their child called "it": captions say "IT", "THE LITTLE ONE" or "THE BABY", never a gendered word.
+        var child = childIsIt
+            ? "The star is a little child. In every caption call it \"it\" or \"the little one\", never he, she, they, him, her, his, bro, boy, girl or king.\n"
+            : "";
 
-        return $"Persona: {Persona(memePersona)}\n{visionNote}\n\n" +
+        return $"Persona: {Persona(memePersona)}\n{child}{visionNote}\n\n" +
                $"Scene labels:\n{FormatLabels(labels)}\n" +
                $"Sound menu:\n{soundsCompact}\n" +
                BuildSpeechContext(transcript);

@@ -121,7 +121,8 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
                 job.AspectRatio,
                 job.Subtitles,
                 job.TrimStartSeconds,
-                sourceVolume: job.SoundsUnderDb > 0 ? 1.0 : 0.85);
+                sourceVolume: job.SoundsUnderDb > 0 ? 1.0 : 0.85,
+                keepBottomClear: job.KeepBottomClear);
 
             _logger.LogDebug("FFmpeg args: {Args}", args);
 

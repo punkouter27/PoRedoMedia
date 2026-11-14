@@ -28,8 +28,8 @@ public static class MovieEndpoints
     {
         var group = app.MapGroup("/api/movies").RequireAntiforgeryValidation();
 
-        group.MapGet("/config", (MovieEngine engine, IEnumerable<IRunStep> steps, ITranscriptionService transcription) =>
-            Config(engine, steps.Any(s => s.Handles.Contains(PoRedoMedia.Shared.Enums.MediaFunction.Memeify)), transcription.IsEnabled));
+        group.MapGet("/config", (MovieEngine engine, IEnumerable<IRunStep> steps, ITranscriptionService transcription, IConfiguration configuration, IWebHostEnvironment env) =>
+            Config(engine, steps.Any(s => s.Handles.Contains(PoRedoMedia.Shared.Enums.MediaFunction.Memeify)), transcription.IsEnabled, [.. MediaRoast.Voices(configuration, env)]));
         group.MapGet("/prefs", (ClaimsPrincipal user, MovieStudios studios) => studios.For(UserId.From(user)).PrefsDto());
         group.MapPut("/prefs", (MoviePrefsDto prefs, ClaimsPrincipal user, MovieStudios studios) =>
         {
@@ -377,7 +377,7 @@ public static class MovieEndpoints
 
     // ---- What this server offers ----
 
-    private static MovieConfigDto Config(MovieEngine engine, bool memes, bool serverSpeech)
+    private static MovieConfigDto Config(MovieEngine engine, bool memes, bool serverSpeech, string[] roastVoices)
     {
         static MovieOption[] Structures(Show show) =>
             [.. BeatPlan.Structures(show).Select(s => new MovieOption(s.ToString(), BeatPlan.Label(s), string.Join(" → ", BeatPlan.Beats(s).Select(b => b.ForFootage ? b.Name + " 🎥" : b.Name))))];
@@ -390,8 +390,8 @@ public static class MovieEndpoints
                     "What the movie is about", "Our weekend building the treehouse", "Moments not to miss (optional)", "The ladder slipping, and the first climb up", false),
                 new("Robot", "Robot lesson", "An episode of the R1 series: teaching the robot one skill, told by a cartoon version of the robot.", Structures(Show.Robot),
                     "What I taught it", "Walking up three stairs without the handrail", "What went wrong (optional)", "It leaned back and sat down on the second step", false),
-                new("Kids", "Kids' video", "A video for young children of your son playing, told by a cheerful narrator and uploaded as made for kids. No picture is ever drawn of him.", Structures(Show.Kids),
-                    "What he plays with", "Opening a surprise egg with a dinosaur inside", "Funny moments (optional)", "He tried to feed the dinosaur a crayon", true),
+                new("Kids", "Kids' video", "A video for young children of your child playing, told by a cheerful narrator and uploaded as made for kids. No picture is ever drawn of them.", Structures(Show.Kids),
+                    "What your child plays with", "Opening a surprise egg with a dinosaur inside", "Funny moments (optional)", "Trying to feed the dinosaur a crayon", true),
             ],
             [new("Comic", "Comic book"), new("Photoreal", "Photograph"), new("FlatVector", "Flat vector"), new("Cinematic", "Cinematic")],
             [.. Visuals.Kinds.Where(k => visuals?.CanMake(k.Kind) ?? k.Kind == VisualKind.TitleCard).Select(k => new MovieOption(k.Kind.ToString(), k.Label))],
@@ -400,6 +400,6 @@ public static class MovieEndpoints
             [new("Hd30", "1080p, 30 fps"), new("Hd60", "1080p, 60 fps"), new("Uhd30", "4K, 30 fps"), new("Uhd60", "4K, 60 fps")],
             [new("Workshop", "#22CC88", "Side"), new("Blueprint", "#2F80ED", "Centre"), new("Safety amber", "#FFB020", "Lower"), new("Night shift", "#8B5CF6", "Centre")],
             engine.Notice, MovieStudio.MostFilms, IScriptWriter.MaxTopicLength,
-            memes, engine.MemePrice, 60, (int)Durations.MaxMovie.TotalSeconds, serverSpeech);
+            memes, engine.MemePrice, 60, (int)Durations.MaxMovie.TotalSeconds, serverSpeech, roastVoices);
     }
 }

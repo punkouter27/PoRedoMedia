@@ -66,7 +66,7 @@ public static partial class FfmpegArgs
 {
     public static readonly TimeSpan AudioCrossfade = TimeSpan.FromMilliseconds(150);
 
-    /// <summary>Each clip fades up from black and back down over this long, which reads as a dip between clips.</summary>
+    /// <summary>How long the outro and a teaser take to fade out (and a teaser to fade in).</summary>
     public static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(250);
     private const double TargetLufs = -16;
 
@@ -209,14 +209,15 @@ public static partial class FfmpegArgs
 
 
     /// <summary>
-    /// The last filters on every clip: the strap's glass and the captions over the picture, the film finish, then the
-    /// fades over all of them, and a new beat's streak of light, which crosses even the dip to black.
+    /// The last filters on every clip: the strap's glass and the captions over the picture, the film finish, and a new
+    /// beat's streak of light. Clips cut straight into each other: a dip to black at every join flickered.
     /// </summary>
-    private static string Finish(TimeSpan length, string? captionsFile, ExportPreset preset, Polish? polish = null) =>
+    /// <param name="fadeOut">The movie's last clip, which fades out to black over <see cref="Fade"/>.</param>
+    private static string Finish(TimeSpan length, string? captionsFile, ExportPreset preset, Polish? polish = null, bool fadeOut = false) =>
         (polish?.Strap is { Length: > 0 } strap ? Glass(preset, strap) : "") +
         (captionsFile is null ? "" : $",ass={captionsFile}:fontsdir=.") +
         (polish?.Grain == true ? FilmGrain : "") +
-        $",fade=t=in:st=0:d={Seconds(Fade)},fade=t=out:st={Seconds(length - Fade)}:d={Seconds(Fade)}" +
+        (fadeOut ? $",fade=t=out:st={Seconds(length - Fade)}:d={Seconds(Fade)}" : "") +
         (polish?.NewBeat == true ? LightTrail(preset, polish.Accent) : "") +
         ",format=yuv420p";
 

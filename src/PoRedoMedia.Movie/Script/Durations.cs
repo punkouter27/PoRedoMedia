@@ -59,21 +59,12 @@ public static class Durations
     /// <summary>About how many words the voice says in <paramref name="length"/>.</summary>
     public static int WordsFor(TimeSpan length) => Math.Max(1, (int)Math.Round(length.TotalMinutes * WordsPerMinute));
 
-    /// <summary>The running time the series aims for, without the intro and outro. Outside it is flagged, never blocked.</summary>
-    public static readonly TimeSpan MinEpisode = TimeSpan.FromMinutes(3);
-
-    public static readonly TimeSpan MaxEpisode = TimeSpan.FromMinutes(5);
-
     /// <summary>
     /// Running time of the episode as currently set (each clip's active tier): a clip's recorded length when
     /// <paramref name="measured"/> knows it, the estimate from its words otherwise.
     /// </summary>
     public static TimeSpan Total(Episode episode, Func<Clip, TimeSpan?>? measured = null) =>
         TimeSpan.FromTicks(episode.Clips.Sum(c => (measured?.Invoke(c) ?? Estimate(c.Active.Dialogue)).Ticks));
-
-    /// <summary>In plain words, how the running time misses the series' three to five minutes; null when it does not.</summary>
-    public static string? RuntimeWarning(TimeSpan total) =>
-        total < MinEpisode ? "shorter than the 3 minute target" : total > MaxEpisode ? "longer than the 5 minute target" : null;
 
     /// <summary>Plain-words warning when a clip's active dialogue runs outside 15 to 60 seconds; null when it is fine.</summary>
     public static string? Warning(Clip clip) => Warning(clip.Active.Dialogue);

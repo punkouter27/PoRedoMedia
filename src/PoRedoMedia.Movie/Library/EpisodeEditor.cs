@@ -218,10 +218,18 @@ public static class EpisodeEditor
         return styled == episode ? episode : styled;
     }
 
-    /// <summary>Sets the music played under the narration; null takes it away.</summary>
     /// <summary>Whether the clip goes through Meme-ify before it is joined into the movie.</summary>
     public static Episode SetMemes(Episode episode, Guid clipId, bool on) => Update(episode, clipId, clip => clip.NoMemes == !on ? clip : clip with { NoMemes = !on });
 
+    /// <summary>Sets the roast voice for the movie ("Off", "Comic", "Neural", "Rap"), or null for the series default.</summary>
+    public static Episode SetRoastVoice(Episode episode, string? voice) =>
+        episode.RoastVoice == voice ? episode : episode with { RoastVoice = voice };
+
+    /// <summary>Sets whether the movie's roast uses crude/profane insults.</summary>
+    public static Episode SetCrudeRoast(Episode episode, bool crude) =>
+        episode.CrudeRoast == crude ? episode : episode with { CrudeRoast = crude };
+
+    /// <summary>Sets the music played under the narration; null takes it away.</summary>
     public static Episode SetMusic(Episode episode, string? path) => episode.MusicPath == path ? episode : episode with { MusicPath = path };
 
     // Swaps in one changed clip and leaves the rest of the episode as it is now, so a slow change to one clip

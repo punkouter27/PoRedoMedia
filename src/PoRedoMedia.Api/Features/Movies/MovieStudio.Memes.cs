@@ -16,28 +16,56 @@ namespace PoRedoMedia.Api.Features.Movies;
 public sealed partial class MovieStudio
 {
     /// <summary>Names a meme-ified clip on disk. Change it when what Meme-ify is asked for changes, so clips are made again.</summary>
-    private const string MemeVersion = "meme 3"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds
+    private const string MemeVersion = "meme 5"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"
 
     private bool CanMeme => memes?.Handles.Contains(MediaFunction.Memeify) == true;
 
     /// <summary>
-    /// The roast is a savage stand-up comedian. It is not put over a kids'' video: those get the meme sounds, stickers,
-    /// text and effects, in the mildest persona, and no spoken insults.
+    /// Whether this episode gets a spoken roast track. Kids' movies default to off unless a roast voice is picked;
+    /// General and Robot default to on unless "Off" is chosen.
     /// </summary>
-    private bool Roasts(Show show) => MemeRun(show, memes?.Handles ?? new HashSet<MediaFunction>(), narrated: false).Functions.Contains(MediaFunction.VideoRoast);
+    private bool Roasts(Show show, string? roastVoice = null) =>
+        MemeRun(show, memes?.Handles ?? new HashSet<MediaFunction>(), narrated: false, roastVoice).Functions.Contains(MediaFunction.VideoRoast);
+
+    internal static string? NormalizeRoastVoice(string? voice)
+    {
+        if (string.IsNullOrWhiteSpace(voice)) return null;
+        return voice.Trim().ToLowerInvariant() switch
+        {
+            "off" => "Off",
+            "comic" => MediaRoast.Comic,
+            "neural" => MediaRoast.Neural,
+            "rap" => MediaRoast.Rap,
+            _ => null,
+        };
+    }
 
     /// <summary>
-    /// What a clip of this series is put through, of what the server can do, and with which persona. Over a clip the
-    /// narrator speaks, the roast is a heckler: it answers the narrator, in the narrator's pauses.
+    /// What a clip of this series is put through, of what the server can do, and with which persona and roast settings.
+    /// Over a clip the narrator speaks, a spoken roast heckles in the narrator's pauses.
     /// </summary>
-    internal static (MediaFunction[] Functions, Dictionary<string, string> Options) MemeRun(Show show, IReadOnlySet<MediaFunction> available, bool narrated)
+    internal static (MediaFunction[] Functions, Dictionary<string, string> Options) MemeRun(
+        Show show, IReadOnlySet<MediaFunction> available, bool narrated, string? roastVoice = null, bool crudeRoast = false)
     {
-        var roast = show != Show.Kids && available.Contains(MediaFunction.VideoRoast);
+        var voice = NormalizeRoastVoice(roastVoice);
+        var wantRoast = voice is not null ? voice != "Off" : show != Show.Kids;
+        var roast = wantRoast && available.Contains(MediaFunction.VideoRoast);
         var options = new Dictionary<string, string>();
-        if (show == Show.Kids) options[RunOptions.VideoPersona] = "sitcom";
+        if (show == Show.Kids)
+        {
+            options[RunOptions.VideoPersona] = "sitcom";
+            options[RunOptions.VideoChildIsIt] = "1"; // the owner wants the child called "it", in the meme text too
+        }
+        // The movie burns its own captions along the bottom afterwards, so the meme text goes elsewhere.
+        options[RunOptions.VideoKeepBottomClear] = "1";
         // Over a narrator, the narrator stays on top: the meme sounds come in under the voice-over.
         if (narrated) options[RunOptions.VideoVoiceFirst] = "1";
-        if (narrated && roast) options[RunOptions.VideoRoastNarrated] = "1";
+        if (roast)
+        {
+            if (voice is not null) options[RunOptions.VideoRoastVoice] = voice;
+            options[RunOptions.VideoRoastCrude] = crudeRoast ? "1" : "0";
+            if (narrated) options[RunOptions.VideoRoastNarrated] = "1";
+        }
         return (roast ? [MediaFunction.Memeify, MediaFunction.VideoRoast] : [MediaFunction.Memeify], options);
     }
 
@@ -59,7 +87,7 @@ public sealed partial class MovieStudio
         var file = new FileInfo(film);
         var show = BeatPlan.ShowOf(open.Episode.Structure);
         var key = Files.TextHash(FormattableString.Invariant(
-            $"{MemeVersion}|{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|{clip.OwnSound}|{clip.NarrationRate:0.###}|{clip.Active.Dialogue}|{show}"))[..20];
+            $"{MemeVersion}|{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|{clip.OwnSound}|{clip.NarrationRate:0.###}|{clip.Active.Dialogue}|{show}|{open.Episode.RoastVoice}|{open.Episode.CrudeRoast}"))[..20];
         return Path.Combine(open.Folder, "memes", $"{clip.Id:N}-{key}.mp4");
     }
 
@@ -94,7 +122,9 @@ public sealed partial class MovieStudio
         if (count == 0) return new("Every clip is ready.", 0, true, null);
         var show = BeatPlan.ShowOf(open.Episode.Structure);
         var dollars = count * MemePrice;
-        var what = Roasts(show) ? "meme sounds, stickers, text and effects, and a spoken roast" : "meme sounds, stickers, text and effects (no roast in a kids'' video)";
+        var what = Roasts(show, open.Episode.RoastVoice)
+            ? $"meme sounds, stickers, text and effects, and a {(open.Episode.CrudeRoast ? "crude " : "")}{(string.Equals(open.Episode.RoastVoice, MediaRoast.Rap, StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}"
+            : "meme sounds, stickers, text and effects (roast off)";
         return new($"First, {Count(count, "film and AI video clip")} {(count == 1 ? "goes" : "go")} through Meme-ify: an AI watches each and adds {what}, about {SpendLog.Money(dollars)}. Clips already done are reused at no cost. Then the movie is rendered and put in your Library.",
             dollars, false, OverBudget(dollars));
     }
@@ -161,7 +191,7 @@ public sealed partial class MovieStudio
             if (Known(clip, film, narration) is { Count: > 0 } speech)
                 await blobs.UploadAsync(MediaAnalysisPaths.SourceSpeech(source.Id.Value), JsonSerializer.SerializeToUtf8Bytes(speech, WebJson), "application/json", ct);
 
-            var (functions, options) = MemeRun(show, memes!.Handles, narrated: !clip.OwnSound && clip.Active.Dialogue.Trim().Length > 0);
+            var (functions, options) = MemeRun(show, memes!.Handles, narrated: !clip.OwnSound && clip.Active.Dialogue.Trim().Length > 0, open.Episode.RoastVoice, open.Episode.CrudeRoast);
             var run = new Run { Owner = user, Id = RunId.New(), SourceId = source.Id, Functions = functions, Options = options, Status = RunStatus.Running, CreatedAt = DateTimeOffset.UtcNow };
             var context = new RunContext(run, source,
                 (item, _) => { made = item; return Task.CompletedTask; },

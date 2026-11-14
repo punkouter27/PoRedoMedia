@@ -131,7 +131,7 @@ public static partial class FfmpegArgs
             graph.Add($"{picture}[logo]overlay=x={(mascotLeft ? "W-w-W*0.04" : "W*0.04")}:y=H*0.06[l]"); // in the corner away from the mascot
             picture = "[l]";
         }
-        graph.Add($"{picture}{string.Join(',', words)}{Finish(length, null, preset, new Polish(Grain: look.Grain))}[v]");
+        graph.Add($"{picture}{string.Join(',', words)}{Finish(length, null, preset, new Polish(Grain: look.Grain), fadeOut: true)}[v]");
         return [.. inputs, "-filter_complex", string.Join(';', graph), "-map", "[v]", "-t", Seconds(length), "-an", .. Encode(preset), "-y", output];
     }
 

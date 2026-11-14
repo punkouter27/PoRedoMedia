@@ -67,6 +67,24 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         Answer {"jokes":[{"moment": <index of the moment>, "text": "<the joke>", "alternative": "<another joke>"}]}.
         """;
 
+    private const string CleanSystemPrompt = """
+        You are a sharp stand-up comedian doing a cheeky roast of a video clip. You get a timeline of its moments: what the camera saw and what was said.
+        Write short roast jokes, each aimed at ONE moment, to be spoken over the video at that moment.
+
+        Style: biting, witty and sarcastic — playful comedy-club roast without any swearing, vulgarity or profanity. Specific beats generic: name what is actually happening in that moment and tease it.
+        Target: what people DO in the clip — their choices, their skill, their timing, their taste, the situation they got themselves into.
+        Never: profanity or vulgar words; slurs; jokes about race, ethnicity, religion, gender, sexuality, disability or body size; sexual remarks about a person; threats or wishing harm. If a moment shows a child, roast the situation or the adults, not the child.
+
+        Each joke: one or two sentences, at most 14 words, written to be said aloud. No emoji, no hashtags, no stage directions, no quotation marks.
+        Spread the jokes across the clip, in time order, at most one per moment. Skip moments with nothing to mock.
+        For every joke also write an alternative: a second, different joke for the same moment, from another angle.
+        Answer {"jokes":[{"moment": <index of the moment>, "text": "<the joke>", "alternative": "<another joke>"}]}.
+        """;
+
+    internal static string PromptFor(bool crude) => crude ? SystemPrompt : CleanSystemPrompt;
+
+    internal static string RubricFor(bool crude) => crude ? JokeRubric : CleanJokeRubric;
+
     /// <summary>
     /// For a clip a narrator speaks over (a Create Movie clip): the roast is a heckler answering the narrator, not a
     /// second voice-over. Its lines are spoken in the narrator's pauses (<see cref="TurnTaking"/>).
@@ -116,13 +134,15 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         IReadOnlyList<TranscriptSegmentDto> transcript,
         double durationSeconds,
         bool narrated,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool crude = true,
+        bool childIsIt = false)
     {
         var moments = Moments(labels, transcript);
         if (moments.Count == 0)
             return null;
 
-        var jokes = await WriteJokesAsync(mediaId, moments, durationSeconds, narrated, ct);
+        var jokes = await WriteJokesAsync(mediaId, moments, durationSeconds, narrated, crude, childIsIt, ct);
         if (jokes.Count == 0)
             return null;
 
@@ -191,7 +211,7 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
             .Take(MaxMoments)];
 
     private async Task<List<(long AtMs, string Text)>> WriteJokesAsync(
-        MediaId mediaId, List<(double AtSeconds, string What)> moments, double durationSeconds, bool narrated, CancellationToken ct)
+        MediaId mediaId, List<(double AtSeconds, string What)> moments, double durationSeconds, bool narrated, bool crude, bool childIsIt, CancellationToken ct)
     {
         var inv = CultureInfo.InvariantCulture;
         // A spoken joke runs about seven seconds; more than one per seven would not fit.
@@ -199,12 +219,13 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         var prompt = new StringBuilder()
             .Append(inv, $"The clip is {durationSeconds:0.#} seconds long. Write {max} joke(s), fewer only when there are fewer moments.\n")
             .Append(narrated ? NarratorBrief : "")
+            .Append(childIsIt ? "If you mention the little child, call it \"it\" or \"the little one\", never he, she, they, him, her, his, bro, boy, girl or king.\n" : "")
             .Append("\nMoments:\n");
         for (var i = 0; i < moments.Count; i++)
             prompt.Append(inv, $"[{i}] t={moments[i].AtSeconds:0.0}s {moments[i].What}\n");
 
         var jokes = ReadJokes(await AskAsync(prompt.ToString()), moments, max);
-        List<(long AtMs, string Text)> picked = _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, ct);
+        List<(long AtMs, string Text)> picked = _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, crude, ct);
         if (picked.Count == 0)
             return picked;
 
@@ -231,7 +252,7 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
                 Temperature = 1.0f,
                 MaxOutputTokens = 2_500,
             },
-            [new SystemChatMessage(SystemPrompt), new UserChatMessage(user)],
+            [new SystemChatMessage(PromptFor(crude)), new UserChatMessage(user)],
             token ?? ct);
     }
 
@@ -240,15 +261,20 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         + "expected. Safety: aims at what people DO, never at race, ethnicity, religion, gender, sexuality, "
         + "disability or body size; no sexual remarks about a person; a child is never the target.";
 
+    internal const string CleanJokeRubric =
+        "Funniest, and most specific to its moment; at most 14 words; written to be said aloud. Keep it clean: no "
+        + "profanity or vulgarity. Safety: aims at what people DO, never at race, ethnicity, religion, gender, "
+        + "sexuality, disability or body size; no sexual remarks about a person; a child is never the target.";
+
     /// <summary>Each joke or its alternative, whichever the judge scores higher. One judge call for the whole set.</summary>
     private static async Task<List<(long AtMs, string Text)>> PickJokesAsync(
-        AiJudge judge, List<(long AtMs, string Text, string? Alternative, string Moment)> jokes, CancellationToken ct)
+        AiJudge judge, List<(long AtMs, string Text, string? Alternative, string Moment)> jokes, bool crude, CancellationToken ct)
     {
         var drafts = jokes.SelectMany(j => j.Alternative is null ? [$"({j.Moment}) {j.Text}"] : new[] { $"({j.Moment}) {j.Text}", $"({j.Moment}) {j.Alternative}" }).ToList();
         double[] scores;
         try
         {
-            scores = await judge.ScoreAsync("Roast jokes, each spoken over one moment of a video clip", JokeRubric, drafts, ct);
+            scores = await judge.ScoreAsync("Roast jokes, each spoken over one moment of a video clip", RubricFor(crude), drafts, ct);
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {

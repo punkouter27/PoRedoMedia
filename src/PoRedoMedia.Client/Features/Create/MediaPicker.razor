@@ -7,6 +7,8 @@
 @inject AppConfigService Config
 @inject IJSRuntime JS
 
+@* Leaving mid-upload dropped the file without a word: now the browser asks first (reload, close), and so does the app (its own links). *@
+<NavigationLock ConfirmExternalNavigation="Busy" OnBeforeInternalNavigation="ConfirmLeaveAsync" />
 <RadzenStack Gap="1rem">
     <div class="picker-drop po-glass" @ref="_zone">
         @if (Multiple)
@@ -126,13 +128,22 @@
     private bool _rendered;
     private bool _recentLoaded;
 
+    /// <summary>How many of the newest pictures and videos the gallery strip offers; the Library has the rest.</summary>
+    private const int RecentCount = 5;
+
     private bool Busy => _percent is not null || _status is not null;
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext context)
+    {
+        if (Busy && !await JS.InvokeAsync<bool>("confirm", "Your upload has not finished. Leave anyway? It will be lost."))
+            context.PreventNavigation();
+    }
 
     protected override async Task OnInitializedAsync()
     {
         if (ShowRecent)
         {
-            _recent = [.. (await Api.ListAsync()).Where(m => m.Kind != MediaKind.Audio).Take(12)];
+            _recent = [.. (await Api.ListAsync()).Where(m => m.Kind != MediaKind.Audio).Take(RecentCount)];
             _recentLoaded = true;
         }
     }

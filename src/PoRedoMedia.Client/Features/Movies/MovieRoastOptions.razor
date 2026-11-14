@@ -1,0 +1,35 @@
+@* Roast voice and crude/profane toggle, shared by Films (before writing) and Video (before rendering). *@
+@if (Voices is { Length: > 0 })
+{
+    var selected = string.IsNullOrWhiteSpace(Voice) ? Voices[0] : Voice;
+    var isOff = string.Equals(selected, "Off", StringComparison.OrdinalIgnoreCase);
+    <div class="mv-field">
+        <RadzenLabel Text="Insult roast" Component="@($"{IdPrefix}-voice")" />
+        <RadzenSelectBar Name="@($"{IdPrefix}-voice")" TValue="string" Value="@selected" Change="VoiceChanged" Disabled="Disabled" Size="ButtonSize.Small"
+                         title="Off: no spoken roast. Comic or Neural: spoken heckler jokes in the narrator's pauses. Rap roast: boom-bap diss track over the clip.">
+            <Items>
+                <RadzenSelectBarItem Text="Off" Value="@("Off")" />
+                @foreach (var voice in Voices)
+                {
+                    <RadzenSelectBarItem Text="@(voice == "Rap" ? "Rap roast" : voice)" Value="@voice" />
+                }
+            </Items>
+        </RadzenSelectBar>
+        <div class="mv-row">
+            <RadzenSwitch Name="@($"{IdPrefix}-crude")" Value="Crude" Disabled="@(Disabled || isOff)" Change="CrudeChanged"
+                          title="Off: sharp, cheeky roast without swearing. On: brutal, vulgar, profane insults (available on General, Robot and Kids' videos; Google Lyria's safety filter may decline overly explicit rap lyrics)." />
+            <RadzenLabel Text="Crude / profane" Component="@($"{IdPrefix}-crude")"
+                         title="Off: sharp, cheeky roast without swearing. On: brutal, vulgar, profane insults." />
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string[]? Voices { get; set; }
+    [Parameter] public string? Voice { get; set; }
+    [Parameter] public EventCallback<string> VoiceChanged { get; set; }
+    [Parameter] public bool Crude { get; set; }
+    [Parameter] public EventCallback<bool> CrudeChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string IdPrefix { get; set; } = "mv-roast";
+}

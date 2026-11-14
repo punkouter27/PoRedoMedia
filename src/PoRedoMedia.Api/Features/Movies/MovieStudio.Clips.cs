@@ -36,6 +36,8 @@ public sealed partial class MovieStudio
                     : "The accent colour is typed as # and six letters or digits, such as #22CC88.",
                 "removeMusic" => Edit(open, e => EpisodeEditor.SetMusic(e, null)),
                 "memes" => Edit(open, e => EpisodeEditor.SetMemes(e, Clip(), edit.Flag != false)),
+                "roastVoice" => NormalizeRoastVoice(edit.Text) is { } voice ? Edit(open, e => EpisodeEditor.SetRoastVoice(e, voice)) : "That roast voice is not known.",
+                "crudeRoast" => Edit(open, e => EpisodeEditor.SetCrudeRoast(e, edit.Flag == true)),
                 "seriesLook" => UseSeriesLook(open),
                 _ => "That change is not known.",
             };

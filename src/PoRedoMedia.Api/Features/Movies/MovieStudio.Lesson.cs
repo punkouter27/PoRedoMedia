@@ -191,7 +191,7 @@ public sealed partial class MovieStudio
         var show = BeatPlan.ShowOf(structure);
         var topic = request.Topic.Trim() is { Length: > 0 } typed ? typed : show switch
         {
-            Show.Kids => "Whatever he gets up to in these films.",
+            Show.Kids => "Whatever the little one gets up to in these films.",
             Show.General => "Whatever happens in these films.",
             _ => "Whatever the robot does in these films.",
         };
@@ -243,7 +243,12 @@ public sealed partial class MovieStudio
                 Report(job, $"Written {titles.Count} of {Math.Max(titles.Count, length.MinClips)} clips", 0.1 + 0.9 * Math.Min(1, (double)titles.Count / length.MaxClips));
             });
             var visuals = engine.VisualsFor(Host, Host, Quality.Medium, Writer);
-            var episode = VisualMix.Settle(await Writer.WriteEpisodeAsync(lesson, [], length, ct, written), kind => visuals?.CanMake(kind) ?? false) with { Number = number };
+            var episode = VisualMix.Settle(await Writer.WriteEpisodeAsync(lesson, [], length, ct, written), kind => visuals?.CanMake(kind) ?? false) with
+            {
+                Number = number,
+                RoastVoice = NormalizeRoastVoice(request.RoastVoice) ?? (show == Show.Kids ? "Off" : null),
+                CrudeRoast = request.CrudeRoast,
+            };
 
             folder = ProjectStore.NewFolder(Episodes, episode.Title, number);
             Directory.CreateDirectory(folder);

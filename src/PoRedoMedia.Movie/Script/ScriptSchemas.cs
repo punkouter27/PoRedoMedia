@@ -74,19 +74,24 @@ internal static partial class ScriptSchemas
         TeaserPrefer: "Prefer the owner's own films of the robot, the moment something fails or works, and the result.",
         Words: "60 to 110 words");
 
-    // The owner's little boy playing, for young children, told by a cheerful presenter who is never on screen. No
-    // picture is ever made of him: he is only in the owner's own films, and nothing said tells a stranger who or where he is.
+    // The owner's little one playing, for young children, told by a cheerful presenter who is never on screen. No
+    // picture is ever made of it: it is only in the owner's own films, and nothing said tells a stranger who or where it is.
+    // The owner asked for no gender: the child is always "it" or "the little one", never he, she or they.
     private static readonly Series Kids = new(
-        FastVideo: "a cheerful, fast-paced video for young children, starring a little boy playing with his toys",
-        AVideo: "a video for young children, starring a little boy playing with his toys",
-        Narrator: "The narrator is a goofy, giggly kids' show presenter talking to five-year-olds, cheering the boy on in the third person and having as much fun as he is. Make it playful and silly: sound words (boing, whoosh, wiggle-wiggle, uh-oh, ta-da!), funny comparisons a child knows (wriggles like a jelly worm, rolls like a little log, zooms like a race car), playful pretend and mix-ups (is that a banana or a telephone?), and a giggly question to the viewer now and then (can YOU wiggle like that?). Short, bouncy sentences in words a five-year-old knows. Laugh with the boy, never at him: nothing mean, nothing scary. Never repeat a line, a sound word or a question another clip has used.",
+        FastVideo: "a cheerful, fast-paced video for young children, starring a little one playing with its toys",
+        AVideo: "a video for young children, starring a little one playing with its toys",
+        Narrator: "The narrator is a goofy, giggly kids' show presenter talking to five-year-olds, cheering the little one on in the third person and having as much fun as it is. " + KidsPronoun + " Make it playful and silly: sound words (boing, whoosh, wiggle-wiggle, uh-oh, ta-da!), funny comparisons a child knows (wriggles like a jelly worm, rolls like a little log, zooms like a race car), playful pretend and mix-ups (is that a banana or a telephone?), and a giggly question to the viewer now and then (can YOU wiggle like that?). Short, bouncy sentences in words a five-year-old knows. Laugh with the little one, never at it: nothing mean, nothing scary. Never repeat a line, a sound word or a question another clip has used.",
         KidsStructure, KidsDepths, KidsAccuracy,
         KeepFacts: "Use only what the existing script says about the toy and the play; add no facts of your own.",
         KidsPictures,
         Host: "an upbeat kids' show presenter",
-        SeriesAbout: "a kids' series of a little boy playing with his toys",
-        TeaserPrefer: "Prefer the owner's own films of the boy: his biggest reactions, a surprise, and the most exciting moment of play.",
+        SeriesAbout: "a kids' series of a little one playing with its toys",
+        TeaserPrefer: "Prefer the owner's own films of the little one: its biggest reactions, a surprise, and the most exciting moment of play.",
         Words: "25 to 50 words: young children watch a short clip and then want the next");
+
+    /// <summary>How every Kids' prompt speaks of the child: as "it", never by a gendered word.</summary>
+    private const string KidsPronoun =
+        "Call the child \"the little one\" or \"it\" (its, itself), never he, she, him, her, his, hers, they, boy, girl, son or daughter, even when a note, the topic or what was seen in a film says so. A first name the topic gives may be used.";
 
     // How every episode of the series is put together: the owner's lesson, told in fixed beats around their own footage.
     private const string Structure = """
@@ -115,22 +120,24 @@ internal static partial class ScriptSchemas
         """;
 
     private const string KidsStructure = """
-        The topic says what the boy plays with in this video, and may add a few funny moments. Tell it in the beats the
-        request names, in that order: give every clip its "beat", and every beat one to three clips.
+        The topic says what the little one plays with in this video, and may add a few funny moments. Tell it in the
+        beats the request names, in that order: give every clip its "beat", and every beat one to three clips.
 
-        The owner filmed the boy playing, and the request lists that footage, numbered from 1, with a note on each, and
-        may say what a model saw happen in it second by second and what is said in it. Give each film to exactly one
-        clip, in the beat its note fits best, by setting that clip's "footage" to its number; every other clip has
-        footage 0. A clip with footage shows the real boy, so its dialogue is narration over what the film shows, as
+        The owner filmed the little one playing, and the request lists that footage, numbered from 1, with a note on
+        each, and may say what a model saw happen in it second by second and what is said in it. Give each film to
+        exactly one clip, in the beat its note fits best, by setting that clip's "footage" to its number; every other
+        clip has footage 0. A clip with footage shows the real little one, so its dialogue is narration over what the film shows, as
         long as the film runs. Footage that keeps its own sound is not narrated over. The clips without footage are
         bright, playful pictures of the toy, the game or the place: to say hello, guess what is inside, count down or
         wave goodbye.
 
-        When the request lists no footage, say nothing about what the boy did, said or felt: nobody filmed it, so it
+        When the request lists no footage, say nothing about what the little one did, said or felt: nobody filmed it, so it
         did not happen on screen. Talk about the toy itself, what it looks like and what it can do, and invite the
         viewer to imagine playing with it.
 
         Set "host" to false for every clip: this series has no presenter on screen.
+
+        In titles and words alike, call the child "the little one" or "it" (its, itself), never he, she, they, boy or girl.
 
         The request may list earlier episodes of the series. Where this one truly follows on from one, a clip may call
         back to it by its number in one short sentence. Say nothing about them that the list does not.
@@ -144,14 +151,15 @@ internal static partial class ScriptSchemas
 
     private const string KidsAccuracy = """
         - Say only what the topic, the notes and the films show. Never invent a price, a shop, a sponsor or a claim about the toy's maker.
-        - Never give the boy's surname, age, birthday, school, town or anything else that says who or where he is, even when the topic does. A first name the topic gives may be used.
+        - Never give the little one's surname, age, birthday, school, town or anything else that says who or where it is, even when the topic does. A first name the topic gives may be used.
+        - Call the child "the little one" or "it" (its, itself), never he, she, him, her, his, hers, they, boy, girl, son or daughter.
         - Keep every word kind and safe for young children: nothing scary or rude, and nothing unsafe a child might copy.
         """;
 
     private const string KidsPictures = """
-        A picture model will not draw a person being hurt, blood, or a weapon. Never describe a picture of the boy or of
-        any child: the pictures show the toys, the game and the place, bright, colourful and friendly. The boy appears
-        only in the owner's own films.
+        A picture model will not draw a person being hurt, blood, or a weapon. Never describe a picture of the little
+        one or of any child: the pictures show the toys, the game and the place, bright, colourful and friendly. The
+        little one appears only in the owner's own films.
         """;
 
     private const string Depths = """
@@ -315,11 +323,11 @@ internal static partial class ScriptSchemas
         """;
 
     private const string KidsWatchSystem = """
-        You are shown frames from a short film of a little boy playing, in order, each labelled with the second it was
+        You are shown frames from a short film of a little one playing, in order, each labelled with the second it was
         taken at. A parent filmed it for a family video series for young children. Give:
         - timeline: what happens, as a few short lines, each starting with its seconds ("0-4 s: lifts the lid and
-          gasps"). Say only what can be seen: what he plays with, what he does with it and how he reacts. Do not guess
-          who he is, how old he is or where he is.
+          gasps"). Say only what can be seen: what it plays with, what it does with it and how it reacts. Do not guess
+          who it is, how old it is or where it is. Call the child "the little one" or "it", never he, she, they, boy or girl.
         - note: one line of at most twelve words saying what the film shows, as the parent would label it.
         - highlight: the second at which the most fun moment happens, such as a big reaction, a surprise or a laugh.
 

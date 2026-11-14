@@ -87,6 +87,10 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public int Number { get; set; } = 1;
 
+    public string RoastVoice { get; set; } = "";
+
+    public bool CrudeRoast { get; set; }
+
     public List<MovieFilm> FilmList { get; } = [];
 
     /// <summary>True while the form for a new movie shows on the Films step in place of the open movie's own.</summary>
@@ -153,7 +157,17 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public void Say(string? status, string? error = null)
     {
-        (Status, Error, Notice) = (error is null ? status : null, error, null);
+        (Status, Error, Notice, StatusIsInfo) = (error is null ? status : null, error, null, false);
+        Notify();
+    }
+
+    /// <summary>The status is only information (nothing was done, nothing went wrong), so it is not shown as a success.</summary>
+    public bool StatusIsInfo { get; private set; }
+
+    /// <summary>Says something neutral, such as why a click changed nothing. It fades like a status.</summary>
+    public void Tell(string info)
+    {
+        (Status, Error, Notice, StatusIsInfo) = (info, null, null, true);
         Notify();
     }
 
@@ -195,6 +209,8 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
         Show = show;
         Kit = await api.KitAsync(show);
         Number = Kit?.NextNumber ?? 1;
+        RoastVoice = show == "Kids" ? "Off" : (Config?.RoastVoices?.FirstOrDefault() ?? "");
+        CrudeRoast = false;
         Notify();
     }
 
@@ -258,7 +274,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     public bool Apply(MovieReply reply)
     {
         if (reply.Movie is not null) Take(reply.Movie);
-        if (reply.Error is not null || reply.Status is not null) (Status, Error) = (reply.Error is null ? reply.Status : null, reply.Error);
+        if (reply.Error is not null || reply.Status is not null) (Status, Error, StatusIsInfo) = (reply.Error is null ? reply.Status : null, reply.Error, false);
         Notify();
         return reply.Error is null;
     }
@@ -346,7 +362,8 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     public async Task StartMovieAsync(bool whole)
     {
         var request = new MovieLessonRequest(Show, Kit?.Structure ?? "", Topic, Second, Number,
-            [.. FilmList.Select(f => new MovieFilmDto(f.Media.Id, f.Note, f.OwnSound))], Prefs.ExportPreset);
+            [.. FilmList.Select(f => new MovieFilmDto(f.Media.Id, f.Note, f.OwnSound))], Prefs.ExportPreset,
+            string.IsNullOrWhiteSpace(RoastVoice) ? null : RoastVoice, CrudeRoast);
         var reply = await api.StartAsync(request, whole);
         if (reply.Error is not null)
         {
@@ -416,7 +433,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
         if (job.State == "done" && job.GoTo is { } step && Movie is not null)
             Step = step == Preview && !Advanced ? Video : step;
         // A job can end with something made and something to put right: both are said, together.
-        Status = job.Error is null ? job.Message : null;
+        (Status, StatusIsInfo) = (job.Error is null ? job.Message : null, false);
         Error = job.Error is null ? null : job.Message is null ? job.Error : $"{job.Message} {job.Error}";
         await js.InvokeVoidAsync("poMedia.notifyDone", job.State == "done" ? "Finished" : "Stopped", job.Message ?? job.Error ?? job.Title);
         _ = RefreshLibraryAsync();

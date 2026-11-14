@@ -539,7 +539,8 @@ public sealed partial class MovieStudio
         var meta = string.Join(" · ", new[]
         {
             Count(clips.Length, "clip"),
-            $"runtime {TimeSpan.FromSeconds(runtime):m\\:ss}{(TimeSpan.FromSeconds(runtime) > Durations.MaxMovie ? ", over the 10 minute limit" : Durations.RuntimeWarning(TimeSpan.FromSeconds(runtime)) is { } off && show != Show.General ? $", {off}" : "")}",
+            // A movie runs as long as the owner's films do, so only the hard limit is worth a word, not a target length.
+            $"runtime {TimeSpan.FromSeconds(runtime):m\\:ss}{(TimeSpan.FromSeconds(runtime) > Durations.MaxMovie ? ", over the 10 minute limit" : "")}",
             spent >= 0.005m ? $"spent about {SpendLog.Money(spent)}" : null,
             SpendLog.Units(folder, SpendLog.ScriptTokens) is > 0 and var tokens ? $"{tokens:N0} script tokens" : null,
             SpendLog.Units(folder, SpendLog.VoiceCharacters) is > 0 and var characters ? $"{characters:N0} voice characters" : null,
@@ -559,7 +560,8 @@ public sealed partial class MovieStudio
             new(episode.Captions.Preset.ToString(), episode.Captions.AccentColor, episode.Captions.FontSize, episode.Captions.StrokeWidth),
             clips, runtime, meta, open.History.CanUndo, open.History.CanRedo,
             episode.MusicPath is { } music && File.Exists(music) ? Path.GetFileName(music)["music-".Length..] : null,
-            toMake, episode.Clips.Any(c => c.Draft), OffSeriesLook(open), preview, PublishOf(open), [.. open.Teasers], spendLines);
+            toMake, episode.Clips.Any(c => c.Draft), OffSeriesLook(open), preview, PublishOf(open), [.. open.Teasers], spendLines,
+            episode.RoastVoice ?? (show == Show.Kids ? "Off" : null), episode.CrudeRoast);
     }
 
     private MoviePublishDto PublishOf(OpenMovie open)

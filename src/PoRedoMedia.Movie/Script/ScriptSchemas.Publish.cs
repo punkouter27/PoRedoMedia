@@ -80,13 +80,13 @@ internal static partial class ScriptSchemas
 
     private const string KidsShotsSystem = $"""
         You help a parent plan what to film for one episode of a family video series for young children, starring their
-        little boy playing, before they film it. For each beat the request names, give two to four shots, in the order
+        little one playing, before they film it. For each beat the request names, give two to four shots, in the order
         they would be filmed:
         - beat: the beat's name, exactly as the request gives it.
         - shot: one short plain line saying where to point the camera and what should happen, for example "Low down, at
-          his eye level: his face as the lid comes off". Each is one take on a phone, a few seconds to a minute.
-        Film at his eye level, in good light, with the toy in view. Keep anything that shows where the family lives out
-        of the frame. Use only what the topic says.
+          its eye level: its face as the lid comes off". Each is one take on a phone, a few seconds to a minute.
+        Film at its eye level, in good light, with the toy in view. Keep anything that shows where the family lives out
+        of the frame. Use only what the topic says. Call the child "the little one" or "it", never he, she, they, boy or girl.
 
         {Fence}
         """;
@@ -124,15 +124,16 @@ internal static partial class ScriptSchemas
         """;
 
     private const string KidsPublishSystem = $"""
-        You write the upload details for a video made for young children, from its script: a little boy playing with
-        his toys. Give:
+        You write the upload details for a video made for young children, from its script: a little one playing with
+        its toys. Give:
         - titles: three alternative video titles, each under 70 characters, bright and simple.
         - description: two short, cheerful paragraphs for the video description, in plain text, for the parents who read it.
         - tags: ten to fifteen search tags, without a # sign.
         - hashtags: three hashtags, each starting with #.
 
-        Use only facts that appear in the script. Never give the boy's surname, age, school, town or anything else
-        that says who or where he is, even when the script does.
+        Use only facts that appear in the script. Never give the little one's surname, age, school, town or anything else
+        that says who or where it is, even when the script does. Call the child "the little one" or "it", never he,
+        she, they, boy or girl.
 
         {Fence}
         """;

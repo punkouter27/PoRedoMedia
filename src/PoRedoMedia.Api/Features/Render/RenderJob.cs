@@ -9,6 +9,7 @@ namespace PoRedoMedia.Api.Features.Render;
 /// How far below their usual level the meme sounds play, with the source at its full level: for a source whose own sound
 /// is a narrator to be heard over them (a Create Movie clip). 0 = the usual mix.
 /// </param>
+/// <param name="KeepBottomClear">Captions are burned along the bottom later, so meme text meant for the bottom goes to the top.</param>
 public sealed record RenderJob(
     MediaId MediaId,
     string SourceBlobPath,
@@ -19,7 +20,8 @@ public sealed record RenderJob(
     IReadOnlyList<TranscriptSegmentDto>? Subtitles = null,
     double TrimStartSeconds = 0,
     double? TrimSeconds = null,
-    double SoundsUnderDb = 0);
+    double SoundsUnderDb = 0,
+    bool KeepBottomClear = false);
 
 /// <summary>A cue as the renderer sees it: its sound, and the look around it.</summary>
 /// <param name="SoundPath">

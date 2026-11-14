@@ -31,7 +31,7 @@ var clip = Store.SelectedClip;
                         <span class="mv-card-flags">
                             @if (c.Memed)
                             {
-                                <span class="mv-flag meme" title="Meme-ified: meme sounds, stickers, text and effects are in this clip, and a spoken roast unless it is a kids' video. Changing its words or film makes it again at the next render.">
+                                <span class="mv-flag meme" title="Meme-ified: meme sounds, stickers, text and effects are in this clip, and a spoken roast when turned on. Changing its words, film or roast settings makes it again at the next render.">
                                     <RadzenIcon Icon="sentiment_very_satisfied" /> Memes
                                 </span>
                             }
@@ -172,8 +172,8 @@ var clip = Store.SelectedClip;
                 {
                     <div class="mv-row">
                         <RadzenSwitch Name="mv-memes" Value="@clip.MemesOn" Change="@(on => Store.EditAsync(new MovieEdit("memes", clip.Id, Flag: on)))" />
-                        <RadzenLabel Text="@(clip.MemesOn ? (movie.Show == "Kids" ? "Meme-ify: meme sounds, stickers, text and effects" : "Meme-ify: meme sounds, stickers, text, effects and a roast that answers the narrator") : "No memes: the clip plays as it is")" Component="mv-memes"
-                                     title="On (as every clip starts): before the movie is rendered, an AI watches this clip and adds meme sounds, stickers, text and effects, and a heckler's roast that answers the narrator in its pauses (no roast in a kids' video). Paid for once a clip, at the render. Off: this clip plays as it is, for a quiet or serious moment. Undo puts it back." />
+                        <RadzenLabel Text="@(clip.MemesOn ? (string.Equals(movie.RoastVoice, "Off", StringComparison.OrdinalIgnoreCase) ? "Meme-ify: meme sounds, stickers, text and effects" : $"Meme-ify: meme sounds, stickers, text, effects and a {(movie.CrudeRoast ? "crude " : "")}{(string.Equals(movie.RoastVoice, "Rap", StringComparison.OrdinalIgnoreCase) ? "rap roast" : "roast")}") : "No memes: the clip plays as it is")" Component="mv-memes"
+                                     title="On (as every clip starts): before the movie is rendered, an AI watches this clip and adds meme sounds, stickers, text and effects (plus a spoken or rap roast when enabled on the Video step). Paid for once a clip, at the render. Off: this clip plays as it is, for a quiet or serious moment. Undo puts it back." />
                     </div>
                 }
             }

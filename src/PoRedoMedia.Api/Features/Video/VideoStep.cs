@@ -136,7 +136,8 @@ public sealed class VideoStep(
             Subtitles: captions && transcript.Count > 0 ? transcript : null,
             TrimStartSeconds: trimStart,
             TrimSeconds: trimmed ? duration : null,
-            SoundsUnderDb: context.Option(RunOptions.VideoVoiceFirst) == "1" ? VoiceFirstSoundsUnderDb : 0), ct);
+            SoundsUnderDb: context.Option(RunOptions.VideoVoiceFirst) == "1" ? VoiceFirstSoundsUnderDb : 0,
+            KeepBottomClear: context.Option(RunOptions.VideoKeepBottomClear) == "1"), ct);
 
         // The roast is stored with the source and replaced by the next one; the result keeps its own copy.
         if (track is not null)
@@ -326,7 +327,7 @@ public sealed class VideoStep(
         {
             var directed = await director!.DirectAsync(
                 plan.ApprovedLabels, plan.DirectorMenu, context.Source.Id, labels.Length > 0 || transcript.Count > 0,
-                new DirectorContext(persona, transcript), ct);
+                new DirectorContext(persona, transcript, ChildIsIt: context.Option(RunOptions.VideoChildIsIt) == "1"), ct);
             (entries, title) = (directed.Entries, directed.Title);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
@@ -388,11 +389,13 @@ public sealed class VideoStep(
         RunContext context, SceneLabel[] labels, IReadOnlyList<TranscriptSegmentDto> transcript, double duration, bool narrated, CancellationToken ct)
     {
         var voices = MediaRoast.Voices(configuration, environment);
-        var voice = voices.FirstOrDefault(v => v == context.Option(RunOptions.VideoRoastVoice)) ?? voices[0];
+        var voice = voices.FirstOrDefault(v => string.Equals(v, context.Option(RunOptions.VideoRoastVoice), StringComparison.OrdinalIgnoreCase)) ?? voices[0];
+        var crude = context.Option(RunOptions.VideoRoastCrude) != "0";
+        var childIsIt = context.Option(RunOptions.VideoChildIsIt) == "1";
         try
         {
             await context.ReportAsync("Writing the roast");
-            var track = await roast!.GenerateAsync(context.Source.Id, voice, labels, transcript, duration, narrated, ct);
+            var track = await roast!.GenerateAsync(context.Source.Id, voice, labels, transcript, duration, narrated, ct, crude, childIsIt);
             if (track is null)
                 context.AddNote("Nothing in this video gave the roast anything to work with, so it was left out.");
             foreach (var line in track?.Lines ?? [])
