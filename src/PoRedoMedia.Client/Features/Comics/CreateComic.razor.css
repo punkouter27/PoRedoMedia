@@ -29,3 +29,6 @@
     box-shadow: 0 2px 14px rgb(0 0 0 / 0.18);
 }
 .comic-video { max-height: 70vh; }
+
+.comic-settings { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.6rem 0.75rem; border: 1px solid var(--po-line, var(--rz-base-300)); border-radius: var(--po-radius-sm); }
+.comic-cost { font-size: 0.82rem; color: var(--rz-text-secondary-color); font-variant-numeric: tabular-nums; }

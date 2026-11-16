@@ -164,10 +164,23 @@ in them, and `ComicLettering` (SkiaSharp, `Common/TextLayout`) draws the caption
 strip. Every line is voiced through `ISpeechSynthesis` (`AiFoundrySpeech`, the same gpt-4o-mini-tts call the spoken
 roast uses; the narrator reads the captions); with no voice the panels are timed silently. Sounds and the music bed are
 the best `ISemanticMatchingService` match from the sound library, and `FFmpegArgs.Comic*` renders each panel as a
-slow push-in, joins them and levels to -16 LUFS. `ComicStudio` runs one comic at a time per process, one job per user
+slow push-in over timed stills (`ComicLettering.LetterPanel(shown:)`: each caption or bubble appears as it is spoken),
+joins them and levels to -16 LUFS. The strip is two panels across; a "Narrator" line from the writer becomes caption. `ComicStudio` runs one comic at a time per process, one job per user
 (`GET /api/comics/job`, polled by the page); `POST /api/comics` costs one run of the daily quota, refunded on failure.
 Comic-ify is offered only when a picture service is configured (`GET /api/comics/config`). The page links each result
 to its Library drawer (`gallery?item=`) for download, GIF, social sizes and sharing, which work on any Library video.
+The page reuses Create Movie's `MemeMixSliders` (`Comic` hides what a comic does not use) and `NarratorChoice`, sent on
+`ComicRequest` with a heckler switch; `ComicOptions` turns them into limits and voices (meme sounds per comic, laughs,
+heckles per comic from the roast lines level, sound gain, lettering size, the humour style for the prompt, the narrator's
+voice from the shared `NarratorVoices` and its pace by `atempo`). The heckler's wisecrack is said after a panel's lines
+and lettered last, in a red box at the bottom. `ComicRequest.Estimate` prices a comic from `AiPricing` (including
+`SpeechUsd`), shown beside Make and confirmed before it starts. Comics default to a brutal, sweary roast (`ComicRequest.DefaultMix`,
+heckler on): `ComicOptions.RoastBrief` sets the narrator's running commentary and the characters' trash talk, with the
+lines it never crosses; a refused script is asked once more `Softer()`, and a line the voice will not say stays silent.
+The audience laughs (laugh tracks) and claps after the right panels, laugh then applause; applause is a library sound
+named "applause"/"clap", else synthesized by `FFmpegArgs.ComicApplauseArgs`. Panels hold at most two speech lines (up to 10 panels), and
+`ComicSpeakerLocator` (one vision call a panel, through `IChatClient`) finds each speaker's head so the bubble sits over
+them and its tail points at them; anyone not found falls back to speaking order.
 
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,

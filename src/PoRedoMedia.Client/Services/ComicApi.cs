@@ -16,9 +16,9 @@ public sealed class ComicApi(HttpClient http)
         return response.StatusCode == HttpStatusCode.OK ? await response.Content.ReadFromJsonAsync(WireJson.Default.ComicJobDto) : null;
     }
 
-    public async Task<(ComicJobDto? Job, string? Error)> StartAsync(string conversation)
+    public async Task<(ComicJobDto? Job, string? Error)> StartAsync(ComicRequest request)
     {
-        using var response = await http.PostAsJsonAsync("api/comics", new ComicRequest(conversation), WireJson.Default.ComicRequest);
+        using var response = await http.PostAsJsonAsync("api/comics", request, WireJson.Default.ComicRequest);
         return response.IsSuccessStatusCode
             ? (await response.Content.ReadFromJsonAsync(WireJson.Default.ComicJobDto), null)
             : (null, await MediaApi.ReasonAsync(response));

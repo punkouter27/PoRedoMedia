@@ -13,7 +13,7 @@ public sealed record AppConfigDto(
 
 /// <summary>Indicative list prices in US dollars per call. Estimates, not billed amounts.</summary>
 public sealed record AiPricingDto(
-    decimal VisionUsd, decimal TextUsd, decimal ImageUsd, decimal MusicUsd, decimal VideoUsd);
+    decimal VisionUsd, decimal TextUsd, decimal ImageUsd, decimal MusicUsd, decimal VideoUsd, decimal SpeechUsd = 0.002m);
 
 /// <summary>An error the browser hit, sent to the server's logs. <paramref name="Page"/> is the address it happened on.</summary>
 public sealed record ClientErrorDto(string Message, string? Stack, string? Category, string? Page);

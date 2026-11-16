@@ -4,6 +4,8 @@
    two seconds until it ends. Both results land in the Library. *@
 @implements IDisposable
 @inject ComicApi Api
+@inject AppConfigService AppConfig
+@inject DialogService Dialogs
 
 <PageTitle>Comic-ify · PoRedoMedia</PageTitle>
 
@@ -29,9 +31,24 @@
             <label for="comic-text" class="comic-label">The conversation</label>
             <textarea id="comic-text" class="comic-text rz-textbox" rows="12" maxlength="@ComicRequest.MaxLength"
                       placeholder="@Example" @bind="_text" @bind:event="oninput" disabled="@Busy"></textarea>
+            <div class="comic-settings">
+                <div class="comic-row" title="An offscreen heckler wisecracks in the pause after some panels, in a red box at the bottom. Its meanness, swearing and how often it speaks are the Roast settings below.">
+                    <RadzenSwitch Name="comic-heckler" @bind-Value="_heckler" Disabled="@Busy" />
+                    <RadzenLabel Text="Heckler" Component="comic-heckler" />
+                    <span class="comic-hint">@(_heckler ? "Chimes in after some panels" : "Off")</span>
+                </div>
+                <MemeMixSliders Mix="_mix" MixChanged="@(m => _mix = m)" Defaults="@ComicRequest.DefaultMix" Comic="true" Roast="true" RoastOff="@(!_heckler)"
+                                Narrator="_narrator" NarratorChanged="@(n => _narrator = n)" Disabled="@Busy" IdPrefix="comic-mix" />
+            </div>
             <div class="comic-row">
                 <span class="comic-count @(_text.Length > ComicRequest.MaxLength * 0.9 ? "comic-count-high" : null)">@_text.Length.ToString("N0") / @ComicRequest.MaxLength.ToString("N0")</span>
                 <span class="comic-grow"></span>
+                @if (Estimate is { } cost)
+                {
+                    <span class="comic-cost" title="Estimated from this server's AI prices: the script, a picture a panel and a voice a line. At most is every panel drawn twice.">
+                        About @cost.About.ToString("C2") · at most @cost.AtMost.ToString("C2")
+                    </span>
+                }
                 @if (_text.Length == 0)
                 {
                     <RadzenButton Text="Try the example" Variant="Variant.Text" Click="@(() => _text = Example)" disabled="@Busy" />
@@ -40,7 +57,7 @@
                               Disabled="@(Busy || !_config.Available || _text.Trim().Length < ComicRequest.MinLength)"
                               title="Uses one of today's runs. A comic takes a minute or two." />
             </div>
-            <span class="comic-hint">No need to tidy it up: timestamps, headers, signatures and quoted replies are fine. The story keeps what happened and the best lines, and plays the rest for laughs. It uses one of today's runs.</span>
+            <span class="comic-hint">No need to tidy it up: timestamps, headers, signatures and quoted replies are fine. The story keeps what happened, sums up runs of messages in a line or two, and plays it for laughs. It uses one of today's runs.</span>
         </RadzenCard>
 
         @if (_error is { } error)
@@ -86,6 +103,10 @@
         + "Sam: I know. it was incredible. I'm buying you two";
 
     private ComicConfigDto? _config;
+    private AiPricingDto? _pricing;
+    private MemeMix _mix = ComicRequest.DefaultMix;
+    private NarratorChoice _narrator = NarratorChoice.Default;
+    private bool _heckler = true;
     private ComicJobDto? _job;
     private string _text = "";
     private string? _error;
@@ -94,9 +115,13 @@
 
     private bool Busy => _starting || _job is { Working: true };
 
+    private (decimal About, decimal AtMost)? Estimate =>
+        _pricing is { } prices && _text.Trim().Length >= ComicRequest.MinLength ? ComicRequest.Estimate(_text, _heckler, prices) : null;
+
     protected override async Task OnInitializedAsync()
     {
         _config = await Api.ConfigAsync();
+        _pricing = (await AppConfig.GetAsync())?.Pricing;
         _job = await Api.JobAsync();
         if (_job is { Working: true })
             Poll();
@@ -104,11 +129,16 @@
 
     private async Task MakeAsync()
     {
+        // Anything priced asks first, as in Create Movie.
+        if (Estimate is { } cost && await Dialogs.Confirm(
+                $"This comic should cost about {cost.About:C2} in AI services (at most {cost.AtMost:C2}), and uses one of today's runs.",
+                "Make the comic?", new ConfirmOptions { OkButtonText = "Make comic", CancelButtonText = "Not now" }) != true)
+            return;
         _starting = true;
         _error = null;
         try
         {
-            var (job, error) = await Api.StartAsync(_text);
+            var (job, error) = await Api.StartAsync(new ComicRequest(_text, _mix.Encode(), _narrator.Encode(), _heckler));
             _job = job ?? _job;
             _error = error;
             if (job is not null)

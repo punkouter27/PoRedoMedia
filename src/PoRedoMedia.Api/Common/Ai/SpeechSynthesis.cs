@@ -64,3 +64,20 @@ public sealed class NoSpeech : ISpeechSynthesis
     public Task<byte[]> SpeakAsync(string text, string voice, string instructions, CancellationToken ct = default) =>
         throw new InvalidOperationException("No speech model is configured.");
 }
+
+/// <summary>
+/// The voice and delivery of each narrator style (<see cref="NarratorChoice.Styles"/>), shared by Create Movie and
+/// Comic-ify. The usual "warm" style speaks in the caller's own voice. The pace is set apart, by the rate.
+/// </summary>
+public static class NarratorVoices
+{
+    public const string WarmDelivery = "Speak as the friendly narrator of a short video: clear, warm and lively, at a natural pace.";
+
+    public static (string Voice, string Delivery) For(string? style, string warmVoice) => style switch
+    {
+        "excited" => ("coral", "Speak as an excited children's TV host: bright, bouncy, amazed by everything, with big smiles in the voice."),
+        "deadpan" => ("onyx", "Speak as a deadpan nature-documentary narrator: low, dry, calm and completely serious, whatever happens."),
+        "sports" => ("ash", "Speak as a sports commentator calling the last seconds of a big game: fast, breathless, rising with every moment."),
+        _ => (warmVoice, WarmDelivery),
+    };
+}

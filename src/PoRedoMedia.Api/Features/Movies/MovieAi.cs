@@ -225,19 +225,11 @@ public sealed class SpeechNarrator(IHttpClientFactory http, FfmpegRunner ffmpeg,
     /// <summary>The API version that serves <c>audio/speech</c> with <c>instructions</c>.</summary>
     private const string ApiVersion = "2025-03-01-preview";
 
-    private const string Delivery = "Speak as the friendly narrator of a short video: clear, warm and lively, at a natural pace.";
-
     /// <summary>
     /// The voice and delivery of each narrator style (<see cref="NarratorChoice.Styles"/>); the usual one is the configured
-    /// voice and <see cref="Delivery"/>. The pace is set apart, by the rate.
+    /// voice. The pace is set apart, by the rate.
     /// </summary>
-    internal (string Voice, string Delivery) Speaker(string? style) => style switch
-    {
-        "excited" => ("coral", "Speak as an excited children's TV host: bright, bouncy, amazed by everything, with big smiles in the voice."),
-        "deadpan" => ("onyx", "Speak as a deadpan nature-documentary narrator: low, dry, calm and completely serious, whatever happens."),
-        "sports" => ("ash", "Speak as a sports commentator calling the last seconds of a big game: fast, breathless, rising with every moment."),
-        _ => (voice, Delivery),
-    };
+    internal (string Voice, string Delivery) Speaker(string? style) => NarratorVoices.For(style, voice);
 
     /// <summary>Told what each recording used: its name in the spend log, how many characters, and their price when the rate is known.</summary>
     public Action<string, int, decimal>? Used { get; set; }

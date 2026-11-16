@@ -1,5 +1,6 @@
 @* How Meme-ify treats a video: the five main sliders, then the rest folded under "More meme settings", grouped Roast,
-   Memes and Narrator. Used by Create (Meme-ify and Insult roast) and Create Movie. Everything starts at its default
+   Memes and Narrator. Used by Create (Meme-ify and Insult roast), Create Movie and Comic-ify (Comic hides what a
+   comic has no use for: meme pictures, chaos, famous sounds, caption placement and the roast target). Everything starts at its default
    every time; nothing is remembered. *@
 @inject IJSRuntime JS
 <div class="mv-mix" role="group" aria-label="How much Meme-ify adds">
@@ -16,8 +17,11 @@
     {
         @Slider("Meme sounds", Mix.Sounds, MemeMix.AmountNames, false, v => Mix with { Sounds = v },
             "How many meme sounds: Lots is the usual; fewer drops some of them; Max adds more, with no gap over five seconds.")
-        @Slider("Meme pictures", Mix.Pictures, MemeMix.AmountNames, false, v => Mix with { Pictures = v },
-            "Captions, stickers and effects. Some is the usual; Lots and Max ask for more of them. Every sticker can be used.")
+        @if (!Comic)
+        {
+            @Slider("Meme pictures", Mix.Pictures, MemeMix.AmountNames, false, v => Mix with { Pictures = v },
+                "Captions, stickers and effects. Some is the usual; Lots and Max ask for more of them. Every sticker can be used.")
+        }
     }
 
     <button type="button" class="mv-mix-more" aria-expanded="@(_more ? "true" : "false")" aria-controls="@($"{IdPrefix}-panel")" @onclick="Toggle">
@@ -36,11 +40,14 @@
             {
                 <div class="mv-mix-group">
                     <strong>Roast</strong>
+                    @if (!Comic)
+                    {
                     <div class="mv-mix-row" title="What the roast picks on most. Everything leaves it to the comic.">
                         <RadzenLabel Text="Picks on" Component="@($"{IdPrefix}-target")" />
                         <RadzenDropDown TValue="string" Name="@($"{IdPrefix}-target")" Data="@MemeMix.Targets.Select(t => new Choice(t.Id, t.Name))" TextProperty="Name" ValueProperty="Id"
                                         Value="@Mix.Target" Change="@(v => Set(Mix with { Target = (string)v }))" Disabled="@(Disabled || RoastOff)" class="mv-mix-wide" />
                     </div>
+                    }
                     @if (Turns)
                     {
                         var mode = MemeMix.TurnModes.FirstOrDefault(t => t.Id == Mix.Turns);
@@ -72,19 +79,28 @@
                                             Value="@Mix.Style" Change="@(v => Set(Mix with { Style = (string)v }))" Disabled="Disabled" class="mv-mix-wide" />
                         </div>
                     }
+                    @if (!Comic)
+                    {
                     @Slider("Chaos", Mix.Chaos, MemeMix.ChaosNames, false, v => Mix with { Chaos = v },
                         "How wild the picture gets: None has no effects, Normal leaves it to the AI, Wild puts effects on most moments, Deep-fried fries the whole video.")
+                    }
                     @Slider("Sound volume", Mix.SoundVolume, MemeMix.VolumeNames, false, v => Mix with { SoundVolume = v },
                         "How loud the meme sounds play. Under a narrator they always stay a little lower than the voice.")
+                    @if (!Comic)
+                    {
                     @Slider("Famous sounds", Mix.Fame, MemeMix.FameNames, false, v => Mix with { Fame = v },
                         "Only the best-known memes (Bruh, Vine boom), or deeper cuts. Famous first is the usual.")
+                    }
                     @Slider("Caption size", Mix.CaptionSize, MemeMix.CaptionSizeNames, false, v => Mix with { CaptionSize = v },
                         "How big the meme text is drawn.")
+                    @if (!Comic)
+                    {
                     <div class="mv-mix-row" title="Put every meme caption at the top of the picture, out of the way of faces and subtitles.">
                         <RadzenLabel Text="Captions on top" Component="@($"{IdPrefix}-top")" />
                         <RadzenSwitch Name="@($"{IdPrefix}-top")" Value="@Mix.CaptionsTop" Change="@(v => Set(Mix with { CaptionsTop = v }))" Disabled="Disabled" />
                         <span class="mv-mix-value">@(Mix.CaptionsTop ? "Always top" : "Where it fits")</span>
                     </div>
+                    }
                     <div class="mv-mix-row" title="A studio audience laughing after the jokes: light after every other one, heavy after each.">
                         <RadzenLabel Text="Laugh track" Component="@($"{IdPrefix}-laughs")" />
                         <RadzenSelectBar TValue="int" Name="@($"{IdPrefix}-laughs")" Value="@Mix.Laughs" Change="@(v => Set(Mix with { Laughs = v }))" Size="ButtonSize.ExtraSmall" Disabled="Disabled" class="mv-mix-wide">
@@ -149,7 +165,10 @@
     /// <summary>Show how the roast takes turns with a narrator (only Create Movie has one).</summary>
     [Parameter] public bool Turns { get; set; }
 
-    /// <summary>The narrator's voice and pace; null hides them (only Create Movie narrates).</summary>
+    /// <summary>Comic-ify: hide the settings a comic does not use.</summary>
+    [Parameter] public bool Comic { get; set; }
+
+    /// <summary>The narrator's voice and pace; null hides them (only Create Movie and Comic-ify narrate).</summary>
     [Parameter] public NarratorChoice? Narrator { get; set; }
     [Parameter] public EventCallback<NarratorChoice> NarratorChanged { get; set; }
 

@@ -13,6 +13,7 @@ public static class ComicEndpoints
             ? new NoSpeech()
             : ActivatorUtilities.CreateInstance<AiFoundrySpeech>(s));
         services.AddSingleton<ComicWriter>();
+        services.AddSingleton<ComicSpeakerLocator>();
         services.AddSingleton<ComicStudio>();
         return services;
     }
@@ -28,7 +29,7 @@ public static class ComicEndpoints
 
         group.MapPost("/", async (ComicRequest request, ClaimsPrincipal user, ComicStudio studio, CancellationToken ct) =>
         {
-            var (job, error, status) = await studio.StartAsync(UserId.From(user), request.Conversation ?? "", ct);
+            var (job, error, status) = await studio.StartAsync(UserId.From(user), request, ct);
             return job is not null ? Results.Ok(job) : Results.Problem(detail: error, statusCode: status);
         });
 

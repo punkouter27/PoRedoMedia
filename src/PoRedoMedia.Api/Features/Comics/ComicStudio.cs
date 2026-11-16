@@ -15,6 +15,7 @@ namespace PoRedoMedia.Api.Features.Comics;
 /// </summary>
 public sealed partial class ComicStudio(
     ComicWriter writer,
+    ComicSpeakerLocator locator,
     ISpeechSynthesis speech,
     ISoundAssetRepository sounds,
     ISemanticMatchingService matcher,
@@ -30,11 +31,20 @@ public sealed partial class ComicStudio(
     [LoggerMessage(Level = LogLevel.Error, Message = "Comic for {User} failed")]
     private partial void LogFailed(Exception ex, UserId user);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A comic line in voice {Voice} could not be spoken; it stays silent")]
+    private partial void LogLineSkipped(Exception ex, string voice);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Comic sound {Cue} could not be fetched")]
     private partial void LogSoundSkipped(Exception ex, string cue);
 
     private const int DrawAtOnce = 3, SpeakAtOnce = 4;
     private const double Lead = 0.5, Gap = 0.35, Tail = 0.8, ShortestPanel = 2.8;
+
+    /// <summary>The library's tag for a studio audience laughing.</summary>
+    private const string LaughTag = "laughtrack";
+
+    /// <summary>The shortest sound that may loop under a whole comic as its music; anything shorter repeats noticeably.</summary>
+    private const int MinMusicMs = 10_000;
 
     // ponytail: the jobs and the one-at-a-time gate are in this process only, like the run queue. A restart forgets a
     // comic under way (its quota stays spent) and two instances would each render one at a time.
@@ -53,8 +63,10 @@ public sealed partial class ComicStudio(
     public ComicJobDto? Job(UserId user) => _jobs.TryGetValue(user.Value, out var job) ? job : null;
 
     /// <returns>The job as it starts, or why it cannot and the status to answer with.</returns>
-    public async Task<(ComicJobDto? Job, string? Error, int Status)> StartAsync(UserId user, string conversation, CancellationToken ct)
+    public async Task<(ComicJobDto? Job, string? Error, int Status)> StartAsync(UserId user, ComicRequest request, CancellationToken ct)
     {
+        var conversation = request.Conversation ?? "";
+        var options = ComicOptions.From(request);
         if (images is null)
             return (null, Config().Notice, StatusCodes.Status400BadRequest);
         conversation = conversation.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
@@ -70,7 +82,7 @@ public sealed partial class ComicStudio(
 
         var job = new ComicJobDto("Working", "Waiting for another comic to finish", 0, null, null, null, null, DateTimeOffset.UtcNow);
         _jobs[user.Value] = job;
-        _ = Task.Run(() => RunAsync(user, conversation, images, lifetime.ApplicationStopping), CancellationToken.None);
+        _ = Task.Run(() => RunAsync(user, conversation, options, images, lifetime.ApplicationStopping), CancellationToken.None);
         return (job, null, StatusCodes.Status200OK);
     }
 
@@ -78,7 +90,7 @@ public sealed partial class ComicStudio(
         _jobs.AddOrUpdate(user.Value, _ => new("Working", step, progress, title, null, null, null, DateTimeOffset.UtcNow),
             (_, job) => job with { Step = step, Progress = progress, Title = title ?? job.Title });
 
-    private async Task RunAsync(UserId user, string conversation, IImageGenerationService pictures, CancellationToken ct)
+    private async Task RunAsync(UserId user, string conversation, ComicOptions options, IImageGenerationService pictures, CancellationToken ct)
     {
         var folder = Path.Combine(Path.GetTempPath(), $"poredomedia-comic-{Guid.NewGuid():N}");
         Directory.CreateDirectory(folder);
@@ -87,7 +99,7 @@ public sealed partial class ComicStudio(
             await Gate.WaitAsync(ct);
             try
             {
-                var (strip, video) = await MakeAsync(user, conversation, pictures, folder, ct);
+                var (strip, video) = await MakeAsync(user, conversation, options, pictures, folder, ct);
                 _jobs[user.Value] = Job(user)! with { State = "Done", Step = "Done", Progress = 1, StripId = strip, VideoId = video };
             }
             finally
@@ -114,10 +126,10 @@ public sealed partial class ComicStudio(
         }
     }
 
-    private async Task<(Guid Strip, Guid Video)> MakeAsync(UserId user, string conversation, IImageGenerationService pictures, string folder, CancellationToken ct)
+    private async Task<(Guid Strip, Guid Video)> MakeAsync(UserId user, string conversation, ComicOptions options, IImageGenerationService pictures, string folder, CancellationToken ct)
     {
         Report(user, "Reading the conversation", 0.03);
-        var script = await writer.WriteAsync(conversation, ct);
+        var script = await writer.WriteAsync(conversation, options, ct);
         Report(user, $"Drawing {script.Panels.Count} panels", 0.1, script.Title);
 
         // ---- Panels ----
@@ -131,8 +143,15 @@ public sealed partial class ComicStudio(
                 try
                 {
                     var art = await DrawAsync(pictures, PanelPrompt(script, panel, i), ct);
-                    lettered[i] = ComicLettering.LetterPanel(art, panel);
-                    await File.WriteAllBytesAsync(Path.Combine(folder, $"panel-{i}.png"), lettered[i], ct);
+                    // Where the speakers ended up in the picture, so each bubble points at its own.
+                    var speaking = script.Characters.Where(c => panel.Lines.Any(l => l.Speaker.Equals(c.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+                    var spots = await locator.LocateAsync(art, speaking, ct);
+                    lettered[i] = ComicLettering.LetterPanel(art, panel, textScale: options.TextScale, spots: spots);
+                    // The video's stills: the bare picture, then one more bubble at a time; the last is the full panel.
+                    var parts = ComicLettering.Parts(panel);
+                    for (var shown = 0; shown < parts; shown++)
+                        await File.WriteAllBytesAsync(Still(folder, i, shown), ComicLettering.LetterPanel(art, panel, shown, options.TextScale, spots), ct);
+                    await File.WriteAllBytesAsync(Still(folder, i, parts), lettered[i], ct);
                     var done = Interlocked.Increment(ref drawn);
                     Report(user, $"Drew panel {done} of {script.Panels.Count}", 0.1 + 0.5 * done / script.Panels.Count);
                 }
@@ -146,11 +165,11 @@ public sealed partial class ComicStudio(
 
         // ---- Voices ----
         Report(user, speech.IsConfigured ? "Recording the voices" : "Timing the lines", 0.62);
-        var spoken = await VoiceAsync(script, folder, ct);
+        var spoken = await VoiceAsync(script, options, folder, ct);
 
         // ---- Sounds and music ----
         Report(user, "Picking sounds and music", 0.75);
-        var (cues, music) = await SoundsAsync(user, script, folder, ct);
+        var (cues, laughs, applause, music) = await SoundsAsync(user, script, folder, ct);
 
         // ---- The video ----
         var clips = new List<string>();
@@ -159,10 +178,16 @@ public sealed partial class ComicStudio(
         {
             Report(user, $"Rendering panel {i + 1} of {script.Panels.Count}", 0.78 + 0.14 * i / script.Panels.Count);
             var wav = Path.Combine(folder, $"panel-{i}.wav");
-            await FfmpegAsync(FFmpegArgs.ComicPanelAudioArgs(spoken[i], cues[i], Lead, Gap, Tail, wav), ct);
+            await FfmpegAsync(FFmpegArgs.ComicPanelAudioArgs(spoken[i], cues[i], laughs[i], Lead, Gap, Tail, wav, options.SoundGain, applause[i]), ct);
             var seconds = Math.Max(ShortestPanel, await ffmpeg.DurationSecondsAsync(wav, ct));
+            var parts = ComicLettering.Parts(script.Panels[i]);
+            var partSeconds = new List<double>();
+            foreach (var file in spoken[i].Take(parts))
+                partSeconds.Add(await ffmpeg.DurationSecondsAsync(file, ct));
+            var holds = FFmpegArgs.ComicStillSeconds(partSeconds, Lead, Gap, seconds);
             var clip = Path.Combine(folder, $"clip-{i}.mp4");
-            await FfmpegAsync(FFmpegArgs.ComicPanelVideoArgs(Path.Combine(folder, $"panel-{i}.png"), wav, seconds, clip), ct);
+            var stills = holds.Select((hold, shown) => (Still(folder, i, parts == 0 ? 0 : shown), hold)).ToList();
+            await FfmpegAsync(FFmpegArgs.ComicPanelVideoArgs(stills, wav, clip), ct);
             clips.Add(clip);
             total += seconds;
         }
@@ -196,6 +221,8 @@ public sealed partial class ComicStudio(
         await media.SaveAsync(videoItem, ct);
         return (stripItem.Id.Value, videoItem.Id.Value);
     }
+
+    private static string Still(string folder, int panel, int shown) => Path.Combine(folder, $"panel-{panel}-{shown}.png");
 
     /// <summary>What the picture model is asked for: the strip's one style, every character's fixed look, and no words.</summary>
     internal static string PanelPrompt(ComicScript script, ComicPanel panel, int index)
@@ -234,24 +261,31 @@ public sealed partial class ComicStudio(
         }
     }
 
-    /// <summary>Each panel's spoken parts as audio files, in order: the caption by the narrator, then the lines.</summary>
-    private async Task<List<string>[]> VoiceAsync(ComicScript script, string folder, CancellationToken ct)
+    /// <summary>One thing said in a panel: the words, the voice, how to say them, and how fast (1 is as recorded).</summary>
+    private sealed record Spoken(string Text, string Voice, string How, double Rate = 1);
+
+    /// <summary>
+    /// Each panel's spoken parts as audio files, in the order they are lettered: the caption by the narrator, the lines,
+    /// then the heckler's wisecrack.
+    /// </summary>
+    private async Task<List<string>[]> VoiceAsync(ComicScript script, ComicOptions options, string folder, CancellationToken ct)
     {
-        var parts = script.Panels.Select((p, i) =>
-            (p.Caption.Length > 0 ? [(Text: p.Caption, Voice: ComicScript.NarratorVoice, How: "A wry, theatrical comic-book narrator, building suspense.")] : Array.Empty<(string Text, string Voice, string How)>())
-            .Concat(p.Lines.Select(l => (l.Text, script.VoiceOf(l.Speaker),
+        var (narratorVoice, narratorHow) = options.NarratorVoice;
+        var parts = script.Panels.Select(p =>
+            (p.Caption.Length > 0 ? [new Spoken(p.Caption, narratorVoice, narratorHow + " You read the caption boxes of a funny comic.", options.Narrator.Rate)] : Array.Empty<Spoken>())
+            .Concat(p.Lines.Select(l => new Spoken(l.Text, script.VoiceOf(l.Speaker, options),
                 $"You are {l.Speaker}, a cartoon character in a funny comic. Say it {(l.Delivery.Length > 0 ? l.Delivery : "naturally, with feeling")}.")))
-            .Select((part, j) => (Panel: i, Index: j, part.Item1, part.Item2, part.Item3))
+            .Concat(p.Heckle.Length > 0 ? [new Spoken(p.Heckle, options.HecklerVoice, options.HecklerDelivery)] : [])
             .ToList()).ToList();
 
         var files = parts.Select(p => new List<string>(new string[p.Count])).ToArray();
         using var speaking = new SemaphoreSlim(SpeakAtOnce);
-        await Task.WhenAll(parts.SelectMany(p => p).Select(async part =>
+        await Task.WhenAll(parts.SelectMany((panel, i) => panel.Select((part, j) => (part, i, j))).Select(async x =>
         {
             await speaking.WaitAsync(ct);
             try
             {
-                files[part.Panel][part.Index] = await SpeakAsync(part.Item3, part.Item4, part.Item5, Path.Combine(folder, $"line-{part.Panel}-{part.Index}"), ct);
+                files[x.i][x.j] = await SpeakAsync(x.part, Path.Combine(folder, $"line-{x.i}-{x.j}"), ct);
             }
             finally
             {
@@ -266,17 +300,34 @@ public sealed partial class ComicStudio(
         return files;
     }
 
-    private async Task<string> SpeakAsync(string text, string voice, string how, string stem, CancellationToken ct)
+    private async Task<string> SpeakAsync(Spoken part, string stem, CancellationToken ct)
     {
         if (speech.IsConfigured)
         {
             var mp3 = stem + ".mp3";
-            await File.WriteAllBytesAsync(mp3, await speech.SpeakAsync(text, voice, how, ct), ct);
-            return mp3;
+            byte[] said;
+            try
+            {
+                said = await speech.SpeakAsync(part.Text, part.Voice, part.How, ct);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // One line the voice service will not say (too rude for its filter, or a hiccup) is shown, not heard,
+                // rather than losing the whole comic.
+                LogLineSkipped(e, part.Voice);
+                return await SilenceAsync(Math.Max(1.2, part.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length / 2.7), stem, ct);
+            }
+            await File.WriteAllBytesAsync(mp3, said, ct);
+            if (Math.Abs(part.Rate - 1) < 0.01)
+                return mp3;
+            // The speech model takes no speed, so the narrator's pace is set after: faster or slower, same pitch.
+            var paced = stem + "-paced.wav";
+            await FfmpegAsync(FFmpegArgs.ComicTempoArgs(mp3, part.Rate, paced), ct);
+            return paced;
         }
         // No voice: as long as the words take to read.
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-        return await SilenceAsync(Math.Max(1.2, words / 2.7), stem, ct);
+        var words = part.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        return await SilenceAsync(Math.Max(1.2, words / 2.7 / part.Rate), stem, ct);
     }
 
     private async Task<string> SilenceAsync(double seconds, string stem, CancellationToken ct)
@@ -286,20 +337,29 @@ public sealed partial class ComicStudio(
         return wav;
     }
 
-    /// <summary>The best library match for each panel's sound cue and for the music mood, fetched; null where none fits.</summary>
-    private async Task<(string?[] Cues, string? Music)> SoundsAsync(UserId user, ComicScript script, string folder, CancellationToken ct)
+    /// <summary>
+    /// The sounds, fetched; null where none fits. Each panel's cue is its best match among the meme sounds (never a laugh
+    /// track); a laugh, from the laugh tracks, goes only to the panels the script marked; the music bed is the best match
+    /// among real music long enough to loop, or none.
+    /// </summary>
+    private async Task<(string?[] Cues, string?[] Laughs, string?[] Applause, string? Music)> SoundsAsync(UserId user, ComicScript script, string folder, CancellationToken ct)
     {
-        var cues = new string?[script.Panels.Count];
         var library = (await sounds.LoadAllAsync(ct)).VisibleTo(user);
-        var queries = script.Panels.Select(p => p.Sound).Append(script.Music).ToList();
-        var matches = matcher.GetTopCandidatesBatch(library, [.. queries.Select(q => q.Length > 0 ? q : "-")], topN: 1);
+        static bool Has(SoundAsset s, string tag) => s.ActionVectorTags.Contains(tag, StringComparer.OrdinalIgnoreCase);
+        var laughTracks = library.Where(s => Has(s, LaughTag)).OrderBy(s => s.Popularity is 0 ? int.MaxValue : s.Popularity).ToList();
+        // Real applause only: the library tags a game-show ding "applause" too, so the name has to say it.
+        var clapping = library.Where(s => !Has(s, LaughTag) && s.DurationMs >= 2_000
+            && (s.DisplayName.Contains("applause", StringComparison.OrdinalIgnoreCase) || s.DisplayName.Contains("clap", StringComparison.OrdinalIgnoreCase))).ToList();
+        var effects = library.Where(s => !Has(s, LaughTag)).ToList();
+        var music = effects.Where(s => s.DurationMs >= MinMusicMs
+            && (Has(s, "music") || Has(s, "song") || s.DisplayName.Contains("music", StringComparison.OrdinalIgnoreCase))).ToList();
 
-        async Task<string?> FetchAsync(int i)
+        var cueMatches = matcher.GetTopCandidatesBatch(effects, [.. script.Panels.Select(p => p.Sound.Length > 0 ? p.Sound : "-")], topN: 1);
+        var musicMatch = script.Music.Length > 0 ? matcher.GetTopCandidatesBatch(music, [script.Music], topN: 1) : [];
+
+        async Task<string?> FetchAsync(SoundAsset sound, string name, string why)
         {
-            if (queries[i].Length == 0 || i >= matches.Count || matches[i].Count == 0)
-                return null;
-            var sound = matches[i][0].Sound;
-            var file = Path.Combine(folder, $"sound-{i}{Path.GetExtension(sound.BlobPath)}");
+            var file = Path.Combine(folder, name + Path.GetExtension(sound.BlobPath));
             try
             {
                 await blobs.DownloadToFileAsync(sound.BlobPath, file, ct);
@@ -307,14 +367,41 @@ public sealed partial class ComicStudio(
             }
             catch (Exception e) when (e is Azure.RequestFailedException or IOException)
             {
-                LogSoundSkipped(e, queries[i]);
+                LogSoundSkipped(e, why);
                 return null;
             }
         }
 
+        var cues = new string?[script.Panels.Count];
+        var laughs = new string?[script.Panels.Count];
+        var applause = new string?[script.Panels.Count];
+        var laughed = 0;
+        var clapped = 0;
+        string? madeApplause = null;
         for (var i = 0; i < cues.Length; i++)
-            cues[i] = await FetchAsync(i);
-        return (cues, await FetchAsync(queries.Count - 1));
+        {
+            if (script.Panels[i].Sound.Length > 0 && i < cueMatches.Count && cueMatches[i].Count > 0)
+                cues[i] = await FetchAsync(cueMatches[i][0].Sound, $"sound-{i}", script.Panels[i].Sound);
+            if (script.Panels[i].Laugh && laughTracks.Count > 0)
+                laughs[i] = await FetchAsync(laughTracks[laughed++ % laughTracks.Count], $"laugh-{i}", "laugh");
+            if (script.Panels[i].Applause)
+            {
+                if (clapping.Count > 0)
+                    applause[i] = await FetchAsync(clapping[clapped++ % clapping.Count], $"applause-{i}", "applause");
+                else
+                {
+                    // None in the library: a crowd clapping, made once and used wherever it is needed.
+                    if (madeApplause is null)
+                    {
+                        madeApplause = Path.Combine(folder, "applause.wav");
+                        await FfmpegAsync(FFmpegArgs.ComicApplauseArgs(FFmpegArgs.ComicLaughSeconds, madeApplause), ct);
+                    }
+                    applause[i] = madeApplause;
+                }
+            }
+        }
+        var bed = musicMatch is [{ Count: > 0 } top] ? await FetchAsync(top[0].Sound, "music", script.Music) : null;
+        return (cues, laughs, applause, bed);
     }
 
     private async Task FfmpegAsync(string args, CancellationToken ct)
