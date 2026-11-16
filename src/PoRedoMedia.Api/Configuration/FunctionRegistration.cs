@@ -40,7 +40,7 @@ public static class FunctionRegistration
 
         // A FLUX picture takes about 10 s, but a rate-limited one waits up to a minute per try.
         services.AddHttpClient(FluxImageService.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(3));
-        services.AddHttpClient(SpokenRoastService.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(90));
+        services.AddHttpClient(AiFoundrySpeech.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(90));
 
         AddVideo(services, configuration, environment);
 

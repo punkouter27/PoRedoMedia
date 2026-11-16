@@ -39,4 +39,7 @@ namespace PoRedoMedia.Shared.Models;
 [JsonSerializable(typeof(MoviePrefsDto))]
 [JsonSerializable(typeof(MovieUploadRequest))]
 [JsonSerializable(typeof(MovieTeasersUpdate))]
+[JsonSerializable(typeof(ComicConfigDto))]
+[JsonSerializable(typeof(ComicRequest))]
+[JsonSerializable(typeof(ComicJobDto))]
 public sealed partial class WireJson : JsonSerializerContext;

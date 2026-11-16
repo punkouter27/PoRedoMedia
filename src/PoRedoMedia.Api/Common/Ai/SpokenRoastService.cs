@@ -8,44 +8,16 @@ namespace PoRedoMedia.Api.Common.Ai;
 /// </summary>
 public sealed class SpokenRoastService(IConfiguration configuration, IHttpClientFactory http) : IMusicGenerationService
 {
-    public const string HttpClientName = "spoken-roast";
+    private readonly AiFoundrySpeech _speech = new(configuration, http);
 
-    /// <summary>The API version that serves <c>audio/speech</c> for gpt-4o-mini-tts with <c>instructions</c>.</summary>
-    private const string SpeechApiVersion = "2025-03-01-preview";
+    public bool IsConfigured => _speech.IsConfigured;
 
-    /// <summary>The speech API's input limit.</summary>
-    private const int MaxInput = 4096;
-
-    public bool IsConfigured => IsAvailable(configuration);
-
-    public static bool IsAvailable(IConfiguration configuration) =>
-        new[] { ConfigKeys.AiFoundryEndpoint, ConfigKeys.AiFoundryKey, ConfigKeys.AiFoundryTtsDeployment }
-            .All(k => !string.IsNullOrWhiteSpace(configuration[k]));
+    public static bool IsAvailable(IConfiguration configuration) => AiFoundrySpeech.IsAvailable(configuration);
 
     public async Task<MusicGenerationResult> GenerateAsync(string lyrics, string stylePrompt, CancellationToken ct = default)
     {
         var start = Stopwatch.GetTimestamp();
-        var endpoint = configuration[ConfigKeys.AiFoundryEndpoint]!.TrimEnd('/');
-        var deployment = configuration[ConfigKeys.AiFoundryTtsDeployment]!;
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"{endpoint}/openai/deployments/{Uri.EscapeDataString(deployment)}/audio/speech?api-version={SpeechApiVersion}")
-        {
-            Content = JsonContent.Create(new
-            {
-                model = deployment,
-                input = lyrics.Length <= MaxInput ? lyrics : lyrics[..MaxInput],
-                voice = "ash",
-                instructions = stylePrompt,
-                response_format = "mp3",
-            }),
-        };
-        request.Headers.Add("api-key", configuration[ConfigKeys.AiFoundryKey]);
-
-        using var response = await http.CreateClient(HttpClientName).SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Spoken roast returned {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync(ct)}");
-
-        var audio = await response.Content.ReadAsByteArrayAsync(ct);
+        var audio = await _speech.SpeakAsync(lyrics, "ash", stylePrompt, ct);
         return new MusicGenerationResult(audio, "audio/mpeg", (long)Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     }
 }

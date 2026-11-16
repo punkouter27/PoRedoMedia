@@ -25,7 +25,7 @@ dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound libr
 ## Architecture
 
 **Projects.** `PoRedoMedia.Movie` is Create Movie's engine, brought over from PoAutoRobo's core (see below).
-`PoRedoMedia.Api` is the ASP.NET Core host and all server logic; it also hosts
+`PoRedoMedia.Api` is the ASP.NET Core host and all server logic (Comic-ify included); it also hosts
 `PoRedoMedia.Client` (Blazor WebAssembly, prerender off, because the client owns the only UI DI container).
 `PoRedoMedia.Shared` holds wire DTOs, enums (`MediaFunction`), `ConfigKeys`, `FunctionStack` rules and catalogs.
 Wire enums travel as strings over both HTTP and SignalR. Shared is `IsAotCompatible` and the client `IsTrimmable` with
@@ -152,6 +152,22 @@ needs `YouTube:ClientId`/`YouTube:ClientSecret` (an OAuth client of the *Web app
 (a folded `MovieTemplateStep` for the channel, `MovieFilmsStep` for the form and the one-go Make, `MovieVideoStep` for
 the open movie's result; the server's `/write` route and clip edits have no UI now), state in `Services/MovieStore`,
 and `wwwroot/js/movie.js` for undo keys. Its advanced controls are the `poredomedia:adv:movie` switch.
+
+**Comic-ify** (`/comic`, `Features/Comics`). A pasted conversation (texts, a chat, an email thread, up to 8,000
+characters) becomes a comic strip and a narrated video of it, both saved to the Library (`Origin` "Comic", the video's
+`ParentId` is the strip). The paste goes in raw (copied texts, email chains with headers, signatures and quoted replies).
+`ComicWriter` asks the `IChatClient` for a `ComicDraft`: it first works out who wrote what and puts the messages in the
+order sent, then acts the exchange out as a story (setup, the talk with its best real lines, a payoff; 3–8 panels, one art style the AI picks, a look and a voice per speaker, a meme-sound cue per panel and a
+music mood); with no chat model, or a reply it cannot use, `ComicScript.Fallback` draws the conversation's own
+"Name: words" lines, or an email chain by its From headers (newest-first chains reversed). `ComicScript.Normalize` cleans up any draft. Panels come from `IImageGenerationService` with no words
+in them, and `ComicLettering` (SkiaSharp, `Common/TextLayout`) draws the caption boxes and speech bubbles, then the
+strip. Every line is voiced through `ISpeechSynthesis` (`AiFoundrySpeech`, the same gpt-4o-mini-tts call the spoken
+roast uses; the narrator reads the captions); with no voice the panels are timed silently. Sounds and the music bed are
+the best `ISemanticMatchingService` match from the sound library, and `FFmpegArgs.Comic*` renders each panel as a
+slow push-in, joins them and levels to -16 LUFS. `ComicStudio` runs one comic at a time per process, one job per user
+(`GET /api/comics/job`, polled by the page); `POST /api/comics` costs one run of the daily quota, refunded on failure.
+Comic-ify is offered only when a picture service is configured (`GET /api/comics/config`). The page links each result
+to its Library drawer (`gallery?item=`) for download, GIF, social sizes and sharing, which work on any Library video.
 
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,

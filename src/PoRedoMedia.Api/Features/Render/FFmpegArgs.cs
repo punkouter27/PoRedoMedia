@@ -9,7 +9,7 @@ namespace PoRedoMedia.Api.Features.Render;
 /// string building in the render path, so it is kept apart from the process and queue plumbing
 /// and unit-tested directly.
 /// </summary>
-internal static class FFmpegArgs
+internal static partial class FFmpegArgs
 {
     /// <summary>The meme captions' usual font size (<see cref="MemeMix.CaptionFontSizes"/> has the others).</summary>
     internal const int CaptionFontSize = 36;

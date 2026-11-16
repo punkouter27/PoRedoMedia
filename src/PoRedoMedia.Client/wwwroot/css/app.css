@@ -384,10 +384,10 @@ html.po-fx-fluid #po-backdrop {
         color: var(--rz-text-color);
     }
 
-    /* One column per tab: Create, Create Movie, Library and Runs. */
+    /* One column per tab: Create, Create Movie, Comic-ify, Library and Runs. */
     .shell-tabs {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
     }
 
     .shell-tabs a,

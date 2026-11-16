@@ -1,0 +1,162 @@
+@page "/comic"
+@* Comic-ify: paste a conversation (texts, a chat, an email thread) and get it back as a comic strip and a narrated
+   video of it. The work happens on the server (Features/Comics); this page starts it and asks how it is going every
+   two seconds until it ends. Both results land in the Library. *@
+@implements IDisposable
+@inject ComicApi Api
+
+<PageTitle>Comic-ify · PoRedoMedia</PageTitle>
+
+<PageBoundary>
+<div class="comic-page">
+    <header class="comic-head">
+        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">Comic-ify</RadzenText>
+        <span class="comic-meta">Paste a text thread or an email chain, just as you copied it. The AI works out who is who and acts it out as a comic strip, and as a video with a voice for everyone, sounds and music.</span>
+    </header>
+
+    @if (_config is null)
+    {
+        <div class="po-skeleton comic-skeleton" role="status" aria-label="Loading"></div>
+    }
+    else
+    {
+        @if (_config.Notice is { } notice)
+        {
+            <div class="comic-notice" role="note"><RadzenIcon Icon="info" aria-hidden="true" /> @notice</div>
+        }
+
+        <RadzenCard class="comic-compose po-glass">
+            <label for="comic-text" class="comic-label">The conversation</label>
+            <textarea id="comic-text" class="comic-text rz-textbox" rows="12" maxlength="@ComicRequest.MaxLength"
+                      placeholder="@Example" @bind="_text" @bind:event="oninput" disabled="@Busy"></textarea>
+            <div class="comic-row">
+                <span class="comic-count @(_text.Length > ComicRequest.MaxLength * 0.9 ? "comic-count-high" : null)">@_text.Length.ToString("N0") / @ComicRequest.MaxLength.ToString("N0")</span>
+                <span class="comic-grow"></span>
+                @if (_text.Length == 0)
+                {
+                    <RadzenButton Text="Try the example" Variant="Variant.Text" Click="@(() => _text = Example)" disabled="@Busy" />
+                }
+                <RadzenButton Text="Make comic" Icon="auto_stories" ButtonStyle="ButtonStyle.Primary" Click="MakeAsync"
+                              Disabled="@(Busy || !_config.Available || _text.Trim().Length < ComicRequest.MinLength)"
+                              title="Uses one of today's runs. A comic takes a minute or two." />
+            </div>
+            <span class="comic-hint">No need to tidy it up: timestamps, headers, signatures and quoted replies are fine. The story keeps what happened and the best lines, and plays the rest for laughs. It uses one of today's runs.</span>
+        </RadzenCard>
+
+        @if (_error is { } error)
+        {
+            <div class="comic-error" role="alert"><RadzenIcon Icon="error" aria-hidden="true" /> @error</div>
+        }
+
+        @if (_job is { Working: true } working)
+        {
+            <RadzenCard class="comic-progress po-glass" aria-live="polite">
+                <strong>@(working.Title ?? "Your comic")</strong>
+                <RadzenProgressBar Value="@(working.Progress * 100)" ShowValue="false" aria-label="Progress" />
+                <span class="comic-meta">@working.Step…</span>
+            </RadzenCard>
+        }
+        else if (_job is { State: "Done", StripId: { } strip, VideoId: { } video } done)
+        {
+            <section class="comic-result po-pop" aria-label="Your comic">
+                <div class="comic-row">
+                    <h2 class="comic-title">@done.Title</h2>
+                    <span class="comic-grow"></span>
+                </div>
+                <div class="comic-row">
+                    @* The Library's drawer has everything else a result can do: download, GIF, social sizes, share, remix. *@
+                    <LinkButton Href="@($"gallery?item={video}")" Icon="movie" Text="Video: download, GIF, social sizes, share" />
+                    <LinkButton Href="@($"gallery?item={strip}")" Icon="image" Text="Strip: download, share" Filled="false" />
+                </div>
+                <img class="comic-strip" src="@($"api/media/{strip}/content")" alt="The comic strip: @done.Title" />
+                <video class="comic-video" src="@($"api/media/{video}/content")" controls playsinline preload="metadata"></video>
+            </section>
+        }
+    }
+</div>
+</PageBoundary>
+
+@code {
+    private const string Example =
+        "Maya: did you take my leftovers from the fridge\n"
+        + "Sam: define \"take\"\n"
+        + "Maya: SAM\n"
+        + "Sam: in my defense they were labeled \"do not eat\" which felt like a challenge\n"
+        + "Maya: it was pad thai. from THE place\n"
+        + "Sam: I know. it was incredible. I'm buying you two";
+
+    private ComicConfigDto? _config;
+    private ComicJobDto? _job;
+    private string _text = "";
+    private string? _error;
+    private bool _starting;
+    private CancellationTokenSource? _polling;
+
+    private bool Busy => _starting || _job is { Working: true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _config = await Api.ConfigAsync();
+        _job = await Api.JobAsync();
+        if (_job is { Working: true })
+            Poll();
+    }
+
+    private async Task MakeAsync()
+    {
+        _starting = true;
+        _error = null;
+        try
+        {
+            var (job, error) = await Api.StartAsync(_text);
+            _job = job ?? _job;
+            _error = error;
+            if (job is not null)
+                Poll();
+        }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    /// <summary>Asks how the comic is going every two seconds until it ends or the page closes.</summary>
+    private void Poll()
+    {
+        _polling?.Cancel();
+        _polling?.Dispose();
+        _polling = new CancellationTokenSource();
+        var stop = _polling.Token;
+        _ = InvokeAsync(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+            try
+            {
+                while (await timer.WaitForNextTickAsync(stop))
+                {
+                    _job = await Api.JobAsync();
+                    if (_job is { State: "Failed" })
+                        _error = _job.Error;
+                    StateHasChanged();
+                    if (_job is not { Working: true })
+                        break;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // The page closed.
+            }
+            catch (HttpRequestException)
+            {
+                _error = "Lost touch with the server. Reload the page to see how the comic is going.";
+                StateHasChanged();
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        _polling?.Cancel();
+        _polling?.Dispose();
+    }
+}

@@ -1,4 +1,4 @@
-@* The three places to go: Create, Create Movie, and the Library. Drawn twice by the
+@* The places to go: Create, Create Movie, Comic-ify, and the Library. Drawn twice by the
    layout, in the header on wide screens and as a tab bar at the bottom on phones. *@
 @implements IDisposable
 @inject NavigationManager Navigation
@@ -9,6 +9,9 @@
     </a>
     <a href="movie" class="@(Section == "movie" ? "active" : null)" aria-current="@(Section == "movie" ? "page" : null)">
         <RadzenIcon Icon="movie" aria-hidden="true" /><span>Create Movie</span>
+    </a>
+    <a href="comic" class="@(Section == "comic" ? "active" : null)" aria-current="@(Section == "comic" ? "page" : null)">
+        <RadzenIcon Icon="auto_stories" aria-hidden="true" /><span>Comic-ify</span>
     </a>
     <a href="gallery" class="@(InLibrary ? "active" : null)" aria-current="@(InLibrary ? "page" : null)">
         <RadzenIcon Icon="photo_library" aria-hidden="true" /><span>Library</span>
@@ -27,8 +30,8 @@
 
     private bool InLibrary => LibraryPaths.Contains(First);
 
-    /// <summary>Which of the three the page in view belongs to: "movie", "library", or "" for Create and everything else.</summary>
-    private string Section => InLibrary ? "library" : First == "movie" ? "movie" : "";
+    /// <summary>Which section the page in view belongs to: "movie", "comic", "library", or "" for Create and everything else.</summary>
+    private string Section => InLibrary ? "library" : First is "movie" or "comic" ? First : "";
 
     protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
 
