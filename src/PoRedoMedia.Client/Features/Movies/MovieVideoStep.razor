@@ -1,5 +1,6 @@
-@* Step 4, Video: render the finished video, with its chapters, thumbnail and upload details, put
-   it in the Library or send it to YouTube; and the short upright teasers cut from it. *@
+@* The open movie's result: the finished video (render it again after changing the roast), with its
+   chapters, thumbnail and upload details, put it in the Library or send it to YouTube; and the short
+   upright teasers cut from it. *@
 @implements IAsyncDisposable
 @inject MovieStore Store
 @inject MovieApi Api
@@ -100,9 +101,10 @@ var publish = movie.Publish;
         @if (config.Memes)
         {
             <MovieRoastOptions Voices="config.RoastVoices" Voice="@movie.RoastVoice" VoiceChanged="@(v => Store.EditAsync(new MovieEdit("roastVoice", Text: v)))"
-                               Crude="@movie.CrudeRoast" CrudeChanged="@(on => Store.EditAsync(new MovieEdit("crudeRoast", Flag: on)))" Disabled="Store.IsWorking" IdPrefix="mv-video-roast" />
+                               Mix="@(MemeMix.Parse(movie.Mix) ?? MemeMix.FromCrude(movie.CrudeRoast))" MixChanged="@(mix => Store.EditAsync(new MovieEdit("memeMix", Text: mix.Encode())))" Defaults="@MemeMix.For(movie.Show)"
+                               Narrator="@NarratorChoice.Parse(movie.Narrator)" NarratorChanged="@(n => Store.EditAsync(new MovieEdit("narrator", Text: n.Encode())))" Disabled="Store.IsWorking" IdPrefix="mv-video-roast" />
         }
-        <RadzenButton Text="Render finished video" Icon="movie" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
+        <RadzenButton Text="@(publish.MasterUrl is null ? "Render finished video" : "Render again")" Icon="movie" Variant="@(publish.MasterUrl is null ? Variant.Filled : Variant.Outlined)" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
                       title="@($"Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description, and put it in your Library.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
         @if (publish.MasterUrl is { } master)
         {

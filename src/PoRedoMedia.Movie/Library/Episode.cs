@@ -77,6 +77,20 @@ public sealed record Clip(
 
     /// <summary>The user switched Meme-ify off for this clip: its film plays in the movie as it is. Clips are meme-ified unless this is set.</summary>
     public bool NoMemes { get; init; }
+
+    /// <summary>
+    /// The narrator chosen for the movie, as "style@rate" (e.g. "deadpan@1.08"); null is the usual narrator at the usual
+    /// pace. The rate multiplies <see cref="NarrationRate"/>.
+    /// </summary>
+    public string? Narrator { get; init; }
+
+    /// <summary>The narrator's style, or null for the usual one.</summary>
+    public string? NarratorStyle => Narrator?.Split('@')[0] is { Length: > 0 } style && style != "warm" ? style : null;
+
+    /// <summary>The speaking rate the narrator asks for, 1 when none; kept to a natural range.</summary>
+    public double NarratorPace =>
+        Narrator?.Split('@') is [_, var rate] && double.TryParse(rate, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r)
+            ? Math.Clamp(r, 0.8, 1.25) : 1.0;
 }
 
 /// <summary>
@@ -99,7 +113,8 @@ public sealed record Episode(
     MixPercentages? Mix = null,
     IReadOnlyList<Shot>? Shots = null,
     string? RoastVoice = null,
-    bool CrudeRoast = false)
+    bool CrudeRoast = false,
+    string? MemeLevels = null)
 {
     public CaptionStyle Captions { get; init; } = Captions ?? new();
 

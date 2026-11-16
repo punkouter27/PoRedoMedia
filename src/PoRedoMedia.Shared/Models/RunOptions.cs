@@ -70,6 +70,12 @@ public static class RunOptions
     /// <summary>"1" when the video stars a child to be called "it" (a Kids' movie clip): meme text uses no gendered word for it.</summary>
     public const string VideoChildIsIt = "Video.childIsIt";
 
+    /// <summary>
+    /// The <see cref="MemeMix"/> as five digits: roast meanness, swearing and lines, meme sounds and pictures. Absent = the
+    /// mix <see cref="VideoRoastCrude"/> stands for.
+    /// </summary>
+    public const string VideoMix = "Video.mix";
+
     /// <summary>One style prompt for Bulk styles, index 0 to 9. None sent = the user's saved set.</summary>
     public static string BulkPrompt(int index) => $"BulkStyles.prompt{index}";
 }

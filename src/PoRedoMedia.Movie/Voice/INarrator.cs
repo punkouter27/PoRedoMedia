@@ -28,5 +28,6 @@ public sealed record Narration(string AudioPath, TimeSpan Duration, IReadOnlyLis
 public interface INarrator
 {
     /// <param name="rate">Speaking rate multiplier; 1.0 is the voice's normal pace.</param>
-    Task<Narration> SynthesizeAsync(string text, string outputPath, double rate, CancellationToken ct);
+    /// <param name="style">Which narrator speaks, and how (a style the host knows, such as "deadpan"); null is the usual one.</param>
+    Task<Narration> SynthesizeAsync(string text, string outputPath, double rate, CancellationToken ct, string? style = null);
 }

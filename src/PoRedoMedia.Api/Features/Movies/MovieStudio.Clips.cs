@@ -38,6 +38,8 @@ public sealed partial class MovieStudio
                 "memes" => Edit(open, e => EpisodeEditor.SetMemes(e, Clip(), edit.Flag != false)),
                 "roastVoice" => NormalizeRoastVoice(edit.Text) is { } voice ? Edit(open, e => EpisodeEditor.SetRoastVoice(e, voice)) : "That roast voice is not known.",
                 "crudeRoast" => Edit(open, e => EpisodeEditor.SetCrudeRoast(e, edit.Flag == true)),
+                "narrator" => Edit(open, e => e with { Clips = [.. e.Clips.Select(c => c with { Narrator = NarratorChoice.Parse(edit.Text) is var n && n != NarratorChoice.Default ? n.Encode() : null })] }),
+                "memeMix" => MemeMix.Parse(edit.Text) is { } mix ? Edit(open, e => EpisodeEditor.SetMemeLevels(e, mix.Encode())) : "Those meme levels are not known.",
                 "seriesLook" => UseSeriesLook(open),
                 _ => "That change is not known.",
             };

@@ -16,7 +16,7 @@ namespace PoRedoMedia.Api.Features.Movies;
 public sealed partial class MovieStudio
 {
     /// <summary>Names a meme-ified clip on disk. Change it when what Meme-ify is asked for changes, so clips are made again.</summary>
-    private const string MemeVersion = "meme 5"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"
+    private const string MemeVersion = "meme 9"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"; 6: the roast never talks over the narrator; 7: kids' roast and captions are meaner and sarcastic; 8: the meme mix levels; 9: jokes with no pause go after the narration, unused room is cut
 
     private bool CanMeme => memes?.Handles.Contains(MediaFunction.Memeify) == true;
 
@@ -45,25 +45,30 @@ public sealed partial class MovieStudio
     /// Over a clip the narrator speaks, a spoken roast heckles in the narrator's pauses.
     /// </summary>
     internal static (MediaFunction[] Functions, Dictionary<string, string> Options) MemeRun(
-        Show show, IReadOnlySet<MediaFunction> available, bool narrated, string? roastVoice = null, bool crudeRoast = false)
+        Show show, IReadOnlySet<MediaFunction> available, bool narrated, string? roastVoice = null, MemeMix? mix = null)
     {
         var voice = NormalizeRoastVoice(roastVoice);
-        var wantRoast = voice is not null ? voice != "Off" : show != Show.Kids;
+        mix ??= MemeMix.Default;
+        var wantRoast = voice != "Off" && mix.Jokes > 0;
         var roast = wantRoast && available.Contains(MediaFunction.VideoRoast);
         var options = new Dictionary<string, string>();
+        // The style chosen wins; on "auto" a kids' clip is a sitcom and the rest go as Meme-ify's usual.
+        if (mix.Style != "auto")
+            options[RunOptions.VideoPersona] = mix.Style;
         if (show == Show.Kids)
         {
-            options[RunOptions.VideoPersona] = "sitcom";
+            options.TryAdd(RunOptions.VideoPersona, "sitcom");
             options[RunOptions.VideoChildIsIt] = "1"; // the owner wants the child called "it", in the meme text too
         }
         // The movie burns its own captions along the bottom afterwards, so the meme text goes elsewhere.
         options[RunOptions.VideoKeepBottomClear] = "1";
+        options[RunOptions.VideoMix] = mix.Encode();
         // Over a narrator, the narrator stays on top: the meme sounds come in under the voice-over.
         if (narrated) options[RunOptions.VideoVoiceFirst] = "1";
         if (roast)
         {
             if (voice is not null) options[RunOptions.VideoRoastVoice] = voice;
-            options[RunOptions.VideoRoastCrude] = crudeRoast ? "1" : "0";
+            options[RunOptions.VideoRoastCrude] = mix.Crude ? "1" : "0";
             if (narrated) options[RunOptions.VideoRoastNarrated] = "1";
         }
         return (roast ? [MediaFunction.Memeify, MediaFunction.VideoRoast] : [MediaFunction.Memeify], options);
@@ -87,9 +92,12 @@ public sealed partial class MovieStudio
         var file = new FileInfo(film);
         var show = BeatPlan.ShowOf(open.Episode.Structure);
         var key = Files.TextHash(FormattableString.Invariant(
-            $"{MemeVersion}|{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|{clip.OwnSound}|{clip.NarrationRate:0.###}|{clip.Active.Dialogue}|{show}|{open.Episode.RoastVoice}|{open.Episode.CrudeRoast}"))[..20];
+            $"{MemeVersion}|{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|{clip.OwnSound}|{clip.NarrationRate:0.###}|{clip.Active.Dialogue}|{clip.Narrator}|{show}|{open.Episode.RoastVoice}|{MixOf(open.Episode).Encode()}"))[..20];
         return Path.Combine(open.Folder, "memes", $"{clip.Id:N}-{key}.mp4");
     }
+
+    /// <summary>The episode's meme mix; a movie saved before there were levels keeps what its crude switch meant.</summary>
+    internal static MemeMix MixOf(Episode episode) => MemeMix.Parse(episode.MemeLevels) ?? MemeMix.FromCrude(episode.CrudeRoast);
 
     private static bool Memed(OpenMovie open, Clip clip) => MemePath(open, clip) is { } path && File.Exists(path);
 
@@ -123,7 +131,7 @@ public sealed partial class MovieStudio
         var show = BeatPlan.ShowOf(open.Episode.Structure);
         var dollars = count * MemePrice;
         var what = Roasts(show, open.Episode.RoastVoice)
-            ? $"meme sounds, stickers, text and effects, and a {(open.Episode.CrudeRoast ? "crude " : "")}{(string.Equals(open.Episode.RoastVoice, MediaRoast.Rap, StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}"
+            ? $"meme sounds, stickers, text and effects, and a {(MixOf(open.Episode).Crude ? "crude " : "")}{(string.Equals(open.Episode.RoastVoice, MediaRoast.Rap, StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}"
             : "meme sounds, stickers, text and effects (roast off)";
         return new($"First, {Count(count, "film and AI video clip")} {(count == 1 ? "goes" : "go")} through Meme-ify: an AI watches each and adds {what}, about {SpendLog.Money(dollars)}. Clips already done are reused at no cost. Then the movie is rendered and put in your Library.",
             dollars, false, OverBudget(dollars));
@@ -168,6 +176,14 @@ public sealed partial class MovieStudio
         // The clip as it plays: its picture for as long as its sound runs, with the voice-over and the film''s own sound.
         var narration = await engine.Builder.NarrateClipAsync(clip, open.Folder, ct);
         var voiced = Files.NewScratchFile(".mp4");
+        var mix = MixOf(open.Episode);
+        var narrated = !clip.OwnSound && clip.Active.Dialogue.Trim().Length > 0;
+        var (functions, options) = MemeRun(show, memes!.Handles, narrated, open.Episode.RoastVoice, mix);
+        // "Make room": a narrated clip with a spoken roast holds its last frame a little, so the roast gets its turn
+        // after the narrator, within the one-minute clip limit.
+        var hold = narrated && mix.Turns == "room" && functions.Contains(MediaFunction.VideoRoast)
+            ? Math.Clamp(Durations.MaxClip.TotalSeconds - 0.5 - narration.Duration.TotalSeconds, 0, MemeMix.RoomSeconds)
+            : 0;
         var source = new MediaItem
         {
             Owner = user,
@@ -178,20 +194,19 @@ public sealed partial class MovieStudio
             Title = clip.Title,
             ContentType = "video/mp4",
             Extension = ".mp4",
-            DurationSeconds = narration.Duration.TotalSeconds,
+            DurationSeconds = narration.Duration.TotalSeconds + hold,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         MediaItem? made = null;
         var tally = AiMeter.Begin();
         try
         {
-            await engine.Runner.RunAsync(VoicedClip(film, clip.Visual.Kind == VisualKind.AiVideo, narration, voiced), Path.GetDirectoryName(voiced)!, narration.Duration, null, ct);
+            await engine.Runner.RunAsync(VoicedClip(film, clip.Visual.Kind == VisualKind.AiVideo, narration, voiced, hold), Path.GetDirectoryName(voiced)!, narration.Duration + TimeSpan.FromSeconds(hold), null, ct);
             await blobs.UploadFileAsync(source.SourcePath, voiced, source.ContentType, ct);
             // What is said in it is known already, so Meme-ify is told and does not pay to hear it again.
             if (Known(clip, film, narration) is { Count: > 0 } speech)
                 await blobs.UploadAsync(MediaAnalysisPaths.SourceSpeech(source.Id.Value), JsonSerializer.SerializeToUtf8Bytes(speech, WebJson), "application/json", ct);
 
-            var (functions, options) = MemeRun(show, memes!.Handles, narrated: !clip.OwnSound && clip.Active.Dialogue.Trim().Length > 0, open.Episode.RoastVoice, open.Episode.CrudeRoast);
             var run = new Run { Owner = user, Id = RunId.New(), SourceId = source.Id, Functions = functions, Options = options, Status = RunStatus.Running, CreatedAt = DateTimeOffset.UtcNow };
             var context = new RunContext(run, source,
                 (item, _) => { made = item; return Task.CompletedTask; },
@@ -271,14 +286,18 @@ public sealed partial class MovieStudio
     /// The clip''s picture for exactly as long as its sound: an AI video repeated, a film held on its last frame, at no
     /// more than 1280 wide (Meme-ify''s own size) and 30 frames a second.
     /// </summary>
-    internal static IReadOnlyList<string> VoicedClip(string film, bool loop, Narration narration, string output)
+    /// <param name="holdSeconds">How long the picture holds, in silence, after the voice-over ends: room for the roast to have its turn.</param>
+    internal static IReadOnlyList<string> VoicedClip(string film, bool loop, Narration narration, string output, double holdSeconds = 0)
     {
-        var seconds = narration.Duration.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture);
+        var seconds = (narration.Duration.TotalSeconds + holdSeconds).ToString("0.###", CultureInfo.InvariantCulture);
+        // Held, the voice-over is padded with silence to the end, so sound and picture stay the same length.
+        string[] audio = holdSeconds > 0 ? ["-map", "[a]"] : ["-map", "1:a"];
+        var pad = holdSeconds > 0 ? ";[1:a]apad[a]" : "";
         return
         [
             "-y", .. loop ? new[] { "-stream_loop", "-1" } : [], "-i", film, "-i", narration.AudioPath,
-            "-filter_complex", $"[0:v]scale='trunc(min(1280,iw)/2)*2':-2,setsar=1,fps=30,tpad=stop_mode=clone:stop_duration={seconds}[v]",
-            "-map", "[v]", "-map", "1:a", "-t", seconds,
+            "-filter_complex", $"[0:v]scale='trunc(min(1280,iw)/2)*2':-2,setsar=1,fps=30,tpad=stop_mode=clone:stop_duration={seconds}[v]{pad}",
+            "-map", "[v]", .. audio, "-t", seconds,
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", output,
         ];
     }

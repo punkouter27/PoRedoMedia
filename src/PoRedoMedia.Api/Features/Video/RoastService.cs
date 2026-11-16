@@ -53,11 +53,33 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         {"type":"object","properties":{"jokes":{"type":"array","items":{"type":"object","properties":{"moment":{"type":"integer"},"text":{"type":"string"},"alternative":{"type":"string"}},"required":["moment","text","alternative"],"additionalProperties":false}}},"required":["jokes"],"additionalProperties":false}
         """;
 
-    private const string SystemPrompt = """
-        You are a savage stand-up comedian doing a roast of a video clip. You get a timeline of its moments: what the camera saw and what was said.
-        Write short insult jokes, each aimed at ONE moment, to be spoken over the video at that moment.
+    /// <summary>How mean the jokes are, by <see cref="MemeMix.Meanness"/>.</summary>
+    private static readonly string[] MeannessStyle =
+    [
+        "gentle, good-natured teasing: friendly ribbing that nobody would mind. Specific beats generic: name what is actually happening in that moment and poke fun at it.",
+        "cheeky, playful teasing with a wink. Specific beats generic: name what is actually happening in that moment and tease it.",
+        "biting, witty and sarcastic: a comedy-club roast. Specific beats generic: name what is actually happening in that moment and tease it.",
+        "savage and cutting: every joke is a real insult. Specific beats generic: name what is actually happening in that moment and tear it apart.",
+        "brutal and merciless, dripping with sarcasm: deadpan fake praise that is really an insult (Wow, truly groundbreaking work there), eye-rolling disbelief. Every joke must sting; a gentle or wholesome joke is a failure. Name what is actually happening in that moment and tear it apart.",
+    ];
 
-        Style: brutal, vulgar and profane. This is an adult roast: every joke swears (fuck, shit, ass, damn, hell) and a tame joke is a failure. Specific beats generic: name what is actually happening in that moment and tear it apart.
+    /// <summary>How much the jokes swear, by <see cref="MemeMix.Swearing"/>.</summary>
+    private static readonly string[] SwearingStyle =
+    [
+        "Language: without any swearing, vulgarity or profanity.",
+        "Language: mild words only (damn, hell, crap), now and then; nothing stronger.",
+        "Language: some swearing (shit, ass, damn, hell, the odd fuck) where it lands a punchline.",
+        "Language: swear freely; most jokes curse (fuck, shit, ass, damn, hell).",
+        "Language: vulgar and profane. This is an adult roast: every joke swears (fuck, shit, ass, damn, hell) and a clean joke is a failure.",
+    ];
+
+    /// <summary>The roast brief for a mix: its meanness and swearing, then the rules that hold at every level.</summary>
+    internal static string PromptFor(MemeMix mix) => $$"""
+        You are a stand-up comedian doing a roast of a video clip. You get a timeline of its moments: what the camera saw and what was said.
+        Write short roast jokes, each aimed at ONE moment, to be spoken over the video at that moment.
+
+        Style: {{MeannessStyle[mix.Meanness]}}
+        {{SwearingStyle[mix.Swearing]}}
         Target: what people DO in the clip — their choices, their skill, their timing, their taste, the situation they got themselves into.
         Never: slurs; jokes about race, ethnicity, religion, gender, sexuality, disability or body size; sexual remarks about a person; threats or wishing harm. If a moment shows a child, roast the situation or the adults, not the child.
 
@@ -67,23 +89,23 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         Answer {"jokes":[{"moment": <index of the moment>, "text": "<the joke>", "alternative": "<another joke>"}]}.
         """;
 
-    private const string CleanSystemPrompt = """
-        You are a sharp stand-up comedian doing a cheeky roast of a video clip. You get a timeline of its moments: what the camera saw and what was said.
-        Write short roast jokes, each aimed at ONE moment, to be spoken over the video at that moment.
+    internal static string PromptFor(bool crude) => PromptFor(MemeMix.FromCrude(crude));
 
-        Style: biting, witty and sarcastic — playful comedy-club roast without any swearing, vulgarity or profanity. Specific beats generic: name what is actually happening in that moment and tease it.
-        Target: what people DO in the clip — their choices, their skill, their timing, their taste, the situation they got themselves into.
-        Never: profanity or vulgar words; slurs; jokes about race, ethnicity, religion, gender, sexuality, disability or body size; sexual remarks about a person; threats or wishing harm. If a moment shows a child, roast the situation or the adults, not the child.
+    internal static string RubricFor(MemeMix mix) => mix.Swearing switch
+    {
+        0 => CleanJokeRubric,
+        >= 3 => JokeRubric,
+        _ => SomeSwearingRubric,
+    };
 
-        Each joke: one or two sentences, at most 14 words, written to be said aloud. No emoji, no hashtags, no stage directions, no quotation marks.
-        Spread the jokes across the clip, in time order, at most one per moment. Skip moments with nothing to mock.
-        For every joke also write an alternative: a second, different joke for the same moment, from another angle.
-        Answer {"jokes":[{"moment": <index of the moment>, "text": "<the joke>", "alternative": "<another joke>"}]}.
-        """;
+    internal static string RubricFor(bool crude) => RubricFor(MemeMix.FromCrude(crude));
 
-    internal static string PromptFor(bool crude) => crude ? SystemPrompt : CleanSystemPrompt;
+    /// <summary>Seconds of clip per roast line, by <see cref="MemeMix.Jokes"/> (0 is no roast); a spoken joke runs about seven.</summary>
+    private static readonly double[] SecondsPerJoke = [double.PositiveInfinity, 16, 11, 7, 5];
 
-    internal static string RubricFor(bool crude) => crude ? JokeRubric : CleanJokeRubric;
+    /// <summary>The most roast lines a clip gets, by <see cref="MemeMix.Jokes"/>.</summary>
+    internal static int MaxJokesFor(MemeMix mix, double durationSeconds)
+        => mix.Jokes == 0 ? 0 : Math.Clamp((int)(durationSeconds / SecondsPerJoke[mix.Jokes]), 1, mix.Jokes == MemeMix.Max ? MaxJokes + 3 : MaxJokes);
 
     /// <summary>
     /// For a clip a narrator speaks over (a Create Movie clip): the roast is a heckler answering the narrator, not a
@@ -91,6 +113,23 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
     /// </summary>
     internal const string NarratorBrief =
         "The lines marked said: are a narrator's voice-over, telling the story of the clip. Play off the narrator like a heckler in the front row: answer, contradict or one-up what they just said, or mock how they put it. At least half of the jokes answer a said: line, aimed at that line's moment. Each joke is spoken in the pause right after the line it answers.\n";
+
+    /// <summary>
+    /// For a kids' video (Create Movie's Kids series): the owner wants the heckler meaner and drier than the default
+    /// roast. The child is still never the target; the system prompt's rules hold.
+    /// </summary>
+    internal const string KidsBrief =
+        "Aim at the grown-ups filming, the narrator, the toys, the mess, the plan and the production value.\n";
+
+    /// <summary>What the roast picks on most, by <see cref="MemeMix.Target"/>; null for "mix", which leaves it to the comic.</summary>
+    internal static string? TargetBrief(string target) => target switch
+    {
+        "adults" => "Aim most jokes at the grown-ups: whoever is filming, planning, helping or failing to supervise.\n",
+        "narrator" => "Aim most jokes at the narrator: their lines, their enthusiasm, their facts and how they put things.\n",
+        "things" => "Aim most jokes at the things in the clip: the toys, the gadgets, the mess, the set and the props.\n",
+        "camera" => "Aim most jokes at the filming itself: the shaky camera, the angles, the lighting, the editing and the production value.\n",
+        _ => null,
+    };
 
     private const string ComicDelivery =
         "A brash stand-up comedian mid-set at a roast: loud, fast, incredulous, mocking. Land hard on the last words of the line.";
@@ -135,14 +174,17 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         double durationSeconds,
         bool narrated,
         CancellationToken ct,
-        bool crude = true,
+        MemeMix? mix = null,
         bool childIsIt = false)
     {
         var moments = Moments(labels, transcript);
         if (moments.Count == 0)
             return null;
 
-        var jokes = await WriteJokesAsync(mediaId, moments, durationSeconds, narrated, crude, childIsIt, ct);
+        mix ??= MemeMix.FromCrude(true);
+        if (mix.Jokes == 0)
+            return null;
+        var jokes = await WriteJokesAsync(mediaId, moments, durationSeconds, narrated, mix, childIsIt, ct);
         if (jokes.Count == 0)
             return null;
 
@@ -211,7 +253,7 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
             .Take(MaxMoments)];
 
     private async Task<List<(long AtMs, string Text)>> WriteJokesAsync(
-        MediaId mediaId, List<(double AtSeconds, string What)> moments, double durationSeconds, bool narrated, bool crude, bool childIsIt, CancellationToken ct)
+        MediaId mediaId, List<(double AtSeconds, string What)> moments, double durationSeconds, bool narrated, MemeMix mix, bool childIsIt, CancellationToken ct)
     {
         var inv = CultureInfo.InvariantCulture;
         // A spoken joke runs about seven seconds; more than one per seven would not fit.
@@ -219,13 +261,14 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         var prompt = new StringBuilder()
             .Append(inv, $"The clip is {durationSeconds:0.#} seconds long. Write {max} joke(s), fewer only when there are fewer moments.\n")
             .Append(narrated ? NarratorBrief : "")
+            .Append(TargetBrief(mix.Target) ?? (childIsIt ? KidsBrief : ""))
             .Append(childIsIt ? "If you mention the little child, call it \"it\" or \"the little one\", never he, she, they, him, her, his, bro, boy, girl or king.\n" : "")
             .Append("\nMoments:\n");
         for (var i = 0; i < moments.Count; i++)
             prompt.Append(inv, $"[{i}] t={moments[i].AtSeconds:0.0}s {moments[i].What}\n");
 
         var jokes = ReadJokes(await AskAsync(prompt.ToString()), moments, max);
-        List<(long AtMs, string Text)> picked = _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, crude, ct);
+        List<(long AtMs, string Text)> picked = _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, mix, ct);
         if (picked.Count == 0)
             return picked;
 
@@ -252,13 +295,18 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
                 Temperature = 1.0f,
                 MaxOutputTokens = 2_500,
             },
-            [new SystemChatMessage(PromptFor(crude)), new UserChatMessage(user)],
+            [new SystemChatMessage(PromptFor(mix)), new UserChatMessage(user)],
             token ?? ct);
     }
 
     internal const string JokeRubric =
         "Funniest, and most specific to its moment; at most 14 words; written to be said aloud. Profanity is "
         + "expected. Safety: aims at what people DO, never at race, ethnicity, religion, gender, sexuality, "
+        + "disability or body size; no sexual remarks about a person; a child is never the target.";
+
+    internal const string SomeSwearingRubric =
+        "Funniest, and most specific to its moment; at most 14 words; written to be said aloud. Some swearing is fine, "
+        + "not required. Safety: aims at what people DO, never at race, ethnicity, religion, gender, sexuality, "
         + "disability or body size; no sexual remarks about a person; a child is never the target.";
 
     internal const string CleanJokeRubric =
@@ -268,13 +316,13 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
 
     /// <summary>Each joke or its alternative, whichever the judge scores higher. One judge call for the whole set.</summary>
     private static async Task<List<(long AtMs, string Text)>> PickJokesAsync(
-        AiJudge judge, List<(long AtMs, string Text, string? Alternative, string Moment)> jokes, bool crude, CancellationToken ct)
+        AiJudge judge, List<(long AtMs, string Text, string? Alternative, string Moment)> jokes, MemeMix mix, CancellationToken ct)
     {
         var drafts = jokes.SelectMany(j => j.Alternative is null ? [$"({j.Moment}) {j.Text}"] : new[] { $"({j.Moment}) {j.Text}", $"({j.Moment}) {j.Alternative}" }).ToList();
         double[] scores;
         try
         {
-            scores = await judge.ScoreAsync("Roast jokes, each spoken over one moment of a video clip", RubricFor(crude), drafts, ct);
+            scores = await judge.ScoreAsync("Roast jokes, each spoken over one moment of a video clip", RubricFor(mix), drafts, ct);
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {

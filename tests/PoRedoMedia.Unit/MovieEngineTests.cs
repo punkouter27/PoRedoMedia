@@ -115,21 +115,23 @@ public sealed class MovieEngineTests
     }
 
     [Fact]
-    public void Every_clip_is_meme_ified_as_it_plays_with_a_roast_except_in_a_kids_video()
+    public void Every_clip_is_meme_ified_as_it_plays_with_a_roast()
     {
         HashSet<MediaFunction> everything = [MediaFunction.Memeify, MediaFunction.VideoRoast, MediaFunction.Captions];
         Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], MovieStudio.MemeRun(Show.General, everything, narrated: false).Functions);
         Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], MovieStudio.MemeRun(Show.Robot, everything, narrated: true).Functions);
-        // By default, kids' clips skip the spoken roast; choosing a roast voice (like Rap) + crude turns it on while keeping sitcom + "it".
+        // Kids' clips get the spoken roast by default too, kept clean, in the sitcom persona with the child as "it".
         var kids = MovieStudio.MemeRun(Show.Kids, everything, narrated: true);
-        Assert.Equal([MediaFunction.Memeify], kids.Functions);
+        Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], kids.Functions);
+        Assert.Equal("0", kids.Options[RunOptions.VideoRoastCrude]);
+        Assert.Equal([MediaFunction.Memeify], MovieStudio.MemeRun(Show.Kids, everything, narrated: true, roastVoice: "Off").Functions);
         Assert.Equal("sitcom", kids.Options[RunOptions.VideoPersona]);
         Assert.Equal("1", kids.Options[RunOptions.VideoVoiceFirst]); // the narrator stays on top of the meme sounds, kids' clips too
         Assert.Equal("1", kids.Options[RunOptions.VideoKeepBottomClear]); // meme text keeps off the captions burned in later
         Assert.Equal("1", kids.Options[RunOptions.VideoChildIsIt]); // the child is "it" in the meme text too
         Assert.False(MovieStudio.MemeRun(Show.General, everything, narrated: true).Options.ContainsKey(RunOptions.VideoChildIsIt));
 
-        var kidsRapCrude = MovieStudio.MemeRun(Show.Kids, everything, narrated: true, roastVoice: "Rap", crudeRoast: true);
+        var kidsRapCrude = MovieStudio.MemeRun(Show.Kids, everything, narrated: true, roastVoice: "Rap", mix: MemeMix.Kids);
         Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], kidsRapCrude.Functions);
         Assert.Equal(MediaRoast.Rap, kidsRapCrude.Options[RunOptions.VideoRoastVoice]);
         Assert.Equal("1", kidsRapCrude.Options[RunOptions.VideoRoastCrude]);
@@ -137,7 +139,12 @@ public sealed class MovieEngineTests
         Assert.Equal("1", kidsRapCrude.Options[RunOptions.VideoChildIsIt]);
 
         Assert.Equal([MediaFunction.Memeify], MovieStudio.MemeRun(Show.General, everything, narrated: true, roastVoice: "Off").Functions);
-        Assert.Equal("0", MovieStudio.MemeRun(Show.General, everything, narrated: false, roastVoice: "Comic", crudeRoast: false).Options[RunOptions.VideoRoastCrude]);
+        Assert.Equal("0", MovieStudio.MemeRun(Show.General, everything, narrated: false, roastVoice: "Comic", mix: MemeMix.Default).Options[RunOptions.VideoRoastCrude]);
+        // The sliders travel as five digits; no roast lines means no roast.
+        Assert.Equal(MemeMix.Kids, MemeMix.Parse(kidsRapCrude.Options[RunOptions.VideoMix]));
+        // A chosen style wins over the series' own.
+        Assert.Equal("anime", MovieStudio.MemeRun(Show.Kids, everything, narrated: true, mix: MemeMix.Kids with { Style = "anime" }).Options[RunOptions.VideoPersona]);
+        Assert.Equal([MediaFunction.Memeify], MovieStudio.MemeRun(Show.General, everything, narrated: true, mix: MemeMix.Default with { Jokes = 0 }).Functions);
         // A server with no roast voice still meme-ifies.
         Assert.Equal([MediaFunction.Memeify], MovieStudio.MemeRun(Show.General, new HashSet<MediaFunction> { MediaFunction.Memeify }, narrated: true).Functions);
 
@@ -150,6 +157,11 @@ public sealed class MovieEngineTests
         Assert.Contains(ai, a => a.Contains("tpad=stop_mode=clone:stop_duration=12.5"));
         Assert.Equal(["-map", "[v]", "-map", "1:a"], ai.SkipWhile(a => a != "-map").Take(4));
         Assert.Equal(["-y", "-i", "film.mp4"], MovieStudio.VoicedClip("film.mp4", loop: false, narration, "out.mp4").Take(3));
+        // "Make room": the picture holds four seconds past the voice, whose sound is padded to match.
+        var held = MovieStudio.VoicedClip("film.mp4", loop: false, narration, "out.mp4", holdSeconds: 4);
+        Assert.Equal("16.5", held[held.ToList().IndexOf("-t") + 1]);
+        Assert.Contains(held, a => a.EndsWith(";[1:a]apad[a]", StringComparison.Ordinal));
+        Assert.Equal(["-map", "[v]", "-map", "[a]"], held.SkipWhile(a => a != "-map").Take(4));
 
         // The movie hands over what is said in it, in lines (a sentence, or twelve words at most), so Meme-ify times its jokes after them without paying to hear it.
         var words = Durations.SplitWords("Here we go. The ladder slips! Then we climb up to the very top of the brand new treehouse together")
@@ -175,15 +187,28 @@ public sealed class MovieEngineTests
 
         static RenderVisualEntry Joke(long at, int ms) => new(at, "joke.mp3", null, null, null, Voice: true, DurationMs: ms);
         static RenderVisualEntry Sound(long at, int ms) => new(at, "boom.mp3", null, null, null, DurationMs: ms);
-        // The narrator speaks 0–4 s and 6–9 s. A joke due at 2 s waits for 4 s; one due in the 4–6 s pause keeps its time.
+        // The narrator speaks 0–4 s and 6–9 s. A joke due at 2 s waits for 4 s and ends before 6 s. One due in the 4–6 s
+        // pause has to wait behind the first, and then no longer fits before the next line, so it waits for 9 s too.
         (long, long)[] narrator = [(0, 4000), (6000, 9000)];
         var arranged = TurnTaking.Arrange([Joke(2000, 1500), Joke(4800, 1000), Sound(500, 800)], 12_000, narrator);
-        Assert.Equal([4200L, 5900L], arranged.Cues.Where(c => c.Voice).Select(c => c.TimestampMs)); // the second waits its turn behind the first
+        Assert.Equal([4200L, 9200L], arranged.Cues.Where(c => c.Voice).Select(c => c.TimestampMs));
         Assert.Equal(500, arranged.Cues.Single(c => !c.Voice).TimestampMs);
         // With no meme sounds to share with, a joke still waits for the line; one pushed past the end is left out.
         var alone = TurnTaking.Arrange([Joke(7000, 2000), Joke(1000, 1000)], 10_000, [(6000, 9500), (0, 500)]);
         Assert.Equal([1000L], alone.Cues.Select(c => c.TimestampMs));
-        Assert.Equal((1, 1), (alone.JokesMoved, alone.JokesDropped));
+        Assert.Equal((0, 1), (alone.JokesMoved, alone.JokesDropped));
+        // A joke said at the end of a line (where the roast puts its answers) that would run into the next one goes after
+        // that line instead. A second one moved into the same pause waits behind the first, finds no room before the
+        // video ends, and is left out rather than said over the narrator.
+        (long Start, long End)[] story = [(0, 3000), (4000, 6000), (9000, 11_000)];
+        var heckles = TurnTaking.Arrange([Joke(3000, 2000), Joke(6000, 1000)], 12_000, story);
+        Assert.Equal([6200L], heckles.Cues.Select(c => c.TimestampMs));
+        Assert.Equal((2, 1), (heckles.JokesMoved, heckles.JokesDropped));
+        // The narrator never speaks during a joke, in either case above.
+        Assert.All(arranged.Cues.Where(c => c.Voice), j => Assert.DoesNotContain(narrator, l => l.Item1 < j.TimestampMs + j.DurationMs && l.Item2 > j.TimestampMs));
+        Assert.All(heckles.Cues, j => Assert.DoesNotContain(story, l => l.Start < j.TimestampMs + j.DurationMs && l.End > j.TimestampMs));
+        // Narration with only short breaths in it (words spread evenly leave none) has no room for a 4-second joke.
+        Assert.Null(TurnTaking.Pause(0, 0, 4000, [(0, 1000), (1500, 2500), (3000, 4000), (4500, 5500), (6000, 7000), (7500, 9000)], 9500));
         // Without a narrator, nothing changes from before.
         Assert.Equal([2000L, 4800L], TurnTaking.Arrange([Joke(2000, 1500), Joke(4800, 1000)], 12_000).Cues.Select(c => c.TimestampMs));
     }

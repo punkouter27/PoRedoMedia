@@ -72,7 +72,10 @@ public sealed record DirectedScript(ScriptEntry[] Entries, string? Title = null)
 /// and what is being said (speech transcript).
 /// </summary>
 /// <param name="ChildIsIt">The video stars a child the owner wants called "it": no gendered word in any text on screen.</param>
-public sealed record DirectorContext(string? MemePersona, IReadOnlyList<TranscriptSegmentDto> Transcript, bool ChildIsIt = false)
+/// <param name="Pictures">The <see cref="MemeMix.Pictures"/> level: above the usual 2, the director is asked for more captions and stickers.</param>
+/// <param name="Chaos">The <see cref="MemeMix.Chaos"/> level: how often the director reaches for a visual effect.</param>
+/// <param name="Fame">The <see cref="MemeMix.Fame"/> level: how much famous sounds are preferred (3 is the brief's usual).</param>
+public sealed record DirectorContext(string? MemePersona, IReadOnlyList<TranscriptSegmentDto> Transcript, bool ChildIsIt = false, int Pictures = 2, int Chaos = 2, int Fame = 3)
 {
     public static readonly DirectorContext Empty = new(null, []);
 }
@@ -136,9 +139,9 @@ public interface IVideoRoast
 {
     /// <summary>Null when the clip gave nothing to roast.</summary>
     /// <param name="narrated">What is said in the clip is a narrator's voice-over: the roast plays off it, as a heckler would.</param>
-    /// <param name="crude">True for brutal, profane insults; false for clean jokes without swearing.</param>
+    /// <param name="mix">How mean and sweary the jokes are, and how many; null is the crude roast.</param>
     /// <param name="childIsIt">True when a little child on screen should be called "it" or "the little one".</param>
     Task<RoastTrack?> GenerateAsync(
         MediaId mediaId, string voice, IReadOnlyList<SceneLabel> labels, IReadOnlyList<TranscriptSegmentDto> transcript,
-        double durationSeconds, bool narrated, CancellationToken ct, bool crude = true, bool childIsIt = false);
+        double durationSeconds, bool narrated, CancellationToken ct, MemeMix? mix = null, bool childIsIt = false);
 }

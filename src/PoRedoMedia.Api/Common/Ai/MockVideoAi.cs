@@ -81,7 +81,7 @@ public sealed class MockVideoRoast(FFmpegProcess ffmpeg, BlobStorageService blob
 {
     public async Task<RoastTrack?> GenerateAsync(
         MediaId mediaId, string voice, IReadOnlyList<SceneLabel> labels, IReadOnlyList<TranscriptSegmentDto> transcript,
-        double durationSeconds, bool narrated, CancellationToken ct, bool crude = true, bool childIsIt = false)
+        double durationSeconds, bool narrated, CancellationToken ct, MemeMix? mix = null, bool childIsIt = false)
     {
         var clip = Path.Combine(Path.GetTempPath(), $"poredomedia-mockroast-{Guid.NewGuid():N}.mp3");
         try

@@ -16,9 +16,10 @@ namespace PoRedoMedia.Api.Features.Video;
 /// <item>A song (the rap roast) has no turns to share: meme sounds during it are muted, and their
 /// captions, stickers and effects still show.</item>
 /// </list>
-/// A joke that cannot finish before the video ends is left out. Over a narrator, a joke never starts in the middle of
-/// one of the narrator's lines: it waits for the line to end, so the two take turns too (the narrator is turned down
-/// under a joke that runs into the next line).
+/// A joke that cannot finish before the video ends is left out. Over a narrator, the two never speak at once: a joke
+/// is said only in a pause long enough for all of it, at its moment or after the line it would have cut into. One that
+/// finds no such pause within <see cref="MaxJokeWaitMs"/> is left out rather than said over the narrator, unless the
+/// clip was given room after its narration (<c>tail</c>): then it is said there, after the narrator's last line.
 /// </summary>
 public static class TurnTaking
 {
@@ -37,36 +38,51 @@ public static class TurnTaking
     /// <summary>The longest a meme sound waits for its turn before it is left out.</summary>
     internal const int MaxSoundWaitMs = 6000;
 
+    /// <summary>The longest a joke waits for a pause in the narration before it is left out.</summary>
+    internal const int MaxJokeWaitMs = 6000;
+
     public sealed record Result(List<RenderVisualEntry> Cues, int JokesMoved, int JokesDropped, int SoundsWaited, int SoundsLeftOut);
 
     /// <param name="speech">The narrator's lines, start and end in milliseconds; null when nobody narrates.</param>
-    public static Result Arrange(IReadOnlyList<RenderVisualEntry> cues, long videoMs, IReadOnlyList<(long Start, long End)>? speech = null)
+    /// <param name="tail">The clip runs on past the narration to make room for the roast: a joke with no pause to fit goes there.</param>
+    public static Result Arrange(IReadOnlyList<RenderVisualEntry> cues, long videoMs, IReadOnlyList<(long Start, long End)>? speech = null, bool tail = false)
     {
         static long Length(RenderVisualEntry c) => c.DurationMs > 0 ? c.DurationMs : UnknownMs;
-        var heckles = 0;
-        var waitedForLine = new HashSet<RenderVisualEntry>();
-        if (speech is { Count: > 0 })
+        List<(long Start, long End)> lines = [.. (speech ?? []).Where(s => s.End > s.Start).OrderBy(s => s.Start)];
+        int jokesMoved = 0, jokesDropped = 0, waited = 0, leftOut = 0;
+        if (lines.Count > 0)
         {
-            cues = [.. cues.Select(c =>
+            // Each joke first goes to the first pause, at or after its moment, that holds all of it; with room made after
+            // the narration, one that finds none is said there instead. The walk below keeps two from overlapping.
+            var placed = new List<RenderVisualEntry>();
+            var afterNarration = lines.Max(l => l.End) + GapMs;
+            foreach (var c in cues)
             {
-                if (!c.Voice || Length(c) > SongMs || speech.FirstOrDefault(s => c.TimestampMs > s.Start && c.TimestampMs < s.End) is not { End: > 0 } line)
-                    return c;
-                heckles++;
-                var moved = c with { TimestampMs = line.End + GapMs };
-                waitedForLine.Add(moved);
-                return moved;
-            })];
+                if (!c.Voice || Length(c) > SongMs)
+                {
+                    placed.Add(c);
+                }
+                else if ((Pause(c.TimestampMs, c.TimestampMs, Length(c), lines, videoMs)
+                    ?? (tail && afterNarration + Length(c) <= videoMs ? (long?)afterNarration : null)) is not { } at)
+                {
+                    jokesDropped++;
+                }
+                else
+                {
+                    if (at != c.TimestampMs)
+                        jokesMoved++;
+                    placed.Add(c with { TimestampMs = at });
+                }
+            }
+            cues = placed;
         }
 
-        if (!cues.Any(c => c.Voice) || !cues.Any(c => !c.Voice))
-        {
-            // Only a joke this pass moved can have been pushed past the end.
-            var kept = cues.Where(c => !waitedForLine.Contains(c) || c.TimestampMs + Length(c) <= videoMs).ToList();
-            return new(kept, heckles, cues.Count - kept.Count, 0, 0);
-        }
+        // Without a narrator, jokes alone keep the times the roast gave them; over one, the walk below also keeps two
+        // jokes moved into the same pause from talking over each other.
+        if (!cues.Any(c => c.Voice) || (!cues.Any(c => !c.Voice) && lines.Count == 0))
+            return new([.. cues], jokesMoved, jokesDropped, 0, 0);
 
         var output = new List<RenderVisualEntry>();
-        int jokesMoved = heckles, jokesDropped = 0, waited = 0, leftOut = 0;
 
         // A song keeps its place and mutes the meme sounds it covers.
         var songs = cues.Where(c => c.Voice && Length(c) > SongMs).ToList();
@@ -100,12 +116,15 @@ public static class TurnTaking
             {
                 var joke = jokes[0];
                 jokes.RemoveAt(0);
-                if (start + Length(joke) > videoMs)
+                // A joke that waited behind a meme sound or another joke still has to fit a pause in the narration.
+                var fit = lines.Count == 0 ? start : Pause(start, joke.TimestampMs, Length(joke), lines, videoMs);
+                if (fit is not { } at || at + Length(joke) > videoMs)
                 {
                     jokesDropped++;
                     continue;
                 }
 
+                start = at;
                 if (start != joke.TimestampMs)
                     jokesMoved++;
                 output.Add(joke with { TimestampMs = start });
@@ -146,6 +165,27 @@ public static class TurnTaking
         }
 
         return new([.. output.OrderBy(c => c.TimestampMs)], jokesMoved, jokesDropped, waited, leftOut);
+    }
+
+    /// <summary>
+    /// The first time, at or after <paramref name="from"/>, at which a voice of <paramref name="length"/> fits between
+    /// the narrator's lines with a breath either side and ends before the video does; null when there is none within
+    /// <see cref="MaxJokeWaitMs"/> of <paramref name="moment"/>.
+    /// </summary>
+    /// <param name="lines">The narrator's lines, in order of their start.</param>
+    internal static long? Pause(long from, long moment, long length, IReadOnlyList<(long Start, long End)> lines, long videoMs)
+    {
+        var start = from;
+        while (start - moment <= MaxJokeWaitMs && start + length <= videoMs)
+        {
+            var end = start + length;
+            var clash = lines.Where(l => l.Start < end + GapMs && l.End + GapMs > start).Select(l => l.End).DefaultIfEmpty(-1).Max();
+            if (clash < 0)
+                return start;
+            start = clash + GapMs;
+        }
+
+        return null;
     }
 
     private static bool HasVisuals(RenderVisualEntry cue) =>

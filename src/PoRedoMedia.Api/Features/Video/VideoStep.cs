@@ -58,6 +58,7 @@ public sealed class VideoStep(
         var memeify = context.Has(MediaFunction.Memeify);
         var captions = context.Has(MediaFunction.Captions);
         var persona = context.Option(RunOptions.VideoPersona);
+        var mix = MixOf(context);
 
         await context.ReportAsync("Listening to the video");
         var sourceAudio = await audio.GetAsync(source.Id, source.SourcePath, ct);
@@ -86,7 +87,14 @@ public sealed class VideoStep(
         var cues = new List<RenderVisualEntry>();
         string? title = null;
         if (memeify)
-            (cues, title) = await DirectAsync(context, labels, transcript, sourceAudio, duration, persona, ct);
+        {
+            (cues, title) = await DirectAsync(context, labels, transcript, sourceAudio, duration, persona, mix, ct);
+            var directed = cues.Count;
+            cues = MemeAmounts.Apply(cues, mix);
+            cues = MemeAmounts.Calm(cues, mix.Chaos);
+            if (mix.Sounds != MemeMix.Default.Sounds || mix.Pictures != MemeMix.Default.Pictures)
+                await context.ReportAsync($"Meme amounts: sounds {MemeMix.AmountNames[mix.Sounds]}, pictures {MemeMix.AmountNames[mix.Pictures]}; {cues.Count(c => c.SoundPath.Length > 0)} of {directed} sound(s) kept");
+        }
 
         var narrated = context.Option(RunOptions.VideoRoastNarrated) == "1";
         var track = context.Has(MediaFunction.VideoRoast) ? await RoastAsync(context, labels, transcript, duration, narrated, ct) : null;
@@ -95,17 +103,43 @@ public sealed class VideoStep(
             cues.AddRange(track.Lines.Select(l => new RenderVisualEntry(l.TimestampMs, l.BlobPath, null, null, null, Voice: true, DurationMs: l.DurationMs)));
 
             // Meme sounds and jokes take turns on one speaker (see TurnTaking).
-            // Over a narrator, a joke waits for the end of the line it would cut into.
+            // Over a narrator, a joke is said only in a pause that holds all of it, or left out.
+            // "Interrupt" lets the roast cut in over the narrator, who drops under it, so only the meme sounds are waited for.
+            // "Make room": the clip runs on past the narration, and a joke with no pause to fit is said there.
             var turns = TurnTaking.Arrange(cues, (long)(duration * 1000),
-                narrated ? [.. transcript.Select(s => ((long)(s.StartSeconds * 1000), (long)(s.EndSeconds * 1000)))] : null);
+                narrated && mix.Turns != "interrupt" ? [.. transcript.Select(s => ((long)(s.StartSeconds * 1000), (long)(s.EndSeconds * 1000)))] : null,
+                tail: narrated && mix.Turns == "room");
             cues = turns.Cues;
             if (turns.JokesMoved + turns.JokesDropped + turns.SoundsWaited + turns.SoundsLeftOut > 0)
                 await context.ReportAsync(
-                    $"Taking turns: {turns.JokesMoved} joke(s) waited for a meme sound, {turns.SoundsWaited} meme sound(s) waited for a joke"
+                    $"Taking turns: {turns.JokesMoved} joke(s) waited for {(narrated ? "a pause or " : "")}a meme sound, {turns.SoundsWaited} meme sound(s) waited for a joke"
                     + (turns.SoundsLeftOut > 0 ? $", {turns.SoundsLeftOut} meme sound(s) left out (their captions still show)" : "")
-                    + (turns.JokesDropped > 0 ? $", {turns.JokesDropped} joke(s) ran past the end" : ""));
+                    + (turns.JokesDropped > 0 ? $", {turns.JokesDropped} joke(s) left out ({(narrated ? "no pause long enough, or " : "")}past the end)" : ""));
             foreach (var turn in cues.Where(c => !string.IsNullOrEmpty(c.SoundPath)))
                 await context.ReportAsync(string.Create(CultureInfo.InvariantCulture, $"TURN {turn.TimestampMs / 1000.0:0.0}s–{(turn.TimestampMs + turn.DurationMs) / 1000.0:0.0}s · {(turn.Voice ? "roast" : "meme sound")}"));
+        }
+
+        if (mix.Laughs > 0)
+        {
+            var laughs = (await sounds.LoadAllAsync(ct)).VisibleTo(context.Run.Owner).Where(s => s.ActionVectorTags.Contains(MemeAmounts.LaughTag)).ToList();
+            var before = cues.Count;
+            cues = MemeAmounts.AddLaughs(cues, mix.Laughs, [.. laughs.Select(s => (s.BlobPath, s.DurationMs))], (long)(duration * 1000));
+            await context.ReportAsync(laughs.Count == 0
+                ? "No laugh track sounds in the library yet (it fills itself after the app starts), so no laughs were added"
+                : $"Laugh track: {cues.Count - before} laugh(s)");
+        }
+
+        // Captions all at the top, at the size asked for.
+        if (mix.CaptionsTop)
+            cues = [.. cues.Select(c => string.IsNullOrWhiteSpace(c.CaptionText) ? c : c with { CaptionPosition = "Top" })];
+
+        // The room made after the narration is only kept for as long as something is said or played in it, so a clip
+        // never ends on a frozen, silent frame.
+        double? keep = trimmed ? duration : null;
+        if (narrated && mix.Turns == "room" && transcript.Count > 0 && RoomUsed(cues, transcript) is var used && used < duration - 0.25)
+        {
+            keep = used;
+            await context.ReportAsync(string.Create(CultureInfo.InvariantCulture, $"Ends at {used:0.0}s, {duration - used:0.0}s of unused room cut"));
         }
 
         await context.ReportAsync("Rendering");
@@ -129,15 +163,17 @@ public sealed class VideoStep(
             MediaId: output.Id,
             SourceBlobPath: source.SourcePath,
             OutputBlobPath: output.SourcePath,
-            // The loud personas deep-fry the whole picture; that is a Meme-ify look, not a caption or roast one.
-            AggressiveVisuals: memeify && DirectorPrompt.Persona(persona) is "brainrot" or "mlg",
+            // The loud personas deep-fry the whole picture; that is a Meme-ify look, not a caption or roast one. Chaos
+            // overrides it: None and Light never deep-fry, Deep-fried always does.
+            AggressiveVisuals: memeify && (mix.Chaos == MemeMix.Max || (mix.Chaos >= 2 && DirectorPrompt.Persona(persona) is "brainrot" or "mlg")),
             Cues: cues,
             AspectRatio: context.Option(RunOptions.VideoAspect),
             Subtitles: captions && transcript.Count > 0 ? transcript : null,
             TrimStartSeconds: trimStart,
-            TrimSeconds: trimmed ? duration : null,
-            SoundsUnderDb: context.Option(RunOptions.VideoVoiceFirst) == "1" ? VoiceFirstSoundsUnderDb : 0,
-            KeepBottomClear: context.Option(RunOptions.VideoKeepBottomClear) == "1"), ct);
+            TrimSeconds: keep,
+            SoundsUnderDb: (context.Option(RunOptions.VideoVoiceFirst) == "1" ? VoiceFirstSoundsUnderDb : 0) - MemeMix.VolumeDb[mix.SoundVolume],
+            KeepBottomClear: context.Option(RunOptions.VideoKeepBottomClear) == "1",
+            CaptionFontSize: MemeMix.CaptionFontSizes[mix.CaptionSize]), ct);
 
         // The roast is stored with the source and replaced by the next one; the result keeps its own copy.
         if (track is not null)
@@ -156,6 +192,24 @@ public sealed class VideoStep(
         await media.SaveAsync(output, ct);
         await context.AddOutputAsync(output);
     }
+
+    /// <summary>Breath left after the last sound before a clip that made room for the roast ends.</summary>
+    internal const double RoomEndSeconds = 0.5;
+
+    /// <summary>
+    /// Where a clip that made room after its narration should end: just after the later of the narrator's last word and
+    /// the last sound (a roast line, meme sound or laugh), in seconds.
+    /// </summary>
+    internal static double RoomUsed(IReadOnlyList<RenderVisualEntry> cues, IReadOnlyList<TranscriptSegmentDto> transcript)
+    {
+        var lastSound = cues.Where(c => c.SoundPath.Length > 0)
+            .Select(c => (c.TimestampMs + (c.DurationMs > 0 ? c.DurationMs : TurnTaking.UnknownMs)) / 1000.0).DefaultIfEmpty(0).Max();
+        return Math.Max(transcript.Max(s => s.EndSeconds), lastSound) + RoomEndSeconds;
+    }
+
+    /// <summary>The run's <see cref="MemeMix"/>; without one, the mix the crude switch stands for (crude unless "0").</summary>
+    internal static MemeMix MixOf(RunContext context)
+        => MemeMix.Parse(context.Option(RunOptions.VideoMix)) ?? MemeMix.FromCrude(context.Option(RunOptions.VideoRoastCrude) != "0");
 
     /// <summary>
     /// The stretch of the source to keep, in seconds. Anything unreadable or out of range falls
@@ -305,7 +359,7 @@ public sealed class VideoStep(
     /// </summary>
     private async Task<(List<RenderVisualEntry> Cues, string? Title)> DirectAsync(
         RunContext context, SceneLabel[] labels, IReadOnlyList<TranscriptSegmentDto> transcript, SourceAudio sourceAudio,
-        double duration, string? persona, CancellationToken ct)
+        double duration, string? persona, MemeMix mix, CancellationToken ct)
     {
         var library = (await sounds.LoadAllAsync(ct)).VisibleTo(context.Run.Owner);
         if (library.Count == 0)
@@ -316,9 +370,11 @@ public sealed class VideoStep(
 
         await context.ReportAsync($"Sound library: {library.Count} sound(s)");
 
-        var sceneLabels = PlacementPlanner.SceneLabels(labels, transcript, duration);
+        // Max meme sounds places more than usual: more reactions to speech, and no gap over five seconds.
+        var dense = mix.Sounds == MemeMix.Max;
+        var sceneLabels = PlacementPlanner.SceneLabels(labels, transcript, duration, dense);
         var ranked = matching.GetTopCandidatesBatch(library, [.. sceneLabels.Select(PlacementPlanner.MatchQuery)], topN: 5);
-        var plan = PlacementPlanner.Plan(sceneLabels, ranked, library, duration);
+        var plan = PlacementPlanner.Plan(sceneLabels, ranked, library, duration, dense);
 
         await context.ReportAsync("Directing");
         ScriptEntry[] entries = [];
@@ -327,7 +383,7 @@ public sealed class VideoStep(
         {
             var directed = await director!.DirectAsync(
                 plan.ApprovedLabels, plan.DirectorMenu, context.Source.Id, labels.Length > 0 || transcript.Count > 0,
-                new DirectorContext(persona, transcript, ChildIsIt: context.Option(RunOptions.VideoChildIsIt) == "1"), ct);
+                new DirectorContext(persona, transcript, ChildIsIt: context.Option(RunOptions.VideoChildIsIt) == "1", Pictures: mix.Pictures, Chaos: mix.Chaos, Fame: mix.Fame), ct);
             (entries, title) = (directed.Entries, directed.Title);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
@@ -390,12 +446,11 @@ public sealed class VideoStep(
     {
         var voices = MediaRoast.Voices(configuration, environment);
         var voice = voices.FirstOrDefault(v => string.Equals(v, context.Option(RunOptions.VideoRoastVoice), StringComparison.OrdinalIgnoreCase)) ?? voices[0];
-        var crude = context.Option(RunOptions.VideoRoastCrude) != "0";
         var childIsIt = context.Option(RunOptions.VideoChildIsIt) == "1";
         try
         {
             await context.ReportAsync("Writing the roast");
-            var track = await roast!.GenerateAsync(context.Source.Id, voice, labels, transcript, duration, narrated, ct, crude, childIsIt);
+            var track = await roast!.GenerateAsync(context.Source.Id, voice, labels, transcript, duration, narrated, ct, MixOf(context), childIsIt);
             if (track is null)
                 context.AddNote("Nothing in this video gave the roast anything to work with, so it was left out.");
             foreach (var line in track?.Lines ?? [])

@@ -38,7 +38,7 @@ public sealed class AppSettings
         "A moving backdrop, particles, the run orb, picture reveals, confetti and sparks, track waveforms and tilting cards.");
 
     public static readonly AppSetting MovieAdvanced = new("poredomedia:adv:movie", "Movie advanced controls",
-        "In Create Movie: the quick Preview step, each clip's depth, picture type and takes, caption size and outline, teaser moments, a publish date, and 4K or 60 fps video.");
+        "In Create Movie: the topic and anything-else boxes for the narrator, the outro's length, caption size and outline, teaser moments, a publish date, and 4K or 60 fps video.");
 
     public static readonly AppSetting[] Advanced = [OnDeviceAi, Recipes, CostEstimates, VisualEffects, MovieAdvanced];
 

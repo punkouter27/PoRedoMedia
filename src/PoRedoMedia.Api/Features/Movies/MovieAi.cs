@@ -227,10 +227,22 @@ public sealed class SpeechNarrator(IHttpClientFactory http, FfmpegRunner ffmpeg,
 
     private const string Delivery = "Speak as the friendly narrator of a short video: clear, warm and lively, at a natural pace.";
 
+    /// <summary>
+    /// The voice and delivery of each narrator style (<see cref="NarratorChoice.Styles"/>); the usual one is the configured
+    /// voice and <see cref="Delivery"/>. The pace is set apart, by the rate.
+    /// </summary>
+    internal (string Voice, string Delivery) Speaker(string? style) => style switch
+    {
+        "excited" => ("coral", "Speak as an excited children's TV host: bright, bouncy, amazed by everything, with big smiles in the voice."),
+        "deadpan" => ("onyx", "Speak as a deadpan nature-documentary narrator: low, dry, calm and completely serious, whatever happens."),
+        "sports" => ("ash", "Speak as a sports commentator calling the last seconds of a big game: fast, breathless, rising with every moment."),
+        _ => (voice, Delivery),
+    };
+
     /// <summary>Told what each recording used: its name in the spend log, how many characters, and their price when the rate is known.</summary>
     public Action<string, int, decimal>? Used { get; set; }
 
-    public async Task<Narration> SynthesizeAsync(string text, string outputPath, double rate, CancellationToken ct)
+    public async Task<Narration> SynthesizeAsync(string text, string outputPath, double rate, CancellationToken ct, string? style = null)
     {
         if (text.Trim().Length == 0)
             throw new InvalidOperationException("This clip has no words to say. Write some, or let it keep its own sound.");
@@ -238,7 +250,7 @@ public sealed class SpeechNarrator(IHttpClientFactory http, FfmpegRunner ffmpeg,
         using var request = new HttpRequestMessage(HttpMethod.Post,
             $"{endpoint.TrimEnd('/')}/openai/deployments/{Uri.EscapeDataString(deployment)}/audio/speech?api-version={ApiVersion}")
         {
-            Content = JsonContent.Create(new { model = deployment, input = text, voice, instructions = Delivery, response_format = "mp3" }),
+            Content = JsonContent.Create(new { model = deployment, input = text, voice = Speaker(style).Voice, instructions = Speaker(style).Delivery, response_format = "mp3" }),
         };
         request.Headers.Add("api-key", key);
         using var response = await http.CreateClient(MovieAi.HttpClientName).SendAsync(request, ct);

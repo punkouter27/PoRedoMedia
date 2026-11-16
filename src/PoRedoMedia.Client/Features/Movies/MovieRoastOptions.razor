@@ -1,26 +1,26 @@
-@* Roast voice and crude/profane toggle, shared by Films (before writing) and Video (before rendering). *@
-@if (Voices is { Length: > 0 })
+@* Roast voice and the meme mix sliders (roast meanness, swearing and lines; meme sounds and pictures), shared by Films
+   (before making) and Video (before rendering again). *@
+@if (Voices is { Length: > 0 } || ShowMix)
 {
-    var selected = string.IsNullOrWhiteSpace(Voice) ? Voices[0] : Voice;
+    var selected = Voices is { Length: > 0 } ? (string.IsNullOrWhiteSpace(Voice) ? Voices[0] : Voice) : "Off";
     var isOff = string.Equals(selected, "Off", StringComparison.OrdinalIgnoreCase);
     <div class="mv-field">
-        <RadzenLabel Text="Insult roast" Component="@($"{IdPrefix}-voice")" />
-        <RadzenSelectBar Name="@($"{IdPrefix}-voice")" TValue="string" Value="@selected" Change="VoiceChanged" Disabled="Disabled" Size="ButtonSize.Small"
-                         title="Off: no spoken roast. Comic or Neural: spoken heckler jokes in the narrator's pauses. Rap roast: boom-bap diss track over the clip.">
-            <Items>
-                <RadzenSelectBarItem Text="Off" Value="@("Off")" />
-                @foreach (var voice in Voices)
-                {
-                    <RadzenSelectBarItem Text="@(voice == "Rap" ? "Rap roast" : voice)" Value="@voice" />
-                }
-            </Items>
-        </RadzenSelectBar>
-        <div class="mv-row">
-            <RadzenSwitch Name="@($"{IdPrefix}-crude")" Value="Crude" Disabled="@(Disabled || isOff)" Change="CrudeChanged"
-                          title="Off: sharp, cheeky roast without swearing. On: brutal, vulgar, profane insults (available on General, Robot and Kids' videos; Google Lyria's safety filter may decline overly explicit rap lyrics)." />
-            <RadzenLabel Text="Crude / profane" Component="@($"{IdPrefix}-crude")"
-                         title="Off: sharp, cheeky roast without swearing. On: brutal, vulgar, profane insults." />
-        </div>
+        @if (Voices is { Length: > 0 })
+        {
+            <RadzenLabel Text="Insult roast" Component="@($"{IdPrefix}-voice")" />
+            <RadzenSelectBar Name="@($"{IdPrefix}-voice")" TValue="string" Value="@selected" Change="VoiceChanged" Disabled="Disabled" Size="ButtonSize.Small"
+                             title="Off: no spoken roast. Comic or Neural: spoken heckler jokes in the narrator's pauses. Rap roast: boom-bap diss track over the clip.">
+                <Items>
+                    <RadzenSelectBarItem Text="Off" Value="@("Off")" />
+                    @foreach (var voice in Voices)
+                    {
+                        <RadzenSelectBarItem Text="@(voice == "Rap" ? "Rap roast" : voice)" Value="@voice" />
+                    }
+                </Items>
+            </RadzenSelectBar>
+        }
+        <MemeMixSliders Mix="Mix" MixChanged="MixChanged" Disabled="Disabled" RoastOff="isOff" Roast="@(Voices is { Length: > 0 })" IdPrefix="@IdPrefix"
+                        Defaults="Defaults" Turns="true" Narrator="Narrator" NarratorChanged="NarratorChanged" />
     </div>
 }
 
@@ -28,8 +28,14 @@
     [Parameter] public string[]? Voices { get; set; }
     [Parameter] public string? Voice { get; set; }
     [Parameter] public EventCallback<string> VoiceChanged { get; set; }
-    [Parameter] public bool Crude { get; set; }
-    [Parameter] public EventCallback<bool> CrudeChanged { get; set; }
+    [Parameter] public MemeMix Mix { get; set; } = MemeMix.Default;
+    [Parameter] public EventCallback<MemeMix> MixChanged { get; set; }
+    [Parameter] public MemeMix Defaults { get; set; } = MemeMix.Default;
+    [Parameter] public NarratorChoice? Narrator { get; set; }
+    [Parameter] public EventCallback<NarratorChoice> NarratorChanged { get; set; }
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public string IdPrefix { get; set; } = "mv-roast";
+
+    /// <summary>The meme sound and picture sliders are worth showing even when this server has no roast voice.</summary>
+    [Parameter] public bool ShowMix { get; set; } = true;
 }

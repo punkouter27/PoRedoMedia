@@ -11,6 +11,9 @@ namespace PoRedoMedia.Api.Features.Render;
 /// </summary>
 internal static class FFmpegArgs
 {
+    /// <summary>The meme captions' usual font size (<see cref="MemeMix.CaptionFontSizes"/> has the others).</summary>
+    internal const int CaptionFontSize = 36;
+
     /// <summary>PCM rate decoded for the envelope. Loudness needs no more; it keeps the decode cheap.</summary>
     internal const int EnvelopeSampleRate = 8000;
 
@@ -61,7 +64,8 @@ internal static class FFmpegArgs
         IReadOnlyList<TranscriptSegmentDto>? subtitles = null,
         double trimStartSeconds = 0,
         double sourceVolume = 0.85,
-        bool keepBottomClear = false)
+        bool keepBottomClear = false,
+        int captionFontSize = CaptionFontSize)
     {
         var sb = new StringBuilder();
 
@@ -88,7 +92,7 @@ internal static class FFmpegArgs
             sb.Append(CultureInfo.InvariantCulture, $" -i \"{distinctOverlays[i]}\"");
         }
 
-        var videoChain = BuildVideoFilterChain(entries, aggressiveVisuals, aspectRatio, subtitles, keepBottomClear);
+        var videoChain = BuildVideoFilterChain(entries, aggressiveVisuals, aspectRatio, subtitles, keepBottomClear, captionFontSize);
         var hasBaseVideoFilters = !string.IsNullOrWhiteSpace(videoChain);
 
         // Cue-scoped visual effects. Each is applied on a full-size branch that is overlaid back
@@ -253,7 +257,8 @@ internal static class FFmpegArgs
         bool aggressiveVisuals,
         string? aspectRatio = null,
         IReadOnlyList<TranscriptSegmentDto>? subtitles = null,
-        bool keepBottomClear = false)
+        bool keepBottomClear = false,
+        int captionFontSize = CaptionFontSize)
     {
         var filters = new List<string>();
 
@@ -297,7 +302,7 @@ internal static class FFmpegArgs
                 _ when keepBottomClear => "40",
                 _ => "h-text_h-50"
             };
-            filters.Add($"drawtext=text='{sanitized}':expansion=none{fontArg}:fontsize=36:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y={yPos}:enable='between(t\\,{startSec}\\,{endSec})'");
+            filters.Add($"drawtext=text='{sanitized}':expansion=none{fontArg}:fontsize={captionFontSize}:fontcolor=white:borderw={Math.Max(2, captionFontSize / 12)}:bordercolor=black:x=(w-text_w)/2:y={yPos}:enable='between(t\\,{startSec}\\,{endSec})'");
         }
 
         // Speech subtitles: smaller, boxed, pinned to the very bottom so they sit under the

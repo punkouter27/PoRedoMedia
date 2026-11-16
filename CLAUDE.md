@@ -125,12 +125,19 @@ non-film clip are refused (`addClip`, `kind`, `removeVideo`), and `CheckLength` 
 has no film. Films come from the Library (staged from blob storage), so the Library's
 1-minute limit applies; every clip must run under a minute and a movie up to 10 (`Durations.MaxClip`/`MaxMovie`,
 checked in `MovieStudio.CheckLength` before anything is paid for). **Every render puts each film and AI video clip
-through Meme-ify** (`MovieStudio.Memes`): the clip as it plays (voice-over mixed in) is uploaded as a hidden working
+through Meme-ify** (`MovieStudio.Memes`), at the movie's `MemeMix` (Shared: roast meanness, swearing and lines,
+meme sounds and pictures, 0–4 each, five digits in `Episode.MemeLevels` and the `Video.mix` run option; `RoastService`
+builds its brief from the first three, `MemeAmounts` thins the directed cues, Max sounds makes `PlacementPlanner` plan
+densely, and pictures above 2 ask the director for more; the shared `Layout/MemeMixSliders` sets it on Create too, with a
+folded panel for the rest of `MemeMix`: style, sound volume, chaos (`MemeAmounts.Calm`), roast target, sound fame, caption
+size/top, turn-taking (`room` holds each film up to 6 s past its narration in `VoicedClip`, `TurnTaking.Arrange(tail:)` says a joke with no pause there, and `VideoStep.RoomUsed` cuts what goes unused) and a laugh track (`MemeAmounts.AddLaughs`,
+sounds tagged `laughtrack`); the narrator's `NarratorChoice` is kept on each clip as `Clip.Narrator`, "style@rate", which
+`SpeechNarrator.Speaker` turns into a voice and delivery): the clip as it plays (voice-over mixed in) is uploaded as a hidden working
 item, `VideoStep` runs on it directly (no run row, no daily quota) with the narration handed over as its speech, the
 result is kept in the movie's `memes/` folder (named by everything that went into it, so an edit makes it again), and
-the working blobs and output row are deleted. Kids' clips get Meme-ify without the roast, in the "sitcom" persona. Over a narrated clip the roast is a heckler: the
+the working blobs and output row are deleted. Kids' clips get Meme-ify in the "sitcom" persona, and the client starts a kids' movie on the crude Comic roast (other series: the first roast voice, not crude). Over a narrated clip the roast is a heckler: the
 `VideoRoast.narrated` run option tells `RoastService` the speech is a narrator to answer (`NarratorBrief`), and
-`TurnTaking.Arrange` moves a joke that would start mid-line to the end of that line. A clip can be left out of Meme-ify
+`TurnTaking.Arrange` says a joke only in a pause that holds all of it (at its moment or after the line it would cut into, within 6 s) and drops it otherwise, so the two voices never overlap. A clip can be left out of Meme-ify
 (`Clip.NoMemes`, the "memes" edit). A movie render (or the one-go make) is one run of the daily quota
 (`MovieStudio.StartRenderAsync`), refunded when the job ends without a video.
 Its AI cost is logged as "meme-ify"; `Movie:MemeifyUsd` prices the estimate shown first. The finished video then goes
@@ -141,9 +148,10 @@ already stored with an item instead of transcribing it again. Spending is logged
 priced asks first. The finished video can be put in the Library (`POST /api/movies/{id}/library`). YouTube upload
 needs `YouTube:ClientId`/`YouTube:ClientSecret` (an OAuth client of the *Web application* kind, redirect
 `/api/movies/youtube/callback`); the sign-in is used for that one upload and nothing is kept. Routes are under
-`/api/movies` (`Features/Movies/MovieEndpoints`); the client is `Pages/CreateMovie` with one component per step
-(`Shared/Movie*Step`), state in `Services/MovieStore`, and `wwwroot/js/movie.js` for undo keys and the preview's
-live captions. Its advanced controls are the `poredomedia:adv:movie` switch.
+`/api/movies` (`Features/Movies/MovieEndpoints`); the client is one page, `Features/Movies/CreateMovie`
+(a folded `MovieTemplateStep` for the channel, `MovieFilmsStep` for the form and the one-go Make, `MovieVideoStep` for
+the open movie's result; the server's `/write` route and clip edits have no UI now), state in `Services/MovieStore`,
+and `wwwroot/js/movie.js` for undo keys. Its advanced controls are the `poredomedia:adv:movie` switch.
 
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,

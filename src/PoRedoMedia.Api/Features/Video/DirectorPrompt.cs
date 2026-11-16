@@ -147,7 +147,10 @@ internal static class DirectorPrompt
         bool hasRealVisionData,
         string? memePersona,
         IReadOnlyList<TranscriptSegmentDto>? transcript,
-        bool childIsIt = false)
+        bool childIsIt = false,
+        int pictures = 2,
+        int chaos = 2,
+        int fame = 3)
     {
         var visionNote = hasRealVisionData
             ? "Labels come from real frame analysis and speech."
@@ -155,9 +158,37 @@ internal static class DirectorPrompt
         // The owner wants their child called "it": captions say "IT", "THE LITTLE ONE" or "THE BABY", never a gendered word.
         var child = childIsIt
             ? "The star is a little child. In every caption call it \"it\" or \"the little one\", never he, she, they, him, her, his, bro, boy, girl or king.\n"
+              + "Captions are dry, sarcastic and insulting: fake praise and deadpan put-downs (WOW. GENIUS., TRULY ICONIC, NOBODY ASKED), aimed at the situation, the grown-ups and the production, never at the child.\n"
             : "";
 
-        return $"Persona: {Persona(memePersona)}\n{child}{visionNote}\n\n" +
+        // The owner asked for more meme pictures than the brief's usual sparing touch.
+        var more = pictures switch
+        {
+            3 => "Pictures: be generous. Give most cues a caption, and up to one in two a sticker.\n",
+            >= 4 => "Pictures: go all out. Give every cue a caption and a sticker, and an effect wherever the energy allows.\n",
+            _ => "",
+        };
+
+        // How wild the picture gets; None and Light are also enforced after the director answers (MemeAmounts.Calm).
+        var effects = chaos switch
+        {
+            0 => "Effects: none. visualEffect is always None.\n",
+            1 => "Effects: light. Never DeepFry; MotionBlur only on the very biggest moment.\n",
+            >= 3 => "Effects: wild. Give most cues a visualEffect (DeepFry or MotionBlur), not only the high-energy ones.\n",
+            _ => "",
+        };
+
+        // How famous the sounds are; 3 is the brief's own "strongly prefer famous".
+        var sounds = fame switch
+        {
+            0 => "Sounds: deep cuts. Avoid the famous sounds (any marked famous) unless nothing else fits at all.\n",
+            1 => "Sounds: prefer lesser-known sounds that fit; use a famous one at most once or twice.\n",
+            2 => "Sounds: balance famous and lesser-known sounds, whichever fits the moment best.\n",
+            >= 4 => "Sounds: only famous ones. Pick from the sounds marked famous for every cue.\n",
+            _ => "",
+        };
+
+        return $"Persona: {Persona(memePersona)}\n{child}{more}{effects}{sounds}{visionNote}\n\n" +
                $"Scene labels:\n{FormatLabels(labels)}\n" +
                $"Sound menu:\n{soundsCompact}\n" +
                BuildSpeechContext(transcript);

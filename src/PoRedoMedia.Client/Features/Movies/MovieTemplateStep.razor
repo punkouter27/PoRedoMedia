@@ -200,12 +200,8 @@
                 <div class="po-skeleton mv-stage-wait" aria-label="Drawing"></div>
             }
         </div>
-        <div class="mv-row">
-            <RadzenLabel Text="Episode number" Component="mv-template-number" />
-            <RadzenNumeric Name="mv-template-number" TValue="int" Value="@Store.Number" Min="1" Max="999" class="mv-narrow"
-                           Change="@(n => { Store.Number = n; _video = null; Redraw(300); })"
-                           title="The number the next movie gets, as the intro will show it (#3 · its title). The next in the series is filled in; type your own to redo or skip one. The next movie made on the Films step gets this number." />
-        </div>
+        @* The episode number is set once, beside the title under Your films; the intro shown here follows it. *@
+        <p class="mv-quiet">Shown as episode #@Store.Number. Change the number beside the title, under Your films.</p>
         <div class="mv-row mv-equal">
             <RadzenButton Text="Show the intro" Icon="play_arrow" ButtonStyle="@(Store.IntroWatched ? ButtonStyle.Base : ButtonStyle.Primary)" Variant="@(Store.IntroWatched ? Variant.Outlined : Variant.Filled)"
                           IsBusy="@(_showing == "intro")" Disabled="@(_showing is not null || !config.Ffmpeg)" Click="@(() => ShowAsync(false))"
@@ -227,6 +223,7 @@
     private List<string> _logos = [];
     private List<string> _hosts = [];
     private CancellationTokenSource? _redraw;
+    private bool _disposed;
 
     protected override void OnInitialized()
     {
@@ -234,7 +231,19 @@
         Redraw(0);
     }
 
-    private void OnChanged() => InvokeAsync(StateHasChanged);
+    private void OnChanged()
+    {
+        // The episode number is typed under Your films; the intro is drawn again for it.
+        if (Store.Number != _drawnNumber)
+        {
+            _video = null;
+            Redraw(300);
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>The episode number the still was last drawn for.</summary>
+    private int _drawnNumber;
 
     private static string Token(string url) => url[(url.LastIndexOf('/') + 1)..].Split('?')[0];
 
@@ -267,12 +276,15 @@
     /// <summary>Draws the still a moment after the last change, so a run of changes draws it once.</summary>
     private void Redraw(int wait)
     {
+        // A save can come back after the step has closed; there is nothing left to draw then.
+        if (_disposed) return;
         _redraw?.Cancel();
         var redraw = _redraw = new CancellationTokenSource();
         _ = InvokeAsync(async () =>
         {
             await Task.Delay(wait);
             if (redraw.IsCancellationRequested || Store.Config?.Ffmpeg != true) return;
+            _drawnNumber = Store.Number;
             var reply = await Api.KitStillAsync(Store.Show, _outro, Store.Number);
             if (redraw.IsCancellationRequested) return;
             _still = reply.Url ?? _still;
@@ -384,6 +396,7 @@
 
     public void Dispose()
     {
+        _disposed = true;
         Store.Changed -= OnChanged;
         _redraw?.Cancel();
         _redraw?.Dispose();

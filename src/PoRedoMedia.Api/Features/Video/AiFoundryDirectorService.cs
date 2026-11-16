@@ -90,7 +90,7 @@ public sealed partial class AiFoundryDirectorService : IDirectorService
         ChatMessage[] messages =
         [
             new SystemChatMessage(DirectorPrompt.SystemPrompt),
-            new UserChatMessage(DirectorPrompt.BuildUserPrompt(labels, sounds, hasRealVisionData, context.MemePersona, context.Transcript, context.ChildIsIt)),
+            new UserChatMessage(DirectorPrompt.BuildUserPrompt(labels, sounds, hasRealVisionData, context.MemePersona, context.Transcript, context.ChildIsIt, context.Pictures, context.Chaos, context.Fame)),
         ];
 
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));

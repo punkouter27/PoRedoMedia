@@ -21,12 +21,13 @@ public sealed class TokenBucketTimingService
     /// <summary>
     /// Applies token-bucket timing constraints to placement requests.
     /// Within the same 2-second window, the request with the highest cosine score wins.
-    /// Gaps exceeding MaxGapMs receive a fallback placement.
+    /// Gaps exceeding <paramref name="maxGapMs"/> (MaxGapMs unless a denser mix asks for less) receive a fallback placement.
     /// </summary>
     public IReadOnlyList<TimingDecision> Apply(
         IReadOnlyList<PlacementRequest> requests,
         double videoDurationSeconds,
-        SoundAsset? fallbackSound = null)
+        SoundAsset? fallbackSound = null,
+        long maxGapMs = MaxGapMs)
     {
         // Phase 1: Conflict resolution — keep highest-score per 2-second window
         var byWindow = requests
@@ -78,14 +79,19 @@ public sealed class TokenBucketTimingService
             {
                 var gapStart = timestamps[i];
                 var gapEnd = timestamps[i + 1];
-                if (gapEnd - gapStart > MaxGapMs)
+                if (gapEnd - gapStart <= maxGapMs)
+                    continue;
+
+                // The usual gap gets one sound in it; a denser mix (a smaller maxGapMs) fills the whole gap at that spacing.
+                var dense = maxGapMs < MaxGapMs;
+                for (var fallbackMs = gapStart + maxGapMs / 2; fallbackMs < gapEnd - MinGapMs; fallbackMs += maxGapMs)
                 {
-                    var fallbackMs = gapStart + MaxGapMs / 2;
                     fallbacks.Add(new(
                         fallbackMs,
                         fallbackSound,
                         PlacementType.Fallback,
-                        $"[FALLBACK] Gap {gapEnd - gapStart}ms > {MaxGapMs}ms; sound inserted at {fallbackMs}ms"));
+                        $"[FALLBACK] Gap {gapEnd - gapStart}ms > {maxGapMs}ms; sound inserted at {fallbackMs}ms"));
+                    if (!dense) break;
                 }
             }
 

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "generated": "2026-10-30T23:50:00Z",
-  "totalSounds": 300,
+  "totalSounds": 303,
   "sounds": [
     {
       "id": "vine-boom-sound-70972",
@@ -4618,6 +4618,54 @@
         "cartoon"
       ],
       "useCase": "Use when a character, vehicle, or object drastically morphs into something completely different.",
+      "origin": "myinstants.com",
+      "priority": false
+    },
+    {
+      "id": "sitcom-laughing",
+      "displayName": "Sitcom laugh track (short)",
+      "filename": "sitcom-laughing.mp3",
+      "sourceUrl": "https://www.myinstants.com/media/sounds/sitcom-laughing.mp3",
+      "durationMs": 2539,
+      "actionVectorTags": [
+        "laughtrack",
+        "laugh",
+        "sitcom",
+        "audience"
+      ],
+      "useCase": "Studio audience laugh after a joke lands.",
+      "origin": "myinstants.com",
+      "priority": false
+    },
+    {
+      "id": "sitcom-crowd-laughing-2",
+      "displayName": "Sitcom crowd laughing",
+      "filename": "sitcom-crowd-laughing-2.mp3",
+      "sourceUrl": "https://www.myinstants.com/media/sounds/sitcom-crowd-laughing-2.mp3",
+      "durationMs": 3653,
+      "actionVectorTags": [
+        "laughtrack",
+        "laugh",
+        "sitcom",
+        "crowd"
+      ],
+      "useCase": "Studio audience laugh after a joke lands.",
+      "origin": "myinstants.com",
+      "priority": false
+    },
+    {
+      "id": "audience-laughter",
+      "displayName": "Audience laughter",
+      "filename": "audience-laughter.mp3",
+      "sourceUrl": "https://www.myinstants.com/media/sounds/audience-laughter.mp3",
+      "durationMs": 4714,
+      "actionVectorTags": [
+        "laughtrack",
+        "laugh",
+        "audience",
+        "crowd"
+      ],
+      "useCase": "A big studio audience laugh after the best joke.",
       "origin": "myinstants.com",
       "priority": false
     }

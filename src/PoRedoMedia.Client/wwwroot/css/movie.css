@@ -36,23 +36,14 @@
 /* A … button opens its menu itself, so the arrow Radzen draws beside it is not needed. */
 .mv .rz-splitbutton-menubutton { display: none; }
 
-/* ── Step bar and checklist ── */
-.mv-guide { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-.mv-steps { display: inline-flex; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--rz-text-color) 7%, transparent); }
-.mv-steps button {
-    min-height: 36px; padding: 0.2rem 0.9rem; border: 0; border-radius: 999px; background: none;
-    font: inherit; font-size: 0.9rem; color: var(--rz-text-secondary-color); cursor: pointer; white-space: nowrap;
-}
-.mv-steps button:disabled { opacity: 0.45; cursor: default; }
-.mv-steps button:not(:disabled):hover { color: var(--rz-text-color); }
-.mv-steps button.current { background: var(--rz-base-background-color); color: var(--rz-primary); font-weight: 700; box-shadow: 0 1px 3px rgb(0 0 0 / 18%); }
-.mv-steps button:focus-visible { outline: 2px solid var(--rz-primary); outline-offset: 2px; }
-.mv-checklist { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 0.25rem 0.9rem; margin: 0; padding: 0; list-style: none; font-size: 0.82rem; }
-.mv-checklist li { display: inline-flex; align-items: center; gap: 0.25rem; opacity: 0.75; }
-.mv-checklist li .rzi { font-size: 0.95rem; }
-.mv-checklist li.done .rzi, .mv-checklist li.next .rzi { color: var(--rz-primary); }
-.mv-checklist li.next { opacity: 1; font-weight: 600; }
-.mv-guide-button { margin-left: auto; }
+/* ── One page: the channel's look folded away, the films, then the open movie's result ── */
+.mv-fold { border: 1px solid var(--po-line); border-radius: var(--po-radius); background: var(--po-glass); }
+.mv-fold-head { display: flex; align-items: center; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.4rem 0.9rem; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.mv-fold-head:focus-visible { outline: 2px solid var(--rz-primary); outline-offset: -2px; border-radius: var(--po-radius); }
+.mv-fold-head .mv-quiet { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-fold-body { padding: 0 0.9rem 0.9rem; }
+.mv-result { display: flex; flex-direction: column; gap: 0.4rem; padding-top: 0.8rem; border-top: 1px solid var(--po-line); }
+.mv-result-title { margin: 0; font-size: 1.15rem; }
 .mv-notice { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; border-radius: var(--po-radius-sm); background: color-mix(in srgb, #f59e0b 14%, transparent); font-size: 0.82rem; }
 .mv-notice .rzi { font-size: 1rem; }
 
@@ -63,7 +54,8 @@
 .mv-two.mv-clips, .mv-two.mv-preview, .mv-two.mv-video { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
 .mv-side { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.9rem; border: 1px solid var(--po-line); border-radius: var(--po-radius); background: var(--po-glass); }
 .mv-main { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
-.mv-pinned { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; padding-top: 0.5rem; background: linear-gradient(transparent, var(--rz-base-background-color) 35%); }
+/* Solid behind the button (a disabled one is see-through), with a short fade above so rows slide under it. */
+.mv-pinned { position: sticky; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; padding: 0.5rem 0 0.25rem; background: var(--rz-base-background-color); box-shadow: 0 -14px 12px -6px var(--rz-base-background-color); }
 .mv-open-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
 .mv-topic { margin: 0; white-space: pre-wrap; }
 .mv-linkish { align-self: flex-start; padding: 0; border: 0; background: none; font: inherit; color: var(--rz-primary); cursor: pointer; }
@@ -216,9 +208,37 @@
 
 @media (max-width: 720px) {
     .mv { padding: 0.5rem 0.5rem 9rem; }
-    .mv-steps { max-width: 100%; overflow-x: auto; }
-    .mv-guide-button { margin-left: 0; width: 100%; }
     .mv-dock { bottom: calc(4.5rem + var(--po-safe-bottom)); } /* above the phone tab bar */
     .mv-teaser { width: 100%; }
     .mv-card-play { opacity: 1; }
+}
+
+/* Meme mix sliders: label, slider, the level's name. */
+.mv-mix { display: grid; gap: 0.15rem; margin-top: 0.5rem; }
+.mv-mix-row { display: grid; grid-template-columns: 7.5rem 1fr 5.5rem; align-items: center; gap: 0.6rem; }
+/* Room for the knob at either end, so it never sits on its label or past the track. */
+.mv-mix-row .rz-slider { margin: 0 0.65rem; width: auto; }
+.mv-mix-value { font-size: 0.8rem; color: var(--rz-text-secondary-color); white-space: nowrap; }
+
+/* "More meme settings": a folded panel under the sliders, grouped Roast / Memes / Narrator. */
+.mv-mix-more { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.35rem; padding: 0.25rem 0.1rem; border: 0;
+    background: none; color: var(--rz-primary); font: inherit; font-weight: 600; cursor: pointer; justify-self: start; }
+.mv-mix-more:focus-visible { outline: 2px solid var(--rz-primary); outline-offset: 2px; border-radius: 4px; }
+.mv-mix-changed { font-weight: 400; font-size: 0.78rem; color: var(--rz-text-secondary-color); background: var(--rz-base-200);
+    border-radius: 999px; padding: 0.05rem 0.5rem; }
+.mv-mix-panel { display: grid; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--rz-base-300); border-radius: 8px; background: var(--rz-base-50, transparent); }
+.mv-mix-group { display: grid; gap: 0.15rem; }
+.mv-mix-group > strong { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--rz-text-secondary-color); }
+.mv-mix-row .mv-mix-wide { grid-column: 2 / span 2; width: 100%; }
+.mv-mix-row-tall { align-items: start; }
+.mv-mix-note { grid-column: 2 / span 2; font-size: 0.78rem; color: var(--rz-text-secondary-color); }
+.mv-mix-reset { justify-self: start; }
+@media (max-width: 480px) {
+    .mv-mix-row { grid-template-columns: 6.5rem 1fr 4.5rem; gap: 0.4rem; }
+}
+
+/* Kind of video on a phone: the three names break between words, never inside one. */
+.mv-kind .rz-button-text, .mv-kind .rz-button { word-break: keep-all; overflow-wrap: normal; hyphens: none; }
+@media (max-width: 480px) {
+    .mv-kind .rz-button { padding-inline: 0.45rem; letter-spacing: 0; }
 }

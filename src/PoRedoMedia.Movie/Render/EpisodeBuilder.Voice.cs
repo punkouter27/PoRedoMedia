@@ -38,8 +38,8 @@ public sealed partial class EpisodeBuilder
             }
             else
             {
-                narration = await narrator.SynthesizeAsync(text, audio, clip.NarrationRate, ct);
-                if (PaceLearned is { } learned && clip.NarrationRate == 1.0 && Durations.Learned(Durations.WordsPerMinute, text, narration.Duration) is { } pace)
+                narration = await narrator.SynthesizeAsync(text, audio, clip.NarrationRate * clip.NarratorPace, ct, clip.NarratorStyle);
+                if (PaceLearned is { } learned && clip.NarrationRate == 1.0 && clip.NarratorPace == 1.0 && Durations.Learned(Durations.WordsPerMinute, text, narration.Duration) is { } pace)
                     learned(Durations.WordsPerMinute = pace);
             }
             await File.WriteAllTextAsync(words, Json.Write(narration.Words), ct);
@@ -185,10 +185,11 @@ public sealed partial class EpisodeBuilder
 
     private string AudioPath(Clip clip, string text, string folder)
     {
-        // Own sound is keyed by the film as it is on disk, so a replaced film is taken again.
+        // Own sound is keyed by the film as it is on disk, so a replaced film is taken again. A clip with no narrator
+        // chosen keeps the key it always had, so its recording is not paid for again.
         var source = OwnSound(clip) is { } film
             ? FormattableString.Invariant($"own|{film}|{new FileInfo(film).Length}|{File.GetLastWriteTimeUtc(film).Ticks}")
-            : FormattableString.Invariant($"{narrator.GetType().Name}|{clip.NarrationRate:0.###}");
+            : FormattableString.Invariant($"{narrator.GetType().Name}|{clip.NarrationRate:0.###}") + (clip.Narrator is { } chosen ? $"|{chosen}" : "");
         var key = Files.TextHash($"{source}|{text}")[..16];
         return Path.Combine(folder, "audio", $"{clip.Id:N}-{key}.wav");
     }

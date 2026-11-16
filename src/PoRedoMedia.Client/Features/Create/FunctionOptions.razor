@@ -24,6 +24,13 @@
                     </Items>
                 </RadzenSelectBar>
             }
+            @if (Functions.Contains(MediaFunction.Memeify) || (Functions.Contains(MediaFunction.VideoRoast) && RoastVoices.Count > 0))
+            {
+                @* Starts at Create's usual mix (the crude roast) every time; only a moved slider rides along with the run. *@
+                <MemeMixSliders Mix="@(MemeMix.Parse(Get(RunOptions.VideoMix)) ?? MemeMix.FromCrude(true))"
+                                MixChanged="@(mix => Set(RunOptions.VideoMix, mix.Encode()))" IdPrefix="create-mix" Defaults="@MemeMix.FromCrude(true)" Style="false"
+                                Roast="@(Functions.Contains(MediaFunction.VideoRoast) && RoastVoices.Count > 0)" Memes="@Functions.Contains(MediaFunction.Memeify)" />
+            }
             @if (Duration is > 3)
             {
                 <div class="trim" role="group" aria-label="Trim">

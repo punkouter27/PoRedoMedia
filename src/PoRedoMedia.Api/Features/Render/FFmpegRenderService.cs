@@ -97,7 +97,7 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
                         continue;
                     }
                     var gain = GainToTarget(await _ffmpeg.LoudnessLufsAsync(soundPath, cancellationToken));
-                    if (job.SoundsUnderDb > 0 && !cue.Voice)
+                    if (job.SoundsUnderDb != 0 && !cue.Voice)
                         gain = (gain ?? 0) - job.SoundsUnderDb;
                     renderEntries.Add(cue with { SoundPath = soundPath, GainDb = gain });
                     _logger.LogDebug("Sound {Index} downloaded: {Path}", i, soundPath);
@@ -122,7 +122,8 @@ public sealed partial class FFmpegRenderService : IMediaToolkit, IDisposable
                 job.Subtitles,
                 job.TrimStartSeconds,
                 sourceVolume: job.SoundsUnderDb > 0 ? 1.0 : 0.85,
-                keepBottomClear: job.KeepBottomClear);
+                keepBottomClear: job.KeepBottomClear,
+                captionFontSize: job.CaptionFontSize);
 
             _logger.LogDebug("FFmpeg args: {Args}", args);
 

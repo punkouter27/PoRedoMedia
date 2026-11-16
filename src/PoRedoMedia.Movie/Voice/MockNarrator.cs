@@ -8,7 +8,7 @@ public sealed class MockNarrator : INarrator
 {
     private const int SampleRate = 48000;
 
-    public async Task<Narration> SynthesizeAsync(string text, string outputPath, double rate, CancellationToken ct)
+    public async Task<Narration> SynthesizeAsync(string text, string outputPath, double rate, CancellationToken ct, string? style = null)
     {
         if (text.Trim().Length == 0)
             throw new InvalidOperationException("This clip has no words to say. Write some, or let it keep its own sound.");

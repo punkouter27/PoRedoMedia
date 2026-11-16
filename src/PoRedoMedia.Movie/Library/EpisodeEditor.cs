@@ -229,6 +229,10 @@ public static class EpisodeEditor
     public static Episode SetCrudeRoast(Episode episode, bool crude) =>
         episode.CrudeRoast == crude ? episode : episode with { CrudeRoast = crude };
 
+    /// <summary>Sets how much Meme-ify adds to each clip, as the five digits of a meme mix.</summary>
+    public static Episode SetMemeLevels(Episode episode, string levels) =>
+        episode.MemeLevels == levels ? episode : episode with { MemeLevels = levels };
+
     /// <summary>Sets the music played under the narration; null takes it away.</summary>
     public static Episode SetMusic(Episode episode, string? path) => episode.MusicPath == path ? episode : episode with { MusicPath = path };
 

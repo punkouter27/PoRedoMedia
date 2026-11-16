@@ -41,10 +41,11 @@ internal static class PlacementPlanner
     /// where a reaction sound lands. Both kinds go through the token bucket together, so they are
     /// spaced against each other. Output time, in time order.
     /// </summary>
-    public static List<SceneLabel> SceneLabels(IReadOnlyList<SceneLabel> visionLabels, IReadOnlyList<TranscriptSegmentDto> transcript, double durationSeconds)
+    /// <param name="dense">The Max meme-sound level: twice as many speech lines get a reaction.</param>
+    public static List<SceneLabel> SceneLabels(IReadOnlyList<SceneLabel> visionLabels, IReadOnlyList<TranscriptSegmentDto> transcript, double durationSeconds, bool dense = false)
     {
         var labels = visionLabels.ToList();
-        foreach (var seg in transcript.Take(MaxSpeechCues))
+        foreach (var seg in transcript.Take(dense ? MaxSpeechCues * 2 : MaxSpeechCues))
         {
             var ts = Math.Min(seg.EndSeconds + SpeechReactionDelaySeconds, Math.Max(0, durationSeconds - 0.4));
             labels.Add(new SceneLabel(ts, $"{SpeechLabelPrefix} \"{Truncate(seg.Text, 80)}\"") { Energy = 0.6 });
@@ -57,12 +58,17 @@ internal static class PlacementPlanner
     public static string MatchQuery(SceneLabel label)
         => label.Tags.Count == 0 ? label.Label : $"{label.Label} {string.Join(' ', label.Tags)}";
 
+    /// <summary>Longest stretch without a meme sound at the Max level (the usual is <see cref="TokenBucketTimingService.MaxGapMs"/>).</summary>
+    internal const long DenseMaxGapMs = 5_000;
+
     /// <param name="ranked">Match candidates per label, same order as <paramref name="sceneLabels"/>.</param>
+    /// <param name="dense">The Max meme-sound level: a sound fills any gap over <see cref="DenseMaxGapMs"/>.</param>
     public static PlacementPlan Plan(
         IReadOnlyList<SceneLabel> sceneLabels,
         IReadOnlyList<IReadOnlyList<SoundCandidate>> ranked,
         IReadOnlyList<SoundAsset> library,
-        double durationSeconds)
+        double durationSeconds,
+        bool dense = false)
     {
         var log = new List<string>();
         var requests = new List<PlacementRequest>();
@@ -104,7 +110,8 @@ internal static class PlacementPlanner
         }
 
         var decisions = Thin(
-            new TokenBucketTimingService().Apply(requests, durationSeconds, library.Count > 0 ? library[0] : null),
+            new TokenBucketTimingService().Apply(requests, durationSeconds, library.Count > 0 ? library[0] : null,
+                dense ? DenseMaxGapMs : TokenBucketTimingService.MaxGapMs),
             DirectorScripts.MaxCues);
         log.Add($"TOKEN BUCKET: {decisions.Count} placement(s) approved.");
         foreach (var d in decisions)

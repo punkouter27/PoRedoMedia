@@ -197,7 +197,8 @@ public sealed partial class MovieStudio
         };
         var preset = Preset(request.ExportPreset);
         var films = request.Films.Length;
-        return await StartRenderAsync("Making the video from your films", null, Host, async (job, ct) =>
+        // The number the movie gets is said in the job's title, so it is seen while the movie is made.
+        return await StartRenderAsync($"Making episode #{Math.Clamp(request.Number, 1, 999)} from your films", null, Host, async (job, ct) =>
         {
             job.Phase = (0, 0.35);
             // A kids' video made this way is always the highlights of the films; the others keep the series' shape.
@@ -243,12 +244,19 @@ public sealed partial class MovieStudio
                 Report(job, $"Written {titles.Count} of {Math.Max(titles.Count, length.MinClips)} clips", 0.1 + 0.9 * Math.Min(1, (double)titles.Count / length.MaxClips));
             });
             var visuals = engine.VisualsFor(Host, Host, Quality.Medium, Writer);
-            var episode = VisualMix.Settle(await Writer.WriteEpisodeAsync(lesson, [], length, ct, written), kind => visuals?.CanMake(kind) ?? false) with
+            var settled = VisualMix.Settle(await Writer.WriteEpisodeAsync(lesson, [], length, ct, written), kind => visuals?.CanMake(kind) ?? false);
+            var episode = settled with
             {
                 Number = number,
-                RoastVoice = NormalizeRoastVoice(request.RoastVoice) ?? (show == Show.Kids ? "Off" : null),
+                RoastVoice = NormalizeRoastVoice(request.RoastVoice),
+                // A title the owner typed wins over the written one.
+                Title = request.Title?.Trim() is { Length: > 0 } typed ? typed[..Math.Min(typed.Length, 120)] : settled.Title,
                 CrudeRoast = request.CrudeRoast,
+                MemeLevels = (MemeMix.Parse(request.Mix) ?? MemeMix.FromCrude(request.CrudeRoast)).Encode(),
             };
+            // The narrator chosen speaks every clip; the usual one is left unset, so its recordings keep their names.
+            if (NarratorChoice.Parse(request.Narrator) is { } narrator && narrator != NarratorChoice.Default)
+                episode = episode with { Clips = [.. episode.Clips.Select(c => c with { Narrator = narrator.Encode() })] };
 
             folder = ProjectStore.NewFolder(Episodes, episode.Title, number);
             Directory.CreateDirectory(folder);

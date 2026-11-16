@@ -561,7 +561,7 @@ public sealed partial class MovieStudio
             clips, runtime, meta, open.History.CanUndo, open.History.CanRedo,
             episode.MusicPath is { } music && File.Exists(music) ? Path.GetFileName(music)["music-".Length..] : null,
             toMake, episode.Clips.Any(c => c.Draft), OffSeriesLook(open), preview, PublishOf(open), [.. open.Teasers], spendLines,
-            episode.RoastVoice ?? (show == Show.Kids ? "Off" : null), episode.CrudeRoast);
+            episode.RoastVoice, episode.CrudeRoast, MixOf(episode).Encode(), episode.Clips.Select(c => c.Narrator).FirstOrDefault(n => n is not null));
     }
 
     private MoviePublishDto PublishOf(OpenMovie open)

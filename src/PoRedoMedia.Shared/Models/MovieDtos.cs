@@ -89,7 +89,7 @@ public sealed record MovieDto(
     string Id, string Title, string Topic, int Number, string Show, string Structure, string Look, MovieCaptionsDto Captions,
     MovieClipDto[] Clips, double RuntimeSeconds, string Meta, bool CanUndo, bool CanRedo, string? MusicName,
     int PicturesToMake, bool HasDraftPictures, bool OffSeriesLook, MoviePreviewDto? Preview, MoviePublishDto Publish,
-    MovieTeaserDto[] Teasers, string[] SpendLines, string? RoastVoice = null, bool CrudeRoast = false);
+    MovieTeaserDto[] Teasers, string[] SpendLines, string? RoastVoice = null, bool CrudeRoast = false, string? Mix = null, string? Narrator = null);
 
 /// <summary>The one long job a user has under way, or the one that just ended.</summary>
 /// <param name="State">"running", "done", "stopped" or "failed".</param>
@@ -105,10 +105,10 @@ public sealed record MovieReply(MovieDto? Movie, string? Status = null, string? 
 /// <summary>One of the owner's films, picked from the Library, with what it shows.</summary>
 public sealed record MovieFilmDto(Guid MediaId, string Note, bool OwnSound);
 
-/// <summary>What a new movie is written from.</summary>
+/// <summary>What a new movie is written from. A typed <paramref name="Title"/> replaces the one the script writer gives it.</summary>
 public sealed record MovieLessonRequest(
     string Show, string Structure, string Topic, string Second, int Number, MovieFilmDto[] Films, string? ExportPreset = null,
-    string? RoastVoice = null, bool CrudeRoast = false);
+    string? RoastVoice = null, bool CrudeRoast = false, string? Title = null, string? Mix = null, string? Narrator = null);
 
 /// <summary>What a model saw in one film.</summary>
 public sealed record MovieWatchReply(string? Note, string? Timeline, string? Error);

@@ -24,9 +24,6 @@ public sealed class MovieFilm(MediaDto media)
     public TimeSpan Length => TimeSpan.FromSeconds(Media.DurationSeconds ?? 0);
 }
 
-/// <summary>One line of the checklist under the step bar.</summary>
-public sealed record MovieGuideItem(string Text, bool Done, bool Optional = false);
-
 /// <summary>
 /// What Create Movie holds while it is open: the server's choices, the open movie, the form for the next one, the
 /// long job under way and the last thing said. The pages draw from it and ask it to act; it raises
@@ -34,12 +31,9 @@ public sealed record MovieGuideItem(string Text, bool Done, bool Optional = fals
 /// </summary>
 public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings) : IDisposable
 {
-    public const string Template = "template", Films = "films", Clips = "clips", Preview = "preview", Video = "video";
-
     private const string LastKey = "poredomedia:movie:last";
     private CancellationTokenSource? _polling;
     private bool _started;
-    private bool _chosen;
 
     public event Action? Changed;
 
@@ -53,8 +47,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public MoviePrefsDto Prefs { get; private set; } = new(0, false, "Hd30", 0);
 
-    public string Step { get; private set; } = Films;
-
     public string? Status { get; private set; }
 
     public string? Error { get; private set; }
@@ -62,10 +54,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     /// <summary>Something worth knowing that is not a failure (a film could not be heard); stays until it is closed.</summary>
     public string? Notice { get; private set; }
 
-    /// <summary>The selected clip on the Voice-over step.</summary>
-    public Guid? Selected { get; set; }
-
-    /// <summary>A small video to play over the page: a clip or a teaser, watched on its own.</summary>
+    /// <summary>A small video to play over the page: a teaser, watched on its own.</summary>
     public (string Url, bool Upright)? Playing { get; set; }
 
     /// <summary>Something asked for that has not come back yet, by name ("picture", "play", "tier"…), so its button can show it.</summary>
@@ -81,6 +70,9 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public MovieKitDto? Kit { get; private set; }
 
+    /// <summary>The next movie's title; empty lets the script writer name it.</summary>
+    public string Title { get; set; } = "";
+
     public string Topic { get; set; } = "";
 
     public string Second { get; set; } = "";
@@ -91,14 +83,15 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public bool CrudeRoast { get; set; }
 
+    /// <summary>How much Meme-ify adds to each film of the next movie (the sliders).</summary>
+    public MemeMix Mix { get; set; } = MemeMix.Default;
+
+    /// <summary>Who narrates the next movie, and how fast.</summary>
+    public NarratorChoice Narrator { get; set; } = NarratorChoice.Default;
+
     public List<MovieFilm> FilmList { get; } = [];
 
-    /// <summary>True while the form for a new movie shows on the Films step in place of the open movie's own.</summary>
-    public bool StartingNew { get; set; } = true;
-
     public MovieShowDto? ShowInfo => Config?.Shows.FirstOrDefault(s => s.Value == Show);
-
-    public MovieClipDto? SelectedClip => Movie?.Clips.FirstOrDefault(c => c.Id == Selected) ?? Movie?.Clips.FirstOrDefault();
 
     // ---- Starting up ----
 
@@ -116,18 +109,10 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
         if (IsWorking) Poll();
         if (await js.InvokeAsync<string?>("poMedia.read", LastKey) is { Length: > 0 } last && Library.Any(m => m.Id == last && !m.Damaged))
             await OpenAsync(last, quiet: true);
-        // A step the user has already gone to while this was loading is where they stay.
-        if (Movie is null && !_chosen)
-            Step = Kit is { ChannelName.Length: > 0 } ? Films : Template;
         Notify();
     }
 
-    private void OnSettings()
-    {
-        // The quick Preview step is an advanced one: with advanced controls off, it gives way to Video.
-        if (!Advanced && Step == Preview) Step = Video;
-        Notify();
-    }
+    private void OnSettings() => Notify();
 
     private CancellationTokenSource? _fading;
 
@@ -179,18 +164,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public void Dismiss() => Say(null);
 
-    /// <summary>Goes to a step. One that needs a movie lands on Films when there is none; Preview lands on Video unless advanced controls are on.</summary>
-    public void GoTo(string step)
-    {
-        if (step is Clips or Preview or Video && Movie is null) step = Films;
-        if (step == Preview && !Advanced) step = Video;
-        _chosen = true;
-        if (step == Step) return;
-        (Step, Error) = (step, null);
-        if (step == Films) _ = RefreshLibraryAsync();
-        Notify();
-    }
-
     public async Task RefreshLibraryAsync()
     {
         try
@@ -209,10 +182,21 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
         Show = show;
         Kit = await api.KitAsync(show);
         Number = Kit?.NextNumber ?? 1;
-        RoastVoice = show == "Kids" ? "Off" : (Config?.RoastVoices?.FirstOrDefault() ?? "");
-        CrudeRoast = false;
+        // Every series starts with a spoken roast; a kids' video starts with the crude comic one.
+        var voices = Config?.RoastVoices ?? [];
+        RoastVoice = show == "Kids" && voices.Contains("Comic") ? "Comic" : voices.FirstOrDefault() ?? "";
+        Mix = MemeMix.For(show);
+        Narrator = NarratorChoice.Default;
+        CrudeRoast = Mix.Crude;
+        // A kids' video is the Tongtong's Toys series; a typed title stays when the kind changes.
+        if (string.IsNullOrWhiteSpace(Title) || Title == KidsTitle) Title = DefaultTitle(show);
         Notify();
     }
+
+    /// <summary>The title every kids' video starts with.</summary>
+    public const string KidsTitle = "Tongtong's Toys";
+
+    private static string DefaultTitle(string show) => show == "Kids" ? KidsTitle : "";
 
     public void UseKit(MovieKitDto kit)
     {
@@ -248,26 +232,14 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
             return;
         }
         Take(reply.Movie);
-        (Selected, StartingNew, Playing) = (reply.Movie.Clips.FirstOrDefault()?.Id, false, null);
+        Playing = null;
         if (Show != reply.Movie.Show) await SetShowAsync(reply.Movie.Show);
         await js.InvokeVoidAsync("poMedia.write", LastKey, id);
-        if (!quiet)
-        {
-            Step = Clips;
-            Say($"Opened {reply.Movie.Title}.");
-        }
-        else if (Step is Films or Template && !_chosen)
-        {
-            Step = Clips;
-        }
+        if (!quiet) Say($"Opened {reply.Movie.Title}.");
         Notify();
     }
 
-    private void Take(MovieDto movie)
-    {
-        Movie = movie;
-        if (movie.Clips.All(c => c.Id != Selected)) Selected = movie.Clips.FirstOrDefault()?.Id;
-    }
+    private void Take(MovieDto movie) => Movie = movie;
 
     /// <summary>Takes in what a call answered with: the movie as it now is, and what to say.</summary>
     /// <returns>True when it went through.</returns>
@@ -305,22 +277,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
         }
     }
 
-    public async Task<bool> SetDialogueAsync(Guid clip, string words)
-    {
-        if (Movie is not { } movie) return false;
-        Waiting = "words";
-        Notify();
-        try
-        {
-            return Apply(await api.DialogueAsync(movie.Id, clip, words));
-        }
-        finally
-        {
-            Waiting = null;
-            Notify();
-        }
-    }
-
     public async Task DeleteAsync(MovieSummaryDto summary)
     {
         if (await api.DeleteAsync(summary.Id) is { } problem)
@@ -330,7 +286,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
         }
         if (Movie?.Id == summary.Id)
         {
-            (Movie, Selected, StartingNew, Step) = (null, null, true, Films);
+            Movie = null;
             await js.InvokeVoidAsync("poMedia.write", LastKey, null);
         }
         await RefreshLibraryAsync();
@@ -348,7 +304,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
             deleted++;
             if (Movie?.Id == summary.Id)
             {
-                (Movie, Selected, StartingNew, Step) = (null, null, true, Films);
+                Movie = null;
                 await js.InvokeVoidAsync("poMedia.write", LastKey, null);
             }
         }
@@ -363,7 +319,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     {
         var request = new MovieLessonRequest(Show, Kit?.Structure ?? "", Topic, Second, Number,
             [.. FilmList.Select(f => new MovieFilmDto(f.Media.Id, f.Note, f.OwnSound))], Prefs.ExportPreset,
-            string.IsNullOrWhiteSpace(RoastVoice) ? null : RoastVoice, CrudeRoast);
+            string.IsNullOrWhiteSpace(RoastVoice) ? null : RoastVoice, Mix.Crude, string.IsNullOrWhiteSpace(Title) ? null : Title.Trim(), Mix.Encode(), Narrator.Encode());
         var reply = await api.StartAsync(request, whole);
         if (reply.Error is not null)
         {
@@ -415,7 +371,7 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     private async Task EndedAsync(MovieJobDto job)
     {
-        // The movie the job made or changed is read afresh, then the step it leads to is shown.
+        // The movie the job made or changed is read afresh. A new one clears the form for the next.
         if (job.MovieId is { } id)
         {
             var opening = Movie?.Id != id;
@@ -424,14 +380,12 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
                 Take(movie);
                 if (opening)
                 {
-                    (Selected, StartingNew) = (movie.Clips.FirstOrDefault()?.Id, false);
                     FilmList.Clear();
+                    (Title, Number) = (DefaultTitle(Show), movie.Number + 1);
                     await js.InvokeVoidAsync("poMedia.write", LastKey, id);
                 }
             }
         }
-        if (job.State == "done" && job.GoTo is { } step && Movie is not null)
-            Step = step == Preview && !Advanced ? Video : step;
         // A job can end with something made and something to put right: both are said, together.
         (Status, StatusIsInfo) = (job.Error is null ? job.Message : null, false);
         Error = job.Error is null ? null : job.Message is null ? job.Error : $"{job.Message} {job.Error}";
@@ -445,43 +399,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     {
         await api.CancelJobAsync();
         Notify();
-    }
-
-    // ---- The checklist ----
-
-    /// <summary>What the step in view asks for, in order. The first that is neither done nor optional is what to do next.</summary>
-    public IReadOnlyList<MovieGuideItem> Guide()
-    {
-        var movie = Movie;
-        switch (Step)
-        {
-            case Template:
-                return [new("Channel name", Kit is { ChannelName.Length: > 0 }), new("Watch the intro", IntroWatched, Optional: true)];
-            case Films:
-                var open = movie is not null && !StartingNew;
-                var films = open ? movie!.Clips.Count(c => c.HasFilm) : FilmList.Count;
-                return
-                [
-                    new(ShowInfo?.TopicLabel ?? "What it is about", open || Topic.Trim().Length > 0),
-                    new(films > 0 ? $"Films · {films}" : "Films", films > 0),
-                    new("Write the script", open),
-                ];
-            case Clips when movie is not null:
-                var items = new List<MovieGuideItem> { new($"Voices · {movie.Clips.Count(c => c.Measured || c.OwnSound)} of {movie.Clips.Length}", movie.Clips.All(c => c.Measured || c.OwnSound)) };
-                // Every clip in the middle is one of the user's own videos.
-                items.Add(new(movie.Clips.All(c => c.HasFilm) ? "Your videos" : $"Videos · {movie.Clips.Count(c => !c.HasFilm)} clip(s) without one", movie.Clips.All(c => c.HasFilm)));
-                var over = movie.RuntimeSeconds > (Config?.MaxMovieSeconds ?? 600);
-                items.Add(new($"Length {TimeSpan.FromSeconds(movie.RuntimeSeconds):m\\:ss}{(over ? " · over 10:00" : "")}", !over, Optional: !over));
-                if (movie.Clips.Count(c => c.Warnings.Length > 0) is > 0 and var toCheck)
-                    items.Add(new(toCheck == 1 ? "1 clip to check" : $"{toCheck} clips to check", false, Optional: true));
-                return items;
-            case Preview when movie is not null:
-                return [new("Build the preview", movie.Preview is not null), new("Outro music", movie.MusicName is not null, Optional: true)];
-            case Video when movie is not null:
-                return [new("Teasers", movie.Publish.TeaserUrls.Length > 0, Optional: true), new("Render the finished video", movie.Publish.MasterUrl is not null)];
-            default:
-                return [];
-        }
     }
 
     public bool IntroWatched { get; set; }
