@@ -46,11 +46,18 @@ public sealed class MediaApi(HttpClient http)
         return response.IsSuccessStatusCode ? null : await ReasonAsync(response);
     }
 
-    /// <summary>Blob storage the user's items take, or null when the server could not say.</summary>
+    /// <summary>Storage the user takes, or null when the server could not say. Never throws: it is only a readout.</summary>
     public async Task<StorageUsageDto?> GetStorageAsync()
     {
-        using var response = await http.GetAsync("api/media/storage");
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync(WireJson.Default.StorageUsageDto) : null;
+        try
+        {
+            using var response = await http.GetAsync("api/media/storage");
+            return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync(WireJson.Default.StorageUsageDto) : null;
+        }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Deletes every item the user has, except any a run is using.</summary>
