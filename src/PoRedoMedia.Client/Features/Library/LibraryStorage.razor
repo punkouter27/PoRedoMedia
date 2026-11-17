@@ -1,0 +1,80 @@
+@* Under the Library toolbar: how much storage the user takes (Library files plus Create Movie's), what is left
+   of their allowance (uploads past it are refused), and Delete all to clear it. *@
+@inject MediaApi Api
+@inject DialogService Dialogs
+@inject NotificationService Notifications
+
+<div class="library-storage" role="group" aria-label="Storage">
+    <RadzenIcon Icon="cloud" aria-hidden="true" class="library-storage-icon" />
+    @if (_usage is { } usage)
+    {
+        <div class="library-storage-meter" role="meter" aria-valuemin="0" aria-valuemax="@usage.LimitBytes" aria-valuenow="@usage.UsedBytes"
+             aria-label="Storage used" title="@Breakdown(usage)">
+            <span class="@(Percent(usage) >= 90 ? "full" : "")" style="width: @(Percent(usage).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span>
+        </div>
+        <RadzenText class="rz-m-0 library-storage-text" aria-live="polite">
+            <strong>@Size(usage.LeftBytes) left</strong> · @Size(usage.UsedBytes) of @Size(usage.LimitBytes) used
+        </RadzenText>
+    }
+    else
+    {
+        <RadzenText class="rz-m-0 library-storage-text">Measuring storage…</RadzenText>
+    }
+    <RadzenButton Text="Delete all" Icon="delete_sweep" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
+                  Disabled="@(_working || _usage is not { UsedBytes: > 0 })" Click="DeleteAllAsync" class="library-delete-all"
+                  title="Delete every Library item and every Create Movie movie, and free their storage" />
+</div>
+
+@code {
+    /// <summary>Called after Delete all so the page can reload its cards.</summary>
+    [Parameter] public EventCallback Cleared { get; set; }
+
+    private StorageUsageDto? _usage;
+    private bool _working;
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    /// <summary>Measures again; the page calls this after it adds or deletes items.</summary>
+    public async Task RefreshAsync()
+    {
+        _usage = await Api.GetStorageAsync();
+        StateHasChanged();
+    }
+
+    private async Task DeleteAllAsync()
+    {
+        var usage = _usage!;
+        var confirmed = await Dialogs.Confirm(
+            $"Delete all {(usage.Items == 1 ? "1 item" : $"{usage.Items} items")}, pinned and shared ones too, and every Create Movie movie? This frees {Size(usage.UsedBytes)} and cannot be undone.",
+            "Delete all", new ConfirmOptions { OkButtonText = "Delete all", CancelButtonText = "Keep" });
+        if (confirmed != true)
+            return;
+
+        _working = true;
+        var (result, error) = await Api.DeleteAllAsync();
+        _working = false;
+        if (error is not null)
+            Notifications.Notify(NotificationSeverity.Error, "Could not delete", error, 8000);
+        else if (result is { Kept: > 0 })
+            Notifications.Notify(NotificationSeverity.Warning, "Some items were kept", $"Deleted {result.Deleted}; {result.Kept} had a run in progress.", 8000);
+        else
+            Notifications.Notify(NotificationSeverity.Success, "Library cleared", $"Deleted {result?.Deleted ?? 0} items.");
+
+        await Cleared.InvokeAsync();
+        await RefreshAsync();
+    }
+
+    private static string Breakdown(StorageUsageDto usage) =>
+        $"{Percent(usage)}% used · Library {Size(usage.UsedBytes - usage.MovieBytes)} · Create Movie {Size(usage.MovieBytes)}. Uploads stop when it is full.";
+
+    private static double Percent(StorageUsageDto usage) =>
+        usage.LimitBytes <= 0 ? 0 : Math.Round(Math.Min(100, usage.UsedBytes * 100.0 / usage.LimitBytes), 1);
+
+    private static string Size(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.##} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0.#} MB",
+        >= 1L << 10 => $"{bytes / 1024.0:0} KB",
+        _ => $"{bytes} B",
+    };
+}

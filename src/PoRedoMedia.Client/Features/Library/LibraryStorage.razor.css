@@ -1,0 +1,43 @@
+/* A slim line under the toolbar: meter, what is left, and Delete all at the far end. */
+.library-storage {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0.25rem;
+    font-size: 0.85rem;
+    color: var(--rz-text-secondary-color);
+    flex-wrap: wrap;
+}
+
+.library-storage ::deep .library-storage-icon {
+    font-size: 1.1rem;
+}
+
+.library-storage-meter {
+    width: 9rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--rz-base-300);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.library-storage-meter span {
+    display: block;
+    height: 100%;
+    background: var(--rz-primary);
+    border-radius: inherit;
+}
+
+.library-storage-meter span.full {
+    background: var(--rz-danger);
+}
+
+.library-storage ::deep .library-storage-text {
+    font-size: inherit;
+    color: inherit;
+}
+
+.library-storage ::deep .library-delete-all {
+    margin-left: auto;
+}

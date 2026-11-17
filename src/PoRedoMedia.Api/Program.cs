@@ -50,6 +50,7 @@ builder.Services.AddSingleton<BlobDelivery>();
 builder.Services.AddSingleton<FFmpegProcess>();
 builder.Services.AddSingleton<IMediaRepository, MediaTableRepository>();
 builder.Services.AddSingleton<Thumbnails>();
+builder.Services.AddSingleton<PoRedoMedia.Api.Features.Media.StorageUsage>();
 builder.Services.AddSingleton<MediaOutputs>();
 builder.Services.AddSingleton<ShareLinkStore>();
 builder.Services.AddSingleton<PreferencesRepository>();

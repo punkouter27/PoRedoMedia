@@ -46,6 +46,22 @@ public sealed class MediaApi(HttpClient http)
         return response.IsSuccessStatusCode ? null : await ReasonAsync(response);
     }
 
+    /// <summary>Blob storage the user's items take, or null when the server could not say.</summary>
+    public async Task<StorageUsageDto?> GetStorageAsync()
+    {
+        using var response = await http.GetAsync("api/media/storage");
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync(WireJson.Default.StorageUsageDto) : null;
+    }
+
+    /// <summary>Deletes every item the user has, except any a run is using.</summary>
+    public async Task<(DeleteAllResult? Result, string? Error)> DeleteAllAsync()
+    {
+        using var response = await http.DeleteAsync("api/media");
+        return response.IsSuccessStatusCode
+            ? (await response.Content.ReadFromJsonAsync(WireJson.Default.DeleteAllResult), null)
+            : (null, await ReasonAsync(response));
+    }
+
     /// <summary>The item's public link. Asking again returns the same one.</summary>
     public async Task<(ShareLinkDto? Link, string? Error)> ShareAsync(Guid id)
     {

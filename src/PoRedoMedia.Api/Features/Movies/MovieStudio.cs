@@ -436,6 +436,34 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
     /// <returns>The copy's id.</returns>
     public string Duplicate(string id) => Path.GetFileName(ProjectStore.Duplicate(Path.Combine(Episodes, id), Episodes));
 
+    /// <summary>
+    /// The folders that hold what was made: every movie, the films staged for them and the footage cache.
+    /// Brand kits, the host design and the spending log are settings, not media, and stay.
+    /// </summary>
+    private string[] MediaFolders => [Episodes, Staging, Path.Combine(Home, "footage")];
+
+    /// <summary>Bytes on this server's disk taken by <see cref="MediaFolders"/>.</summary>
+    public long DiskBytes() => MediaFolders.Where(Directory.Exists)
+        .Sum(f => new DirectoryInfo(f).EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length));
+
+    /// <summary>Removes every movie and the films and footage made for them.</summary>
+    /// <returns>Why it could not, or null.</returns>
+    public string? DeleteAll()
+    {
+        if (IsWorking) return Busy;
+        _open.Clear();
+        try
+        {
+            foreach (var folder in MediaFolders.Where(Directory.Exists))
+                Directory.Delete(folder, recursive: true);
+            return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return $"Some movie files could not be deleted: {e.Message}";
+        }
+    }
+
     /// <returns>Why it could not be deleted, or null.</returns>
     public string? Delete(string id)
     {

@@ -19,6 +19,9 @@ public static class ConfigKeys
     public const string KeyVaultUri = "KeyVault:Uri";
     public const string MocksUseMockAi = "Mocks:UseMockAi";
     public const string StorageConnectionString = "Storage:ConnectionString";
+
+    /// <summary>Each user's storage allowance in MB, shown in the Library as space left. Default 5120 (5 GB).</summary>
+    public const string StorageUserLimitMb = "Storage:UserLimitMb";
     public const string RenderQuotaDailyLimit = "RenderQuota:DailyLimit";
 
     /// <summary>Image runs (remote model waits, no render) executed at once. Video runs always go one at a time.</summary>

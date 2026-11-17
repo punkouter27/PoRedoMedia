@@ -16,6 +16,8 @@ public static class MediaEndpoints
         group.MapPost("/sas", StartUploadAsync).RequireRateLimiting(UploadRateLimit.Policy);
         group.MapPost("/{id}/confirm", ConfirmUploadAsync);
         group.MapGet("/", ListAsync);
+        group.MapGet("/storage", StorageAsync);
+        group.MapDelete("/", DeleteAllAsync);
         group.MapGet("/zip", ZipAsync);
         group.MapGet("/{id}", GetAsync);
         group.MapGet("/{id}/content", ContentAsync);
@@ -27,11 +29,13 @@ public static class MediaEndpoints
 
     /// <summary>Reserves a media item and returns a link the browser uploads the file to directly.</summary>
     private static async Task<Results<Ok<UploadTicket>, ProblemHttpResult>> StartUploadAsync(
-        UploadRequest request, ClaimsPrincipal user, IMediaRepository media, StorageClients storage, CancellationToken ct)
+        UploadRequest request, ClaimsPrincipal user, IMediaRepository media, StorageClients storage, StorageUsage usage, CancellationToken ct)
     {
         var type = UploadValidation.Classify(request.FileName, request.SizeBytes);
         if (type.Error is not null)
             return Refused(type.Error);
+        if (StorageUsage.WouldOverflow(await usage.MeasureAsync(UserId.From(user), ct), request.SizeBytes) is { } full)
+            return Refused(full);
 
         var item = new MediaItem
         {
@@ -58,7 +62,7 @@ public static class MediaEndpoints
     /// </summary>
     private static async Task<Results<Ok<MediaDto>, NotFound, ProblemHttpResult>> ConfirmUploadAsync(
         MediaId id, ClaimsPrincipal user, IMediaRepository media, StorageClients storage, BlobStorageService blobs,
-        FFmpegProcess ffmpeg, Thumbnails thumbnails, ISourceAudioAnalysis audio, IShareLinks links, CancellationToken ct)
+        FFmpegProcess ffmpeg, Thumbnails thumbnails, ISourceAudioAnalysis audio, IShareLinks links, StorageUsage usage, CancellationToken ct)
     {
         var item = await media.GetAsync(UserId.From(user), id, ct);
         if (item is null || item.Status != MediaStatus.Uploading)
@@ -73,7 +77,13 @@ public static class MediaEndpoints
         double? duration = null;
         string? problem = null;
 
-        if (size > UploadValidation.MaxBytes(item.Kind))
+        // The size asked for when the link was given is not trusted; the file that arrived (already
+        // counted in what is used) must fit.
+        if (StorageUsage.WouldOverflow(await usage.MeasureAsync(item.Owner, ct), 0) is { } full)
+        {
+            problem = full;
+        }
+        else if (size > UploadValidation.MaxBytes(item.Kind))
         {
             problem = item.Kind == MediaKind.Video ? "Videos can be up to 200 MB." : "Images can be up to 10 MB.";
         }
@@ -246,6 +256,40 @@ public static class MediaEndpoints
 
         await RemoveAsync(item, media, blobs, links, ct);
         return TypedResults.NoContent();
+    }
+
+    private static async Task<Ok<StorageUsageDto>> StorageAsync(ClaimsPrincipal user, StorageUsage usage, CancellationToken ct) =>
+        TypedResults.Ok(await usage.MeasureAsync(UserId.From(user), ct));
+
+    /// <summary>
+    /// Every Library item, pinned or not, except any a run is still using, then every Create Movie movie and its files.
+    /// Refused while a Create Movie job runs: it works on hidden Library items and its own folders.
+    /// </summary>
+    private static async Task<Results<Ok<DeleteAllResult>, ProblemHttpResult>> DeleteAllAsync(
+        ClaimsPrincipal user, IMediaRepository media, BlobStorageService blobs, IShareLinks links,
+        Features.Runs.RunDispatcher dispatcher, Features.Movies.MovieStudios movies, CancellationToken ct)
+    {
+        var owner = UserId.From(user);
+        var studio = movies.For(owner);
+        if (studio.IsWorking)
+            return TypedResults.Problem(detail: "A Create Movie job is in progress. Wait for it to finish, or cancel it, then delete all.", statusCode: StatusCodes.Status409Conflict);
+
+        int deleted = 0, kept = 0;
+        foreach (var item in await media.ListAsync(owner, ct))
+        {
+            if (dispatcher.IsBusy(item.Id))
+            {
+                kept++;
+                continue;
+            }
+
+            await RemoveAsync(item, media, blobs, links, ct);
+            deleted++;
+        }
+
+        if (studio.DeleteAll() is { } problem)
+            return TypedResults.Problem(detail: problem, statusCode: StatusCodes.Status500InternalServerError);
+        return TypedResults.Ok(new DeleteAllResult(deleted, kept));
     }
 
     /// <summary>Blobs first: if the row went first and the blob delete failed, nothing would point at the orphans.</summary>

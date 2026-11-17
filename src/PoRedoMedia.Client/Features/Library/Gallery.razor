@@ -21,6 +21,8 @@
                         Add="AddAsync" Picked="_picked.Count" Working="_working" ClearPicked="@(() => _picked = [])"
                         SelectAll="@(() => _picked = [.. Visible.Select(m => m.Id)])" Pin="PinPickedAsync" Download="DownloadPickedAsync" Delete="DeletePickedAsync" />
 
+        <LibraryStorage @ref="_storage" Cleared="OnClearedAsync" />
+
         <LibraryGrid Items="_items" Visible="Visible" SelectedId="@(Picking ? null : _selectedId)" Picked="_picked"
                      Clicked="ClickAsync" Menu="@(a => OpenMenu(a.Event, a.Item))" TogglePick="TogglePick" Added="OnAddedAsync"
                      ClearFilters="@(() => SetAsync(kind: "All", search: ""))" />
@@ -48,6 +50,17 @@
     private bool _drawerOpen;
     private bool _disposed;
     private IDisposable? _keys;
+    private LibraryStorage? _storage;
+
+    /// <summary>Measures storage again after the Library changed, without holding up the page.</summary>
+    private void RefreshStorage() => _ = _storage?.RefreshAsync();
+
+    private async Task OnClearedAsync()
+    {
+        _picked = [];
+        await ReloadAsync();
+        await SetAsync(clearSelected: true);
+    }
 
     /// <summary>True while any card is ticked: clicks tick, and the bar shows the bulk actions.</summary>
     private bool Picking => _picked.Count > 0;
@@ -72,6 +85,7 @@
             return;
 
         _items.InsertRange(0, run.Outputs.Where(o => _items.All(m => m.Id != o.Id)).ToList());
+        RefreshStorage();
         StateHasChanged();
     });
 
@@ -184,6 +198,7 @@
     private Task OnAddedAsync(MediaDto media)
     {
         _items!.Insert(0, media);
+        RefreshStorage();
         return SetAsync(selected: media.Id);
     }
 
@@ -197,6 +212,7 @@
     private Task OnDeleted(MediaDto deleted)
     {
         _items!.RemoveAll(m => m.Id == deleted.Id);
+        RefreshStorage();
         return SetAsync(clearSelected: true);
     }
 
@@ -304,6 +320,7 @@
         }
 
         _working = false;
+        RefreshStorage();
         await JS.InvokeVoidAsync("poSfx.play", "remove");
         if (failed.Count > 0)
             Notifications.Notify(NotificationSeverity.Error, "Some items were kept", $"{failed.Count} could not be deleted. An item with a run in progress cannot be.", 8000);

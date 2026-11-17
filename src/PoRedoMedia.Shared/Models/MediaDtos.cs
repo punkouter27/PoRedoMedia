@@ -28,6 +28,18 @@ public sealed record UploadTicket(Guid Id, string UploadUrl, DateTimeOffset Expi
 
 public sealed record MediaUpdateRequest(string? Title, bool? Pinned);
 
+/// <summary>
+/// How much storage the caller takes, measured: Library blobs plus Create Movie files (<c>MovieBytes</c>, already in
+/// <c>UsedBytes</c>), against their allowance. Uploads past it are refused.
+/// </summary>
+public sealed record StorageUsageDto(long UsedBytes, long LimitBytes, int Items, long MovieBytes = 0)
+{
+    public long LeftBytes => Math.Max(0, LimitBytes - UsedBytes);
+}
+
+/// <summary>What Delete all did: items gone, and items kept because a run was still using them.</summary>
+public sealed record DeleteAllResult(int Deleted, int Kept);
+
 /// <summary>Frames sampled from a video in the browser, as image data URLs, with each frame's time in seconds.</summary>
 public sealed record FrameUploadRequest(List<string> Frames, List<double>? Timestamps = null);
 

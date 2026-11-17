@@ -37,6 +37,17 @@ public sealed class BlobStorageService(StorageClients storage)
             await container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: ct);
     }
 
+    /// <summary>Total bytes of every blob under a prefix, such as all a media item owns.</summary>
+    public async Task<long> SizeOfPrefixAsync(string prefix, CancellationToken ct = default)
+    {
+        var slash = prefix.IndexOf('/');
+        var container = storage.Container(prefix[..slash]);
+        long total = 0;
+        await foreach (var blob in container.GetBlobsAsync(BlobTraits.None, BlobStates.None, prefix[(slash + 1)..], ct))
+            total += blob.Properties.ContentLength ?? 0;
+        return total;
+    }
+
     public async Task UploadFileAsync(string path, string localFilePath, string contentType, CancellationToken ct = default)
     {
         await using var stream = File.OpenRead(localFilePath);

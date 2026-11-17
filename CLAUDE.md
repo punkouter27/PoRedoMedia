@@ -70,7 +70,11 @@ the vault's Storage secret is skipped so local runs stay on Azurite.
 **Storage.** One account; names live in `Common/Storage/StorageNames`. Table rows use the user as PartitionKey.
 Everything an item owns sits under `media/{id}/` (`MediaBlobPaths`), so one prefix delete removes it. Uploads go
 browser → SAS PUT to `upload{ext}` → `/confirm` validates (image size is read from the header only) and promotes to
-`source{ext}`.
+`source{ext}`. `Features/Media/StorageUsage` measures a user's blobs (every item's prefix) plus their Create Movie
+files on disk (`MovieStudio.DiskBytes`: episodes, staging, footage) against `Storage:UserLimitMb` (default 5120); `/sas`
+and `/confirm` refuse an upload that would go over it. `GET /api/media/storage` returns it; `DELETE /api/media` deletes
+every Library item except those a run is using, then every movie (`MovieStudio.DeleteAll`, brand kits, host and spend log
+stay), and is refused while a Create Movie job runs. The Library shows both in `LibraryStorage` under its toolbar.
 
 **Auth.** A fallback policy requires a signed-in user, so anonymous endpoints must opt out with `.AllowAnonymous()`.
 Modes: fake auth via `X-Fake-User` (Dev/Test), cookie-only (throws in Production), or cookie + Entra OIDC with

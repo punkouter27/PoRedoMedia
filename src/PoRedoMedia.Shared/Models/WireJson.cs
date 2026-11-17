@@ -11,6 +11,8 @@ namespace PoRedoMedia.Shared.Models;
 [JsonSerializable(typeof(UploadRequest))]
 [JsonSerializable(typeof(UploadTicket))]
 [JsonSerializable(typeof(MediaUpdateRequest))]
+[JsonSerializable(typeof(StorageUsageDto))]
+[JsonSerializable(typeof(DeleteAllResult))]
 [JsonSerializable(typeof(QuotaStatusDto))]
 [JsonSerializable(typeof(RunRequest))]
 [JsonSerializable(typeof(Dictionary<string, RunRequest>))]
