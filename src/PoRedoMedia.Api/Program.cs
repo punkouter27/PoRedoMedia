@@ -15,6 +15,7 @@ using PoRedoMedia.Api.Features.Media;
 using PoRedoMedia.Api.Features.MemeCaption;
 using PoRedoMedia.Api.Features.Movies;
 using PoRedoMedia.Api.Features.Preferences;
+using PoRedoMedia.Api.Features.Publishing;
 using PoRedoMedia.Api.Features.Quota;
 using PoRedoMedia.Api.Features.Render;
 using PoRedoMedia.Api.Features.Runs;
@@ -74,6 +75,7 @@ try
     builder.Services.AddFunctions(builder.Configuration, builder.Environment);
     builder.Services.AddMovies();
     builder.Services.AddComics(builder.Configuration, builder.Environment);
+    builder.Services.AddPublishing(builder.Configuration, builder.Environment);
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<IRenderQuota, RenderQuotaService>();
     builder.Services.AddSingleton<IRunRepository, RunTableRepository>();
@@ -197,6 +199,7 @@ try
     app.MapPreferences();
     app.MapMovies();
     app.MapComics();
+    app.MapPublishing();
     app.MapClientErrors();
     app.MapHub<RunHub>(RunHub.Path);
     // Any other /api path is a JSON 404, never the app's HTML page.

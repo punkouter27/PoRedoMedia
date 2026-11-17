@@ -54,22 +54,7 @@ public sealed partial class EpisodeBuilder
         var work = Files.NewScratchFolder("package");
         try
         {
-            var length = await ffmpeg.ProbeDurationAsync(master, ct);
-            progress?.Report(new RenderProgress("Making the upright video for TikTok", 0.02));
-            var upright = Path.Combine(work, PublishPackage.TikTokVideo);
-            await ffmpeg.RunAsync(FfmpegArgs.Upright(master, upright), work, length < PublishPackage.TikTokMaxLength ? length : PublishPackage.TikTokMaxLength,
-                new Relay<double>(p => progress?.Report(new RenderProgress("Making the upright video for TikTok", 0.02 + 0.85 * p))), ct);
-
-            progress?.Report(new RenderProgress("Making the YouTube thumbnail", 0.88));
-            var thumbnail = Path.Combine(work, PublishPackage.Thumbnail);
-            var export = Path.GetDirectoryName(master)!;
-            var still = new[] { Path.Combine(export, ThumbnailName), Path.ChangeExtension(master, null) + ".thumbnail.png" }.FirstOrDefault(File.Exists);
-            foreach (var quality in new[] { 3, 8, 15 })
-            {
-                await ffmpeg.RunAsync(FfmpegArgs.YouTubeThumbnail(still ?? master, still is null ? length / 3 : null, thumbnail, quality), work, null, null, ct);
-                if (new FileInfo(thumbnail).Length < PublishPackage.ThumbnailMaxBytes) break;
-            }
-
+            var (upright, thumbnail) = await PreparePartsAsync(master, work, progress, ct);
             progress?.Report(new RenderProgress("Packing the zip", 0.92));
             var partial = zip + ".partial";
             File.Delete(partial);
@@ -98,5 +83,29 @@ public sealed partial class EpisodeBuilder
         {
             DeleteScratch(work);
         }
+    }
+    /// <summary>
+    /// The two files made for publishing besides the finished video, in <paramref name="work"/>: the upright copy for
+    /// TikTok and the YouTube thumbnail (the one chosen for the movie, else its cover, else a frame a third of the way in).
+    /// Shared by the download package and Publish.
+    /// </summary>
+    public async Task<(string Upright, string Thumbnail)> PreparePartsAsync(string master, string work, IProgress<RenderProgress>? progress, CancellationToken ct)
+    {
+        var length = await ffmpeg.ProbeDurationAsync(master, ct);
+        progress?.Report(new RenderProgress("Making the upright video for TikTok", 0.02));
+        var upright = Path.Combine(work, PublishPackage.TikTokVideo);
+        await ffmpeg.RunAsync(FfmpegArgs.Upright(master, upright), work, length < PublishPackage.TikTokMaxLength ? length : PublishPackage.TikTokMaxLength,
+            new Relay<double>(p => progress?.Report(new RenderProgress("Making the upright video for TikTok", 0.02 + 0.85 * p))), ct);
+
+        progress?.Report(new RenderProgress("Making the YouTube thumbnail", 0.88));
+        var thumbnail = Path.Combine(work, PublishPackage.Thumbnail);
+        var export = Path.GetDirectoryName(master)!;
+        var still = new[] { Path.Combine(export, ThumbnailName), Path.ChangeExtension(master, null) + ".thumbnail.png" }.FirstOrDefault(File.Exists);
+        foreach (var quality in new[] { 3, 8, 15 })
+        {
+            await ffmpeg.RunAsync(FfmpegArgs.YouTubeThumbnail(still ?? master, still is null ? length / 3 : null, thumbnail, quality), work, null, null, ct);
+            if (new FileInfo(thumbnail).Length < PublishPackage.ThumbnailMaxBytes) break;
+        }
+        return (upright, thumbnail);
     }
 }

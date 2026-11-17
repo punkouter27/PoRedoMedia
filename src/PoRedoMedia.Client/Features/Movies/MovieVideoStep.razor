@@ -111,6 +111,8 @@ var publish = movie.Publish;
             <video @ref="_masterVideo" class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>
             <span class="mv-quiet">@publish.MasterName · @publish.MasterSize</span>
             <div class="mv-row mv-equal">
+                <RadzenButton Text="Publish" Icon="publish" Variant="Variant.Filled" ButtonStyle="ButtonStyle.Primary" Disabled="@(_packing || Store.IsWorking)" Click="OpenPublishAsync" class="mv-wide"
+                              title="Send it to YouTube (with its thumbnail, title, description and tags) and the upright copy to TikTok in one go, from accounts you connect once. Free." />
                 <RadzenButton Text="@(_packing ? "Packing the download…" : "Download for YouTube & TikTok (.zip)")" Icon="download" Variant="Variant.Filled"
                               Disabled="@(_packing || Store.IsWorking)" IsBusy="_packing" Click="DownloadAsync" class="mv-wide"
                               title="One zip with everything to publish it: the video for YouTube, an upright 9:16 copy for TikTok, a YouTube thumbnail, the title, description, tags and caption for each site, and a README with the steps. Once the download finishes, the movie and all its files are removed from the server. Free." />
@@ -302,6 +304,13 @@ var publish = movie.Publish;
         {
             _packing = false;
         }
+    }
+
+    private async Task OpenPublishAsync()
+    {
+        if (Store.Movie is not { } movie) return;
+        await Dialogs.OpenAsync<PublishDialog>("Publish", new Dictionary<string, object?> { ["Movie"] = movie },
+            new DialogOptions { Width = "min(560px, 96vw)", CloseDialogOnEsc = true });
     }
 
     private async Task ReleaseAsync()

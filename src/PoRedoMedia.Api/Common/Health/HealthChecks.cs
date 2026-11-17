@@ -23,6 +23,8 @@ public static class HealthChecks
             ["ai-foundry"] = ("service", "Azure AI Foundry", "Voices, speech-to-text and FLUX pictures."),
             ["key-vault"] = ("service", "Key Vault", "Where the deployed app's keys are kept; read once at startup."),
             ["sign-in"] = ("service", "Microsoft sign-in", "Signs people in with their Microsoft account."),
+            ["youtube"] = ("service", "YouTube publishing", "Publishes finished movies to a connected YouTube channel."),
+            ["tiktok"] = ("service", "TikTok publishing", "Sends finished movies to a connected TikTok account."),
         };
 
     public static IServiceCollection AddPoHealthChecks(this IServiceCollection services)
@@ -36,7 +38,9 @@ public static class HealthChecks
             .AddTypeActivatedCheck<AiProviderHealthCheck>("azure-openai", HealthStatus.Degraded, [], quick, args: [new[] { ConfigKeys.OpenAiEndpoint, ConfigKeys.OpenAiKey }])
             .AddTypeActivatedCheck<AiProviderHealthCheck>("ai-foundry", HealthStatus.Degraded, [], quick, args: [new[] { ConfigKeys.AiFoundryEndpoint, ConfigKeys.AiFoundryKey }])
             .AddCheck<KeyVaultHealthCheck>("key-vault", HealthStatus.Degraded, timeout: quick)
-            .AddCheck<SignInHealthCheck>("sign-in", HealthStatus.Degraded, timeout: quick);
+            .AddCheck<SignInHealthCheck>("sign-in", HealthStatus.Degraded, timeout: quick)
+            .AddTypeActivatedCheck<PublishingHealthCheck>("youtube", HealthStatus.Degraded, [], quick, args: [PoRedoMedia.Api.Features.Publishing.Platform.YouTube])
+            .AddTypeActivatedCheck<PublishingHealthCheck>("tiktok", HealthStatus.Degraded, [], quick, args: [PoRedoMedia.Api.Features.Publishing.Platform.TikTok]);
         return services;
     }
 }
@@ -128,3 +132,12 @@ public sealed class SignInHealthCheck(IConfiguration configuration) : IHealthChe
             : new HealthCheckResult(context.Registration.FailureStatus, "Not configured: only developer sign-in is available."));
 }
 
+/// <summary>A publishing site has its app keys (it is not called: connecting is per user, from the Publish dialog).</summary>
+public sealed class PublishingHealthCheck(PoRedoMedia.Api.Features.Publishing.IYouTubePublisher youTube, PoRedoMedia.Api.Features.Publishing.ITikTokPublisher tikTok,
+    PoRedoMedia.Api.Features.Publishing.Platform platform) : IHealthCheck
+{
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
+        Task.FromResult((platform == PoRedoMedia.Api.Features.Publishing.Platform.YouTube ? youTube.Configured : tikTok.Configured)
+            ? HealthCheckResult.Healthy("Configured; each user connects their own account.")
+            : new HealthCheckResult(context.Registration.FailureStatus, "Not configured, so Publish does not offer it (see docs/publishing-setup.md)."));
+}

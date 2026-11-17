@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using PoRedoMedia.Api.Features.Publishing;
 using PoRedoMedia.Movie.Library;
 using PoRedoMedia.Movie.Pictures;
 using PoRedoMedia.Movie.Script;
@@ -199,6 +200,14 @@ public static class MovieEndpoints
             studios.For(UserId.From(user)) is var studio && studio.Open(id) is { } open ? Results.Ok(studio.MemeEstimate(open)) : Results.NotFound());
         group.MapPost("/{id}/render", (string id, string? preset, ClaimsPrincipal user, MovieStudios studios) =>
             WithAsync(studios, user, id, async (studio, open) => (await studio.RenderAsync(open, preset), null)));
+        // Publish to YouTube and TikTok in one go (Features/Publishing): checked by the dialog's own rules, then a job.
+        group.MapPost("/{id}/publish", async (string id, PublishRequest request, ClaimsPrincipal user, MovieStudios studios,
+            IYouTubePublisher youTube, ITikTokPublisher tikTok, PlatformTokenStore tokens, CancellationToken ct) =>
+        {
+            var status = await PublishingEndpoints.StatusAsync(UserId.From(user), youTube, tikTok, tokens, ct);
+            return Invalid.Check(new PublishRequestValidator(status), request)
+                ?? With(studios, user, id, (studio, open) => (studio.Publish(open, request, new Publishers(youTube, tikTok, tokens)), null));
+        });
         group.MapPost("/{id}/package", (string id, ClaimsPrincipal user, MovieStudios studios) => With(studios, user, id, (studio, open) => (studio.MakePackage(open), null)));
         group.MapPost("/{id}/thumbnails", (string id, ClaimsPrincipal user, MovieStudios studios) => With(studios, user, id, (studio, open) => (studio.MakeThumbnails(open), null)));
         group.MapPost("/{id}/thumbnail", (string id, int index, ClaimsPrincipal user, MovieStudios studios) =>

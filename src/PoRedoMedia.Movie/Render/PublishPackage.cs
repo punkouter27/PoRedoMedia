@@ -111,7 +111,10 @@ public static class PublishPackage
     }
 
     /// <summary>tiktok.txt: the caption, title and description first, then hashtags, all within TikTok's 2,200.</summary>
-    public static string TikTok(PackageInfo info)
+    public static string TikTok(PackageInfo info) => "CAPTION\n" + TikTokCaption(info) + "\n";
+
+    /// <summary>The TikTok caption itself (what tiktok.txt holds, and what a direct post is sent with).</summary>
+    public static string TikTokCaption(PackageInfo info)
     {
         var hashtags = string.Join(' ', info.Hashtags
             .Select(h => "#" + new string(h.TrimStart('#').Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray()))
@@ -122,7 +125,7 @@ public static class PublishPackage
         if (lastSpace > 0) hashtags = hashtags[..lastSpace]; // a hashtag cut in half is no hashtag: drop the cut one
         var room = TikTokCaptionMax - (hashtags.Length > 0 ? hashtags.Length + 2 : 0);
         var words = Cut(string.Join("\n\n", new[] { info.Title.Trim(), FirstParagraph(info.Description) }.Where(p => p.Length > 0)), room);
-        return "CAPTION\n" + (hashtags.Length > 0 ? $"{words}\n\n{hashtags}" : words) + "\n";
+        return hashtags.Length > 0 ? $"{words}\n\n{hashtags}" : words;
     }
 
     /// <summary>README.txt: which file goes where, and the steps on each site.</summary>

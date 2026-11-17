@@ -183,6 +183,20 @@ needs `YouTube:ClientId`/`YouTube:ClientSecret` (an OAuth client of the *Web app
 the open movie's result; the server's `/write` route and clip edits have no UI now), state in `Services/MovieStore`,
 and `wwwroot/js/movie.js` for undo keys. Its advanced controls are the `poredomedia:adv:movie` switch.
 
+**Publish** (2026-11-17, `Features/Publishing`, setup in `docs/publishing-setup.md`). Create Movie's Publish button opens
+`PublishDialog` (checked by `Shared/Validation/PublishRequestValidator`, which `POST /api/movies/{id}/publish` runs too):
+the finished video goes to YouTube (Data API v3: offline OAuth, resumable upload in 8 MiB chunks, thumbnails.set,
+made for kids for the Kids series) and the upright copy (`EpisodeBuilder.PreparePartsAsync`, shared with the download
+zip) to TikTok (Content Posting API FILE_UPLOAD: a draft in the inbox, or a direct post when `TikTok:DirectPost` is
+true; unaudited apps may post only SELF_ONLY), as one job (`MovieStudio.Publish`). When every site took it the movie
+is deleted, like a download. Each user connects a site once (`/api/publish/{youtube|tiktok}/connect` → callback;
+state in memory, `ConnectStates`); the refresh token is kept encrypted with Data Protection in the `PlatformTokens`
+table (`PlatformTokenStore`), rotated for TikTok, deleted when a site stops accepting it and on Disconnect (which
+revokes it). Each site is offered only when its keys are set (`YouTube:ClientId`/`ClientSecret`, `TikTok:ClientKey`/
+`ClientSecret`); `/diag` shows both. Sites sit behind `IYouTubePublisher`/`ITikTokPublisher`; with mock AI (Test)
+they are `FakePublishers`, so tests and E2E never reach Google or TikTok. The older per-upload "Upload to YouTube"
+form (PKCE, nothing kept) is still there.
+
 **Comic-ify** (`/comic`, `Features/Comics`). A pasted conversation (texts, a chat, an email thread, up to 8,000
 characters) becomes a comic strip and a narrated video of it, both saved to the Library (`Origin` "Comic", the video's
 `ParentId` is the strip). The paste goes in raw (copied texts, email chains with headers, signatures and quoted replies).

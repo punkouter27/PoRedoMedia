@@ -7,6 +7,8 @@ namespace PoRedoMedia.Shared.Models;
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(AppConfigDto))]
 [JsonSerializable(typeof(DiagReportDto))]
+[JsonSerializable(typeof(PublishStatusDto))]
+[JsonSerializable(typeof(PublishRequest))]
 [JsonSerializable(typeof(MediaDto))]
 [JsonSerializable(typeof(List<MediaDto>))]
 [JsonSerializable(typeof(UploadRequest))]

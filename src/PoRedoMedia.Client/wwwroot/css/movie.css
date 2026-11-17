@@ -241,3 +241,8 @@
 @media (max-width: 480px) {
     .mv-kind .rz-button { padding-inline: 0.45rem; letter-spacing: 0; }
 }
+/* ── Publish dialog ── */
+.mv-publish, .mv-publish-form { display: flex; flex-direction: column; gap: 0.9rem; }
+.mv-publish-site { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--rz-base-300); }
+.mv-publish-title { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 1rem; }
+.mv-publish-skeleton { height: 10rem; border-radius: var(--po-radius-sm); }

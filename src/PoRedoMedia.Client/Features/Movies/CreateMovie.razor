@@ -136,10 +136,19 @@
     private bool _renaming;
     private string _title = "";
 
+    /// <summary>Set by the server when a YouTube or TikTok sign-in comes back (Features/Publishing).</summary>
+    [SupplyParameterFromQuery] public string? Connected { get; set; }
+
+    [SupplyParameterFromQuery] public string? ConnectError { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         Store.Changed += OnChanged;
         await Store.StartAsync();
+        if (ConnectError is { Length: > 0 } problem)
+            Store.Say(null, problem);
+        else if (Connected is { Length: > 0 } site)
+            Store.Say($"{site} is connected. Press Publish under the finished video to send it there.");
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);

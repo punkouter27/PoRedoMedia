@@ -423,6 +423,12 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     private async Task EndedAsync(MovieJobDto job)
     {
+        // A movie that was published is removed from the server by then: close it here too.
+        if (job is { Title: "Publishing", State: "done", MovieId: null } && Movie is not null)
+        {
+            Movie = null;
+            await js.InvokeVoidAsync("poMedia.write", LastKey, null);
+        }
         // The movie the job made or changed is read afresh. A new one clears the form for the next.
         if (job.MovieId is { } id)
         {

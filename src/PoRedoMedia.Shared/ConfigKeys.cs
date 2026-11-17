@@ -53,4 +53,15 @@ public static class ConfigKeys
     public const string GoogleClipVisionModel = "Google:ClipVisionModel";
 
     public const string VisionSecondOpinion = "Vision:SecondOpinion";
+
+    /// <summary>
+    /// Publish to TikTok (docs/publishing-setup.md): the TikTok developer app's client key and secret (Key Vault
+    /// PoRedoMedia--TikTok--ClientKey / --ClientSecret). Absent = TikTok is not offered.
+    /// </summary>
+    public const string TikTokClientKey = "TikTok:ClientKey";
+
+    public const string TikTokClientSecret = "TikTok:ClientSecret";
+
+    /// <summary>"true" once the TikTok app has the video.publish scope (Direct Post); otherwise only drafts to the inbox.</summary>
+    public const string TikTokDirectPost = "TikTok:DirectPost";
 }

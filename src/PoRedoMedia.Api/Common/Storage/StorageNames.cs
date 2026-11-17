@@ -16,6 +16,9 @@ public static class StorageNames
 
         /// <summary>Per-user daily run counters, partitioned by UTC day.</summary>
         public const string RenderQuotas = "RenderQuotas";
+
+        /// <summary>Per-user connections to YouTube and TikTok (refresh tokens, encrypted), partitioned by user.</summary>
+        public const string PlatformTokens = "PlatformTokens";
     }
 
     public static class Containers

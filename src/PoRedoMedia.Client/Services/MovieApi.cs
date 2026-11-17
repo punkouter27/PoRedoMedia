@@ -165,6 +165,37 @@ public sealed class MovieApi(HttpClient http)
         }
     }
 
+    /// <summary>Publish the movie to YouTube and/or TikTok: a job, followed like any other. A refusal is the reply's error.</summary>
+    public Task<MovieReply> PublishAsync(string id, PublishRequest request) =>
+        PostAsync($"api/movies/{Uri.EscapeDataString(id)}/publish", request, WireJson.Default.PublishRequest);
+
+    /// <summary>Which sites are set up here and connected for this user; null when the server could not be asked.</summary>
+    public async Task<PublishStatusDto?> PublishStatusAsync()
+    {
+        try
+        {
+            return await http.GetFromJsonAsync("api/publish/status", WireJson.Default.PublishStatusDto);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Forgets the user's connection to a site (it is revoked there too); the new status, or null when it failed.</summary>
+    public async Task<PublishStatusDto?> DisconnectAsync(string platform)
+    {
+        try
+        {
+            using var response = await http.PostAsync($"api/publish/{platform}/disconnect", null);
+            return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync(WireJson.Default.PublishStatusDto) : null;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+        {
+            return null;
+        }
+    }
+
     private async Task<MovieReply> PostAsync(string path)
     {
         try

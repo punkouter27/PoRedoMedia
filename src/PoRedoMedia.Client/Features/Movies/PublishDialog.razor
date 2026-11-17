@@ -1,0 +1,208 @@
+@* Publish in one go: the finished video to YouTube (with its thumbnail, title, description and tags from the movie's
+   own notes) and the upright copy to TikTok, as a draft or a direct post. Each site is connected once (Google's or
+   TikTok's own sign-in; the server keeps the connection, encrypted) and can be disconnected here. The form is checked
+   with PublishRequestValidator, the rules the server runs too. *@
+@inject MovieApi Api
+@inject MovieStore Store
+@inject DialogService Dialogs
+@inject NavigationManager Navigation
+
+<div class="mv-publish">
+    @if (_status is null)
+    {
+        @if (_loadFailed)
+        {
+            <div class="po-field-error" role="alert">Could not ask the server what is set up. Close this and try again.</div>
+        }
+        else
+        {
+            <div class="po-skeleton mv-publish-skeleton" role="status" aria-label="Loading"></div>
+        }
+    }
+    else
+    {
+        <EditForm EditContext="_edit" OnValidSubmit="PublishAsync" class="mv-publish-form">
+            <FluentValidationValidator TModel="PublishRequest" Validator="_rules" Request="Request" />
+
+            <section class="mv-publish-site" aria-labelledby="pub-yt">
+                <h3 id="pub-yt" class="mv-publish-title"><RadzenIcon Icon="smart_display" aria-hidden="true" /> YouTube</h3>
+                @if (!_status.YouTube.Configured)
+                {
+                    <p class="mv-quiet">@_status.YouTube.Setup</p>
+                }
+                else if (!_status.YouTube.Connected)
+                {
+                    <RadzenButton Text="Connect YouTube" Icon="link" Variant="Variant.Outlined" Disabled="_busy" Click="@(() => Connect("youtube"))"
+                                  title="Sign in with Google once, on Google's own page. Only uploading is asked for; disconnect here at any time." />
+                }
+                else
+                {
+                    <div class="mv-row">
+                        <RadzenCheckBox Name="pub-youtube" TValue="bool" @bind-Value="_form.YouTube" Disabled="_busy" />
+                        <RadzenLabel Text="Publish to YouTube" Component="pub-youtube" />
+                        <span class="mv-grow"></span>
+                        <RadzenButton Text="Disconnect" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="_busy" Click="@(() => DisconnectAsync("youtube"))" />
+                    </div>
+                    @if (_form.YouTube)
+                    {
+                        <div class="mv-field">
+                            <RadzenLabel Text="Who can watch it" Component="pub-yt-privacy" />
+                            <RadzenDropDown Name="pub-yt-privacy" TValue="string" Data="@YouTubePrivacies" TextProperty="Text" ValueProperty="Value" @bind-Value="_form.YouTubePrivacy" Disabled="_busy" />
+                            <ValidationMessage For="@(() => _form.YouTubePrivacy)" class="po-field-error" />
+                        </div>
+                        @if (Movie.Show == "Kids")
+                        {
+                            <p class="mv-quiet">A Kids' video: sent as made for kids, as YouTube requires.</p>
+                        }
+                    }
+                }
+                <ValidationMessage For="@(() => _form.YouTube)" class="po-field-error" />
+            </section>
+
+            <section class="mv-publish-site" aria-labelledby="pub-tt">
+                <h3 id="pub-tt" class="mv-publish-title"><RadzenIcon Icon="music_video" aria-hidden="true" /> TikTok</h3>
+                @if (!_status.TikTok.Configured)
+                {
+                    <p class="mv-quiet">@_status.TikTok.Setup</p>
+                }
+                else if (!_status.TikTok.Connected)
+                {
+                    <RadzenButton Text="Connect TikTok" Icon="link" Variant="Variant.Outlined" Disabled="_busy" Click="@(() => Connect("tiktok"))"
+                                  title="Sign in with TikTok once, on TikTok's own page. Disconnect here at any time." />
+                }
+                else
+                {
+                    <div class="mv-row">
+                        <RadzenCheckBox Name="pub-tiktok" TValue="bool" @bind-Value="_form.TikTok" Disabled="_busy" />
+                        <RadzenLabel Text="Send to TikTok (upright 9:16)" Component="pub-tiktok" />
+                        <span class="mv-grow"></span>
+                        <RadzenButton Text="Disconnect" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="_busy" Click="@(() => DisconnectAsync("tiktok"))" />
+                    </div>
+                    @if (_form.TikTok)
+                    {
+                        <div class="mv-field">
+                            <RadzenLabel Text="How" Component="pub-tt-mode" />
+                            <RadzenRadioButtonList Name="pub-tt-mode" TValue="string" @bind-Value="_form.TikTokMode" Disabled="_busy" Orientation="Orientation.Vertical">
+                                <Items>
+                                    <RadzenRadioButtonListItem Text="As a draft in my TikTok inbox (I add the caption and post it)" Value="@("draft")" />
+                                    @if (_status.TikTok.DirectPost)
+                                    {
+                                        <RadzenRadioButtonListItem Text="Post it now, with its caption" Value="@("direct")" />
+                                    }
+                                </Items>
+                            </RadzenRadioButtonList>
+                            <ValidationMessage For="@(() => _form.TikTokMode)" class="po-field-error" />
+                        </div>
+                        @if (_form.TikTokMode == "direct")
+                        {
+                            <div class="mv-field">
+                                <RadzenLabel Text="Who can see it" Component="pub-tt-privacy" />
+                                <RadzenDropDown Name="pub-tt-privacy" TValue="string" Data="@TikTokPrivacies" TextProperty="Text" ValueProperty="Value" @bind-Value="_form.TikTokPrivacy" Disabled="_busy" />
+                                <ValidationMessage For="@(() => _form.TikTokPrivacy)" class="po-field-error" />
+                                <span class="mv-quiet">Until TikTok reviews this app, it can post only as Only me (and only to a private account).</span>
+                            </div>
+                        }
+                    }
+                }
+                <ValidationMessage For="@(() => _form.TikTok)" class="po-field-error" />
+            </section>
+
+            @if (_error is { } error)
+            {
+                <div class="po-field-error" role="alert">@error</div>
+            }
+            <div class="mv-row">
+                <span class="mv-quiet mv-grow">Once every site has it, the movie is removed from this server.</span>
+                <RadzenButton Text="Cancel" Variant="Variant.Text" Disabled="_busy" Click="@(() => Dialogs.Close(false))" />
+                <RadzenButton Text="@(_busy ? "Starting…" : "Publish")" Icon="publish" ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" IsBusy="_busy"
+                              Disabled="@(_busy || !(_status.YouTube.Connected || _status.TikTok.Connected))" />
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MovieDto Movie { get; set; } = default!;
+
+    private sealed record Option(string Text, string Value);
+
+    private static readonly Option[] YouTubePrivacies = [new("Private (only you)", "private"), new("Unlisted (anyone with the link)", "unlisted"), new("Public", "public")];
+
+    private static readonly Option[] TikTokPrivacies =
+        [new("Only me", "SELF_ONLY"), new("Friends", "MUTUAL_FOLLOW_FRIENDS"), new("Followers", "FOLLOWER_OF_CREATOR"), new("Everyone", "PUBLIC_TO_EVERYONE")];
+
+    /// <summary>The dialog's fields; property names match <see cref="PublishRequest"/>, so each message lands on its field.</summary>
+    private sealed class PublishForm
+    {
+        public bool YouTube { get; set; }
+        public string YouTubePrivacy { get; set; } = "private";
+        public bool TikTok { get; set; }
+        public string TikTokMode { get; set; } = "draft";
+        public string TikTokPrivacy { get; set; } = "SELF_ONLY";
+    }
+
+    private readonly PublishForm _form = new();
+    private EditContext _edit = null!;
+    private PublishRequestValidator _rules = null!;
+    private PublishStatusDto? _status;
+    private bool _loadFailed, _busy;
+    private string? _error;
+
+    private PublishRequest Request() => new(_form.YouTube, _form.YouTubePrivacy, _form.TikTok, _form.TikTokMode, _form.TikTokPrivacy);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _edit = new EditContext(_form);
+        Use(await Api.PublishStatusAsync());
+    }
+
+    private void Use(PublishStatusDto? status)
+    {
+        _status = status;
+        _loadFailed = status is null;
+        if (status is null) return;
+        _rules = new PublishRequestValidator(status);
+        _form.YouTube = status.YouTube.Connected;
+        _form.TikTok = status.TikTok.Connected;
+    }
+
+    // Google's and TikTok's sign-in pages are their own sites: the browser leaves the app and comes back to Create Movie.
+    private void Connect(string platform) => Navigation.NavigateTo($"api/publish/{platform}/connect", forceLoad: true);
+
+    private async Task DisconnectAsync(string platform)
+    {
+        _busy = true;
+        try
+        {
+            var status = await Api.DisconnectAsync(platform);
+            if (status is null) _error = "Could not disconnect just now. Try again.";
+            else Use(status);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PublishAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var reply = await Api.PublishAsync(Movie.Id, Request());
+            if (reply.Error is { } refused)
+            {
+                _error = refused;
+                return;
+            }
+            Dialogs.Close(true);
+            await Store.FollowJobAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

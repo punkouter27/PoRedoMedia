@@ -61,6 +61,40 @@ public sealed class CreateMovieUiTests : UiTestBase
     }
 
     [LiveServerFact]
+    public async Task Publish_connects_youtube_checks_the_dialog_and_sends_the_movie_then_removes_it()
+    {
+        // The Test server's YouTube and TikTok are stand-ins (Features/Publishing/FakePublishers): nothing leaves it.
+        var page = await SignedInPageAsync("/movie");
+        await page.SetViewportSizeAsync(390, 844);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Add films" }).ClickAsync(new() { Timeout = 30_000 });
+        await page.SetInputFilesAsync(".mv-add-films input[type=file]", new FilePayload { Name = "porch.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(6) });
+        await Assertions.Expect(page.Locator(".mv-film")).ToHaveCountAsync(1, new() { Timeout = 60_000 });
+        await page.GetByRole(AriaRole.Button, new() { Name = "Make the video from my films" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Make it" }).ClickAsync();
+        await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 240_000 });
+
+        // Not connected yet: the dialog offers Connect, which goes through the site's sign-in and comes back.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
+        var dialog = page.GetByRole(AriaRole.Dialog);
+        await dialog.GetByRole(AriaRole.Button, new() { Name = "Connect YouTube" }).ClickAsync();
+        await Assertions.Expect(page.GetByText("YouTube is connected")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+        // Nothing picked is said under the field, and nothing is sent.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
+        await dialog.GetByText("Publish to YouTube").ClickAsync(); // un-tick it
+        await dialog.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
+        await Assertions.Expect(dialog.Locator(".po-field-error")).ToHaveTextAsync("Pick at least one place to publish to.");
+        await ShotAsync(page, "4-publish-dialog");
+
+        // Ticked again: it goes, the link is given, and the movie is removed from the server.
+        await dialog.GetByText("Publish to YouTube").ClickAsync();
+        await dialog.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
+        await Assertions.Expect(page.GetByText("https://youtu.be/")).ToBeVisibleAsync(new() { Timeout = 120_000 });
+        await Assertions.Expect(page.GetByText("No movies yet.")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+    }
+
+    [LiveServerFact]
     public async Task Films_with_notes_become_a_whole_video_that_can_be_cut_into_teasers()
     {
         var page = await SignedInPageAsync("/movie");
