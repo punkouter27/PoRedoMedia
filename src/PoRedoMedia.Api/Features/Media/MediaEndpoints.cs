@@ -227,7 +227,7 @@ public static class MediaEndpoints
         }
     }
 
-    private static async Task<Results<Ok<MediaDto>, NotFound, ProblemHttpResult>> UpdateAsync(
+    private static async Task<Results<Ok<MediaDto>, NotFound, ValidationProblem>> UpdateAsync(
         MediaId id, MediaUpdateRequest request, ClaimsPrincipal user, IMediaRepository media, CancellationToken ct)
     {
         var item = await media.GetAsync(UserId.From(user), id, ct);
@@ -236,7 +236,7 @@ public static class MediaEndpoints
 
         var title = request.Title?.Trim();
         if (title is { Length: 0 or > 120 })
-            return Refused("A title must be 1 to 120 characters.");
+            return Invalid.Field(nameof(MediaUpdateRequest.Title), "A title must be 1 to 120 characters.");
 
         item = item with { Title = title ?? item.Title, Pinned = request.Pinned ?? item.Pinned };
         await media.SaveAsync(item, ct);

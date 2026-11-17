@@ -24,7 +24,7 @@ public static class RunsEndpoints
     /// Validates, then reserves the source's lane, then spends a quota credit, in that order: a
     /// request that is refused for any reason has spent nothing.
     /// </summary>
-    private static async Task<Results<Accepted<RunDto>, NotFound, ProblemHttpResult>> StartAsync(
+    private static async Task<Results<Accepted<RunDto>, NotFound, ValidationProblem, ProblemHttpResult>> StartAsync(
         RunRequest request, ClaimsPrincipal user, IMediaRepository media, IRunRepository runs,
         RunDispatcher dispatcher, RunExecutor executor, IRenderQuota quota,
         Features.MemeCaption.MemeTemplateService templates, CancellationToken ct)
@@ -36,14 +36,14 @@ public static class RunsEndpoints
 
         var functions = request.Functions ?? [];
         if (FunctionStack.Validate(source.Kind, functions) is { } invalid)
-            return Problem(invalid, StatusCodes.Status400BadRequest);
+            return Invalid.Field(nameof(RunRequest.Functions), invalid);
         var unavailable = functions.Where(f => !executor.Available.Contains(f)).ToArray();
         if (unavailable.Length > 0)
-            return Problem($"{FunctionStack.Label(unavailable[0])} is not available.", StatusCodes.Status400BadRequest);
+            return Invalid.Field(nameof(RunRequest.Functions), $"{FunctionStack.Label(unavailable[0])} is not available.");
 
         var options = request.Options ?? [];
         if (options.Count > MaxOptions || options.Any(o => o.Key.Length > 64 || o.Value is null || o.Value.Length > MaxOptionLength))
-            return Problem("The options are too large.", StatusCodes.Status400BadRequest);
+            return Invalid.Field(nameof(RunRequest.Options), "The options are too large.");
 
         // Anything a step would refuse on sight is refused here, while it still costs nothing.
         var missing = FunctionStack.MissingOption(functions, options)
@@ -51,7 +51,7 @@ public static class RunsEndpoints
                 ? templates.Problem(options)
                 : null);
         if (missing is not null)
-            return Problem(missing, StatusCodes.Status400BadRequest);
+            return Invalid.Field(nameof(RunRequest.Options), missing);
 
         if (!dispatcher.TryReserve(source.Id))
             return Problem("This item already has a run in progress.", StatusCodes.Status409Conflict);

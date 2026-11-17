@@ -27,8 +27,7 @@ public static class ExportEndpoints
         return app;
     }
 
-    private static IResult UnknownAspect() => Results.Problem(
-        detail: $"Pick one of {string.Join(", ", SocialExport.Aspects)}.", statusCode: StatusCodes.Status400BadRequest);
+    private static IResult UnknownAspect() => Invalid.Field("aspect", $"Pick one of {string.Join(", ", SocialExport.Aspects)}.");
 
     /// <summary>What it takes to encode an export of a video once.</summary>
     public sealed record Encoder(

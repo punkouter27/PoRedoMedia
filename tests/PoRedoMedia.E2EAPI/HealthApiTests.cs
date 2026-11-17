@@ -10,6 +10,7 @@ public sealed class HealthApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await factory.CreateClient().GetAsync("/health/live");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]

@@ -110,14 +110,12 @@ public static class BulkPromptEndpoints
         return app;
     }
 
-    private static async Task<Results<NoContent, ProblemHttpResult>> SaveAsync(
+    private static async Task<Results<NoContent, ValidationProblem>> SaveAsync(
         List<string> prompts, ClaimsPrincipal user, BulkPromptRepository repository, CancellationToken ct)
     {
         var cleaned = prompts.Select(p => p?.Trim() ?? "").Where(p => p.Length > 0).ToList();
         if (cleaned.Count is 0 or > BulkPrompts.Count || cleaned.Any(p => p.Length > BulkPrompts.MaxLength))
-            return TypedResults.Problem(
-                detail: $"Save 1 to {BulkPrompts.Count} prompts of up to {BulkPrompts.MaxLength} characters each.",
-                statusCode: StatusCodes.Status400BadRequest);
+            return Invalid.Field("prompts", $"Save 1 to {BulkPrompts.Count} prompts of up to {BulkPrompts.MaxLength} characters each.");
 
         await repository.SaveAsync(UserId.From(user), cleaned, ct);
         return TypedResults.NoContent();

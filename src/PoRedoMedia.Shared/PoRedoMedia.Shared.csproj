@@ -5,4 +5,8 @@
          single-file analyzers), and the assembly is marked safe to trim. -->
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Form rules live here so the client form and the API endpoint check the same things. -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
 </Project>

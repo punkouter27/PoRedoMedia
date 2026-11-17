@@ -3,6 +3,7 @@ using PoRedoMedia.Movie.Library;
 using PoRedoMedia.Movie.Pictures;
 using PoRedoMedia.Movie.Script;
 using PoRedoMedia.Shared.Models;
+using PoRedoMedia.Shared.Validation;
 
 namespace PoRedoMedia.Api.Features.Movies;
 
@@ -125,9 +126,9 @@ public static class MovieEndpoints
         group.MapPost("/films/watch", async (Show show, MovieFilmDto film, ClaimsPrincipal user, MovieStudios studios, CancellationToken ct) =>
             await studios.For(UserId.From(user)).SuggestNoteAsync(film, show, ct));
         group.MapPost("/write", (MovieLessonRequest request, ClaimsPrincipal user, MovieStudios studios) =>
-            Started(studios.For(UserId.From(user)).WriteScript(request)));
+            Invalid.Check(LessonRules, request) ?? Started(studios.For(UserId.From(user)).WriteScript(request)));
         group.MapPost("/make", async (MovieLessonRequest request, ClaimsPrincipal user, MovieStudios studios) =>
-            Started(await studios.For(UserId.From(user)).MakeFromFilmsAsync(request)));
+            Invalid.Check(LessonRules, request) ?? Started(await studios.For(UserId.From(user)).MakeFromFilmsAsync(request)));
     }
 
     // ---- One movie ----
@@ -236,6 +237,7 @@ public static class MovieEndpoints
 
         group.MapPost("/{id}/youtube", (string id, MovieUploadRequest upload, HttpRequest request, ClaimsPrincipal user, MovieStudios studios) =>
         {
+            if (Invalid.Check(UploadRules, upload) is { } invalid) return invalid;
             var studio = studios.For(UserId.From(user));
             if (studio.Open(id) is not { } open) return Results.NotFound();
             var (url, problem) = studio.BeginUpload(open, upload, $"{request.Scheme}://{request.Host}/api/movies/youtube/callback");
@@ -301,6 +303,11 @@ public static class MovieEndpoints
     }
 
     // ---- Shapes the routes share ----
+
+    /// <summary>The same rules Create Movie's forms check before they send.</summary>
+    private static readonly MovieLessonRequestValidator LessonRules = new(MovieStudio.MostFilms, IScriptWriter.MaxTopicLength);
+
+    private static readonly MovieUploadRequestValidator UploadRules = new();
 
     private static IResult Refused(string reason) => Results.Problem(detail: reason, statusCode: StatusCodes.Status400BadRequest);
 

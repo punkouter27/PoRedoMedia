@@ -25,7 +25,7 @@ public sealed class MovieEndpointsTests(AzuriteFixture azurite)
             var request = new MovieLessonRequest("General", "Movie", "Our weekend building the treehouse", "", 1, []);
             var refused = await me.PostAsJsonAsync("/api/movies/write", request, WireJson.Default.MovieLessonRequest);
             Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-            Assert.Contains("Add your films first", await refused.Content.ReadAsStringAsync());
+            Assert.Contains("Add a film first.", await refused.Content.ReadAsStringAsync()); // a validation problem (MovieLessonRequestValidator)
 
             // With two films, a script is written as a job: one clip for each film and nothing between them. With no
             // script model configured its words are stand-ins.

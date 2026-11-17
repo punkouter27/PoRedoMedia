@@ -96,6 +96,49 @@ public sealed partial class FFmpegProcess
         return process.ExitCode;
     }
 
+    private (bool Starts, DateTimeOffset At)? _startsChecked;
+
+    /// <summary>
+    /// Whether ffmpeg can be started (<c>ffmpeg -version</c>), for the health check. The answer is kept for five
+    /// minutes, so a health probe does not start a process each time.
+    /// </summary>
+    public async Task<bool> StartsAsync(CancellationToken ct)
+    {
+        if (_startsChecked is { } known && DateTimeOffset.UtcNow - known.At < TimeSpan.FromMinutes(5))
+            return known.Starts;
+        bool starts;
+        try
+        {
+            using var process = Process.Start(BuildPsi("ffmpeg", "-hide_banner -version"));
+            if (process is null)
+            {
+                starts = false;
+            }
+            else
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                _ = process.StandardOutput.ReadToEndAsync(timeout.Token);
+                try
+                {
+                    await process.WaitForExitAsync(timeout.Token);
+                    starts = process.ExitCode == 0;
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    process.Kill(entireProcessTree: true);
+                    starts = false;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            starts = false;
+        }
+        _startsChecked = (starts, DateTimeOffset.UtcNow);
+        return starts;
+    }
+
     /// <summary>
     /// Returns true when the file has at least one audio stream (ffprobe). A failed probe reads
     /// as "no audio", so the render still succeeds with the added sounds only.

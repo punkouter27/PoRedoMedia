@@ -6,6 +6,9 @@ namespace PoRedoMedia.Api.Configuration;
 
 public static class KeyVaultExtensions
 {
+    /// <summary>True when the vault's secrets were read at startup, false when reading them failed, null when no vault is used.</summary>
+    public static bool? Loaded { get; private set; }
+
     /// <summary>
     /// Loads this app's secrets from Key Vault with the caller's Azure identity (<c>az login</c>
     /// locally, managed identity in Azure). Skipped when no vault is configured or mock AI is on.
@@ -30,11 +33,13 @@ public static class KeyVaultExtensions
                 .AddAzureKeyVault(new Uri(uri), credential, new PrefixKeyVaultSecretManager("PoRedoMedia", localStorage: builder.Environment.IsDevelopment()))
                 .Build();
             builder.Configuration.AddConfiguration(secrets);
+            Loaded = true;
         }
         catch (Exception ex) when (builder.Environment.IsDevelopment())
         {
             // A developer without vault access still gets a running app: functions whose keys are
             // missing report themselves unavailable. Anywhere else an unreachable vault is fatal.
+            Loaded = false;
             Console.Error.WriteLine($"Key Vault {uri} could not be read ({ex.GetType().Name}: {ex.Message}); continuing without its secrets.");
         }
     }

@@ -38,7 +38,7 @@ public static class PreferencesEndpoints
     }
 
     /// <summary>Replaces the whole set: what the browser sends is what the account keeps.</summary>
-    private static async Task<Results<NoContent, ProblemHttpResult>> SaveAsync(
+    private static async Task<Results<NoContent, ValidationProblem>> SaveAsync(
         PreferencesDto request, ClaimsPrincipal user, PreferencesRepository preferences, CancellationToken ct)
     {
         var values = request.Values ?? [];
@@ -51,6 +51,5 @@ public static class PreferencesEndpoints
         return TypedResults.NoContent();
     }
 
-    private static ProblemHttpResult Problem(string detail) =>
-        TypedResults.Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest);
+    private static ValidationProblem Problem(string detail) => Invalid.Field(nameof(PreferencesDto.Values), detail);
 }
