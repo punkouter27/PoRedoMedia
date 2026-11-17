@@ -44,7 +44,7 @@ public sealed class CreateMovieUiTests : UiTestBase
         await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 240_000 });
         await page.WaitForFunctionAsync("() => { const v = document.querySelector('video[aria-label=\"The finished video\"]'); return v !== null && v.readyState >= 2; }");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Treehouse Day" })).ToBeVisibleAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "In your Library" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Download & remove from server" })).ToBeVisibleAsync();
         await ShotAsync(page, "3-video");
 
         // Every saved movie can be deleted at once, after asking.
