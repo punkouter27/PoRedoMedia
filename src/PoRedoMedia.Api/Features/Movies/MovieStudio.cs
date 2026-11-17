@@ -10,14 +10,18 @@ using PoRedoMedia.Shared.Models;
 namespace PoRedoMedia.Api.Features.Movies;
 
 /// <summary>One user's studios, made the first time each is asked for and kept while the server runs.</summary>
-public sealed class MovieStudios(MovieEngine engine, IMediaRepository media, BlobStorageService blobs, Thumbnails thumbnails, IEnumerable<IRunStep> steps, IRenderQuota quota)
+public sealed class MovieStudios(MovieEngine engine, IMediaRepository media, BlobStorageService blobs, IEnumerable<IRunStep> steps, IRenderQuota quota)
 {
     private readonly ConcurrentDictionary<string, MovieStudio> _studios = new();
 
     /// <summary>The step that runs Meme-ify (and the roast) for the Create page, which every movie clip goes through too.</summary>
     private readonly IRunStep? _memes = steps.FirstOrDefault(s => s.Handles.Contains(PoRedoMedia.Shared.Enums.MediaFunction.Memeify));
 
-    public MovieStudio For(UserId user) => _studios.GetOrAdd(user.Value, _ => new MovieStudio(engine, user, media, blobs, thumbnails, _memes, quota));
+    public MovieStudio For(UserId user) => _studios.GetOrAdd(user.Value, _ => new MovieStudio(engine, user, media, blobs, _memes, quota));
+
+    /// <summary>Whether a job is under way in the user folder <paramref name="home"/>, for the sweep.</summary>
+    public bool IsWorkingIn(string home) =>
+        _studios.Values.Any(s => s.IsWorking && string.Equals(Path.GetFullPath(s.Home), Path.GetFullPath(home), StringComparison.Ordinal));
 }
 
 /// <summary>A movie that is open: the episode as it is now, how to step back through its changes, and what has been made of it this session.</summary>
@@ -42,8 +46,6 @@ public sealed class OpenMovie(string id, string folder, Episode episode)
 
     public string? VideoLink { get; set; }
 
-    public Guid? LibraryId { get; set; }
-
     /// <summary>One picture at a time is asked for by hand, so the same request is never paid for twice.</summary>
     public SemaphoreSlim PictureGate { get; } = new(1, 1);
 }
@@ -57,7 +59,7 @@ public sealed class OpenMovie(string id, string folder, Episode episode)
 /// ponytail: open movies, undo history and the job live in this server's memory, as they lived in the desktop app's.
 /// A restart forgets the undo steps and stops a job; everything made is on disk and is picked up again.
 /// </remarks>
-public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaRepository media, BlobStorageService blobs, Thumbnails thumbnails, IRunStep? memes, IRenderQuota quota)
+public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaRepository media, BlobStorageService blobs, IRunStep? memes, IRenderQuota quota)
 {
     private readonly ConcurrentDictionary<string, OpenMovie> _open = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
@@ -66,7 +68,7 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
     private IScriptWriter? _writer;
     private string? _lastNote;
 
-    private string Home => engine.UserFolder(user);
+    internal string Home => engine.UserFolder(user);
 
     public string Episodes => Path.Combine(Home, "episodes");
 
@@ -244,6 +246,8 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
             {
                 if (!job.Made)
                     await quota.RefundAsync(user, CancellationToken.None);
+                // Films fetched from the Library for this movie were copied into it; the cache of them is not kept.
+                DeleteFolder(Staging);
             }
         }, goTo: goTo);
         if (problem is not null)
@@ -310,7 +314,7 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
         if (_open.TryGetValue(id, out var open)) return open;
         var folder = Path.Combine(Episodes, id);
         if (!File.Exists(Path.Combine(folder, ProjectStore.FileName))) return null;
-        open = _open.GetOrAdd(id, new OpenMovie(id, folder, ProjectStore.Load(folder)) { LibraryId = LibraryIdOf(folder) });
+        open = _open.GetOrAdd(id, new OpenMovie(id, folder, ProjectStore.Load(folder)));
         Writer.Show = BeatPlan.ShowOf(open.Episode.Structure);
         return open;
     }
@@ -461,6 +465,29 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return $"Some movie files could not be deleted: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// The finished video to download, and what to do once it is downloaded: remove the movie and every file it has
+    /// from this server, since no video is kept here. Null when there is none, or a job is working on the movie.
+    /// </summary>
+    public (string Path, Action Downloaded)? DownloadOf(string id)
+    {
+        if (_job is { State: JobState.Running, MovieId: var busy } && busy == id) return null;
+        if (EpisodeBuilder.LatestMaster(Path.Combine(Episodes, id)) is not { } master || !File.Exists(master)) return null;
+        return (master, () => Delete(id));
+    }
+
+    private static void DeleteFolder(string folder)
+    {
+        try
+        {
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // A file still open is left for the sweep (MovieSweeper).
         }
     }
 

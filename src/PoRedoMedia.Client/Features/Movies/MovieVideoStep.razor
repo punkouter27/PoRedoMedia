@@ -1,6 +1,6 @@
 @* The open movie's result: the finished video (render it again after changing the roast), with its
-   chapters, thumbnail and upload details, put it in the Library or send it to YouTube; and the short
-   upright teasers cut from it. *@
+   chapters, thumbnail and upload details, send it to YouTube or download it (which removes the movie from the
+   server: no video is kept there); and the short upright teasers cut from it. *@
 @implements IAsyncDisposable
 @inject MovieStore Store
 @inject MovieApi Api
@@ -97,7 +97,7 @@ var publish = movie.Publish;
 
     <div class="mv-side">
         <strong>Finished video</strong>
-        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it.@(config.Memes ? $" Every film and AI video clip goes through Meme-ify first ({(string.Equals(movie.RoastVoice, "Off", StringComparison.OrdinalIgnoreCase) || config.RoastVoices is not { Length: > 0 } ? "sounds, stickers, text and effects; roast off" : $"sounds, stickers, text, effects and a {(movie.CrudeRoast ? "crude " : "")}{(string.Equals(movie.RoastVoice, "Rap", StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}")})," : " Meme-ify is not set up on this server, so the clips are joined as they are,") and the movie goes in your Library.</p>
+        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it.@(config.Memes ? $" Every film and AI video clip goes through Meme-ify first ({(string.Equals(movie.RoastVoice, "Off", StringComparison.OrdinalIgnoreCase) || config.RoastVoices is not { Length: > 0 } ? "sounds, stickers, text and effects; roast off" : $"sounds, stickers, text, effects and a {(movie.CrudeRoast ? "crude " : "")}{(string.Equals(movie.RoastVoice, "Rap", StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}")})," : " Meme-ify is not set up on this server, so the clips are joined as they are,") and you download it. Downloading removes the movie and all its files, teasers too, from the server, so do anything else with it first.</p>
         @if (config.Memes)
         {
             <MovieRoastOptions Voices="config.RoastVoices" Voice="@movie.RoastVoice" VoiceChanged="@(v => Store.EditAsync(new MovieEdit("roastVoice", Text: v)))"
@@ -105,16 +105,14 @@ var publish = movie.Publish;
                                Narrator="@NarratorChoice.Parse(movie.Narrator)" NarratorChanged="@(n => Store.EditAsync(new MovieEdit("narrator", Text: n.Encode())))" Disabled="Store.IsWorking" IdPrefix="mv-video-roast" />
         }
         <RadzenButton Text="@(publish.MasterUrl is null ? "Render finished video" : "Render again")" Icon="movie" Variant="@(publish.MasterUrl is null ? Variant.Filled : Variant.Outlined)" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
-                      title="@($"Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description, and put it in your Library.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
+                      title="@($"Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
         @if (publish.MasterUrl is { } master)
         {
             <video @ref="_masterVideo" class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>
             <span class="mv-quiet">@publish.MasterName · @publish.MasterSize</span>
             <div class="mv-row mv-equal">
-                <RadzenButton Text="Download" Icon="download" Variant="Variant.Outlined" Click="@(() => JS.InvokeVoidAsync("poMedia.download", master))" title="Save the finished video to this device." />
-                <RadzenButton Text="@(publish.LibraryId is null ? "Add to Library" : "In your Library")" Icon="photo_library" Variant="Variant.Outlined" IsBusy="@(Store.Waiting == "library")"
-                              Disabled="@(Store.IsWorking || publish.LibraryId is not null)" Click="@(() => Store.DoAsync("library", "library"))"
-                              title="Put the finished video in your Library, beside everything else you have made, where it can be shared by link or used as the source of a run." />
+                <RadzenButton Text="Download & remove from server" Icon="download" Variant="Variant.Filled" Disabled="Store.IsWorking" Click="DownloadAsync"
+                              title="Save the finished video to this device. Once the download finishes, the movie and all its files are removed from the server." />
             </div>
         }
 
@@ -257,9 +255,28 @@ var publish = movie.Publish;
         var paid = memes is { NothingToDo: false };
         if ((paid || runs.Length > 0)
             && !await MovieDialogs.ConfirmSpendAsync(Dialogs, Store, "Render the finished video?",
-                (paid ? memes!.Summary : "Renders the movie and puts it in your Library.") + runs, "Render", paid ? memes!.Dollars ?? 0 : 0))
+                (paid ? memes!.Summary : "Renders the movie, ready to download.") + runs, "Render", paid ? memes!.Dollars ?? 0 : 0))
             return;
         await Store.DoAsync($"render?preset={Store.Prefs.ExportPreset}", job: true);
+    }
+
+    /// <summary>Asks, then downloads the video; the server removes the movie once the download has finished.</summary>
+    private async Task DownloadAsync()
+    {
+        if (Store.Movie is not { } movie) return;
+        if (!await MovieDialogs.ConfirmAsync(Dialogs, "Download and remove from the server?",
+                $"Saves {movie.Publish.MasterName} to this device. When the download finishes, the movie and all its files (clips, teasers, thumbnail) are deleted from the server, so upload to YouTube or download teasers first. To make it again you render it again.",
+                "Download"))
+            return;
+        try
+        {
+            await JS.InvokeVoidAsync("poMedia.releaseMedia", _masterVideo);
+        }
+        catch (JSException)
+        {
+            // Nothing playing.
+        }
+        await Store.DownloadAndRemoveAsync(movie.Id);
     }
 
     private async Task CopyAsync(string what, string text)

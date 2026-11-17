@@ -21,6 +21,7 @@ public static class MovieEndpoints
         services.AddHttpClient(MovieAi.UploadClientName, c => c.Timeout = Timeout.InfiniteTimeSpan);
         services.AddSingleton<MovieEngine>();
         services.AddSingleton<MovieStudios>();
+        services.AddHostedService<MovieSweeper>();
         return services;
     }
 
@@ -233,9 +234,6 @@ public static class MovieEndpoints
         group.MapPost("/{id}/clean", (string id, ClaimsPrincipal user, MovieStudios studios) =>
             With(studios, user, id, (studio, open) => studio.IsWorking ? (MovieStudio.Busy, null) : (null, studio.CleanMedia(open))));
 
-        group.MapPost("/{id}/library", (string id, ClaimsPrincipal user, MovieStudios studios, CancellationToken ct) =>
-            WithAsync(studios, user, id, async (studio, open) =>
-                await studio.SaveToLibraryAsync(open, ct) is (_, { } problem) ? (problem, null) : (null, "The video is in your Library.")));
         group.MapPost("/{id}/youtube", (string id, MovieUploadRequest upload, HttpRequest request, ClaimsPrincipal user, MovieStudios studios) =>
         {
             var studio = studios.For(UserId.From(user));
@@ -252,6 +250,21 @@ public static class MovieEndpoints
 
     private static void MapFiles(RouteGroupBuilder group)
     {
+        // The finished video as a download. Once all of it has gone out, the movie is removed from this server: no video
+        // is kept here (the F1 plan has 1 GB of disk). A download cut short keeps it, for another try or the sweep.
+        group.MapGet("/{id}/download", (string id, HttpContext http, ClaimsPrincipal user, MovieStudios studios) =>
+        {
+            if (!MovieStudio.IsId(id) || studios.For(UserId.From(user)).DownloadOf(id) is not var (path, downloaded))
+                return Results.NotFound();
+            http.Response.OnCompleted(() =>
+            {
+                if (!http.RequestAborted.IsCancellationRequested)
+                    downloaded();
+                return Task.CompletedTask;
+            });
+            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, bufferSize: 64 * 1024, useAsync: true);
+            return Results.File(stream, "video/mp4", Path.GetFileName(path));
+        });
         group.MapGet("/{id}/files/{**path}", (string id, string path, ClaimsPrincipal user, MovieStudios studios) =>
             Served(studios.For(UserId.From(user)).FileOf(id, path)));
         group.MapGet("/temp/{token}", (string token, ClaimsPrincipal user, MovieStudios studios) =>

@@ -80,7 +80,7 @@ public sealed record MovieTeaserDto(string Hook, bool Keep, bool Fill, MovieTeas
 /// <summary>What goes with the finished video when it is uploaded.</summary>
 public sealed record MoviePublishDto(
     string? MasterUrl, string? MasterName, string? MasterSize, string Title, string Description, string Tags, string Chapters,
-    string? ThumbnailUrl, string[] ThumbnailChoices, string[] TeaserUrls, string? VideoLink, Guid? LibraryId);
+    string? ThumbnailUrl, string[] ThumbnailChoices, string[] TeaserUrls, string? VideoLink);
 
 /// <summary>A movie as it is now: its script, its clips, and what has been made of it.</summary>
 /// <param name="PicturesToMake">Clips still waiting for a picture.</param>

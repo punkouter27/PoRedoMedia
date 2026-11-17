@@ -209,7 +209,8 @@ public sealed partial class MovieStudio
 
     /// <summary>
     /// Every voice is recorded and the movie held to its length; every film and AI video clip then goes through Meme-ify;
-    /// then the movie is rendered, its upload notes written, and it is put in the Library.
+    /// then the movie is rendered and its upload notes written. Nothing goes in the Library: the user downloads it, and
+    /// the download removes the movie from this server (<see cref="DownloadOf"/>).
     /// </summary>
     private async Task RenderMasterAsync(Job job, OpenMovie open, ExportPreset preset, CancellationToken ct)
     {
@@ -226,7 +227,6 @@ public sealed partial class MovieStudio
         job.Made = true;
         job.Phase = (from + span * 0.95, span * 0.05);
         open.VideoLink = null;
-        var notesWritten = true;
         try
         {
             Report(job, "Writing the title, description and tags to upload with it", 1);
@@ -237,14 +237,11 @@ public sealed partial class MovieStudio
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            notesWritten = false;
             job.Error = "The video is finished, but its upload description could not be written. " + Plain(e);
         }
-        Report(job, "Putting it in your Library", 0.5);
-        var (_, libraryProblem) = await SaveToLibraryAsync(open, ct);
-        job.Message = $"Saved {Path.GetFileName(video)}{(libraryProblem is null ? " and put it in your Library" : "")}, with its chapter list, subtitles{(notesWritten ? ", thumbnail and upload description" : " and thumbnail")} beside it."
+        job.Message = $"{Path.GetFileName(video)} is ready. Download it to keep it: the download removes the movie and all its files from the server."
             + (brand.Kit.ChannelName.Trim().Length == 0 ? " It has no intro or outro: give the channel a name on the Template step to add them." : "");
-        var problems = new[] { job.Error, libraryProblem }.Concat(memeFailures).OfType<string>().ToList();
+        var problems = new[] { job.Error }.Concat(memeFailures).OfType<string>().ToList();
         job.Error = problems.Count > 0 ? string.Join(" ", problems) : null;
     }
 
@@ -363,68 +360,6 @@ public sealed partial class MovieStudio
     }
 
     // ---- Publishing ----
-
-    /// <summary>
-    /// Puts the finished video in the user's Library, beside everything else they have made, where it can be
-    /// downloaded, shared by link or used as the source of a run.
-    /// </summary>
-    /// <remarks>
-    /// The copy made from the movie's last render is replaced, unless it has been shared or pinned: then the user has
-    /// done something with it, and it is kept beside the new one.
-    /// </remarks>
-    public async Task<(Guid? Id, string? Error)> SaveToLibraryAsync(OpenMovie open, CancellationToken ct)
-    {
-        if (EpisodeBuilder.LatestMaster(open.Folder) is not { } master) return (null, "Render the finished video first.");
-        if (LoadLibraryCopy(open.Folder) is { } earlier && earlier.Master == Path.GetFileName(master) && File.GetLastWriteTimeUtc(master) <= earlier.Saved
-            && await media.GetAsync(user, MediaId.From(earlier.Id), ct) is not null)
-            return (open.LibraryId = earlier.Id, null); // already there, as it is now
-        var item = new MediaItem
-        {
-            Owner = user,
-            Id = MediaId.New(),
-            Kind = MediaKind.Video,
-            Status = MediaStatus.Ready,
-            Origin = "Movie",
-            Title = open.Episode.Title,
-            ContentType = "video/mp4",
-            Extension = ".mp4",
-            SizeBytes = new FileInfo(master).Length,
-            DurationSeconds = (await engine.Builder.ProbeDurationAsync(master, ct)).TotalSeconds,
-            Text = File.Exists(Path.ChangeExtension(master, ".description.txt")) ? await File.ReadAllTextAsync(Path.ChangeExtension(master, ".description.txt"), ct) : null,
-            Summary = "A movie made in Create Movie.",
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
-        try
-        {
-            await blobs.UploadFileAsync(item.SourcePath, master, item.ContentType, ct);
-            await thumbnails.CreateAsync(item, ct);
-            // The row goes last, so a failure above leaves no Library item pointing at missing bytes.
-            await media.SaveAsync(item, ct);
-        }
-        catch (Exception e) when (e is Azure.RequestFailedException or IOException)
-        {
-            return (null, "The video is finished, but it could not be put in the Library: storage did not answer. Add it again from the Video step.");
-        }
-        if (LoadLibraryCopy(open.Folder) is { } replaced && await media.GetAsync(user, MediaId.From(replaced.Id), ct) is { Pinned: false, ShareToken: null } old)
-        {
-            await blobs.DeletePrefixAsync(MediaBlobPaths.Prefix(old.Id), ct);
-            await media.DeleteAsync(user, old.Id, ct);
-        }
-        MovieJson.Save(LibraryFile(open.Folder), new LibraryCopy(item.Id.Value, Path.GetFileName(master), DateTime.UtcNow));
-        open.LibraryId = item.Id.Value;
-        return (item.Id.Value, null);
-    }
-
-    /// <summary>Which Library item holds the movie, made from which render, and when.</summary>
-    private sealed record LibraryCopy(Guid Id, string Master, DateTime Saved);
-
-    private static string LibraryFile(string folder) => Path.Combine(folder, "export", "library.json");
-
-    private static LibraryCopy? LoadLibraryCopy(string folder) => MovieJson.Load<LibraryCopy?>(LibraryFile(folder), null);
-
-    /// <summary>The Library item made from the movie's latest render, when there is one.</summary>
-    private static Guid? LibraryIdOf(string folder) =>
-        LoadLibraryCopy(folder) is { } copy && EpisodeBuilder.LatestMaster(folder) is { } master && copy.Master == Path.GetFileName(master) ? copy.Id : null;
 
     private sealed record PendingUpload(string MovieId, MovieUploadRequest Request, string Verifier, string Redirect);
 
@@ -577,6 +512,6 @@ public sealed partial class MovieStudio
         var thumbnail = Path.Combine(open.Folder, "export", EpisodeBuilder.ThumbnailName);
         var size = master is null ? null : string.Create(CultureInfo.InvariantCulture, $"{new FileInfo(master).Length / 1_048_576.0:0.0} MB");
         return new MoviePublishDto(Link(open, master), master is null ? null : Path.GetFileName(master), size, title, description, string.Join(", ", notes?.Tags ?? []), chapters,
-            Link(open, thumbnail), [.. open.ThumbnailChoices.Where(File.Exists).Select(Temp)], [.. TeaserFiles(open.Folder).Select(f => Link(open, f)!)], open.VideoLink, open.LibraryId);
+            Link(open, thumbnail), [.. open.ThumbnailChoices.Where(File.Exists).Select(Temp)], [.. TeaserFiles(open.Folder).Select(f => Link(open, f)!)], open.VideoLink);
     }
 }

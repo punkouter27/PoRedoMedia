@@ -144,12 +144,14 @@ the working blobs and output row are deleted. Kids' clips get Meme-ify in the "s
 `TurnTaking.Arrange` says a joke only in a pause that holds all of it (at its moment or after the line it would cut into, within 6 s) and drops it otherwise, so the two voices never overlap. A clip can be left out of Meme-ify
 (`Clip.NoMemes`, the "memes" edit). A movie render (or the one-go make) is one run of the daily quota
 (`MovieStudio.StartRenderAsync`), refunded when the job ends without a video.
-Its AI cost is logged as "meme-ify"; `Movie:MemeifyUsd` prices the estimate shown first. The finished video then goes
-into the Library by itself, replacing the movie's earlier copy unless that was shared or pinned (`export/library.json`).
+Its AI cost is logged as "meme-ify"; `Movie:MemeifyUsd` prices the estimate shown first. **No video is kept on the
+server** (F1 has 1 GB of disk): the finished video is not put in the Library; `GET /api/movies/{id}/download` streams it
+and, once the download completes, deletes the whole movie folder (`MovieStudio.DownloadOf`). `staging/` is emptied after
+every render, and `MovieSweeper` removes movies and staged films idle for 3 hours.
 With no server speech model, a film that keeps its own sound is heard by the browser's Whisper
 (`poDeviceAi.transcribeMedia`), stored as the item's source speech like an upload's. `SourceAudioAnalysis` uses speech
 already stored with an item instead of transcribing it again. Spending is logged per movie (`SpendLog`) and held to an optional monthly budget; anything
-priced asks first. The finished video can be put in the Library (`POST /api/movies/{id}/library`). YouTube upload
+priced asks first. YouTube upload
 needs `YouTube:ClientId`/`YouTube:ClientSecret` (an OAuth client of the *Web application* kind, redirect
 `/api/movies/youtube/callback`); the sign-in is used for that one upload and nothing is kept. Routes are under
 `/api/movies` (`Features/Movies/MovieEndpoints`); the client is one page, `Features/Movies/CreateMovie`
