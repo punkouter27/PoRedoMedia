@@ -17,6 +17,14 @@ if (-not $IsLinux) { throw 'ci-package.ps1 bundles Linux ffmpeg and fonts; run i
 if (-not (Test-Path $PublishDir)) { throw "Publish folder not found: $PublishDir" }
 $PublishDir = (Resolve-Path $PublishDir).Path
 
+# The publish is portable, so it carries every OS's native libraries (SkiaSharp's for Windows ship
+# ~95 MB debug symbols each). App Service is Linux x64 on F1's 1 GB disk: keep only linux-x64.
+$runtimes = Join-Path $PublishDir 'runtimes'
+if (Test-Path $runtimes) {
+    Get-ChildItem $runtimes -Directory | Where-Object Name -ne 'linux-x64' | Remove-Item -Recurse -Force
+    Get-ChildItem $runtimes -Recurse -Filter *.pdb | Remove-Item -Force
+}
+
 # Statically linked ffmpeg, bundled so the app ships as code on the F1 plan rather than as a container.
 # Must be the **gpl** variant: the render pipeline encodes with libx264, which the lgpl builds omit.
 # Must be the non-`shared` archive: only the static build's binaries can be lifted out on their own.
