@@ -9,6 +9,9 @@ namespace PoRedoMedia.Api.Features.Auth;
 
 public static class AuthServiceExtensions
 {
+    /// <summary>The sign-in cookie's name, unique to this app so other localhost apps cannot overwrite it.</summary>
+    public const string AuthCookieName = ".PoRedoMedia.Auth";
+
     /// <summary>
     /// Registers authentication and deny-by-default authorization. Three modes, chosen at startup:
     /// header-driven fake auth (tests, never Production), cookie only when no Entra client id is
@@ -47,6 +50,10 @@ public static class AuthServiceExtensions
             {
                 options.LoginPath = "/login";
                 options.AccessDeniedPath = "/login";
+                // Own name, not the default ".AspNetCore.Cookies": browsers share cookies across
+                // ports, so every other ASP.NET app on localhost overwrote this one and signed the
+                // user out mid-session (sent back to /login on "Make movie").
+                options.Cookie.Name = AuthCookieName;
                 options.Cookie.HttpOnly = true;
                 // Lax, not Strict: Microsoft sends the browser back from its own site, and a Strict
                 // cookie set on that return is withheld from the redirect into the app, so the

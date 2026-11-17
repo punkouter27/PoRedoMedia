@@ -21,6 +21,9 @@ public static class AntiforgeryExtensions
         services.AddAntiforgery(options =>
         {
             options.HeaderName = TokenHeaderName;
+            // Own name for the same reason as the sign-in cookie: the default is shared by every
+            // ASP.NET app on localhost.
+            options.Cookie.Name = ".PoRedoMedia.Antiforgery";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Strict;
             // Unlike the auth cookie, antiforgery THROWS when asked for a Secure cookie over HTTP,
