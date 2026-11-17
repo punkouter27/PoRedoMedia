@@ -76,9 +76,9 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
         // Numbered, so the series' videos sort in order wherever they are put.
         var number = episode.Number > 0 ? $"{episode.Number:00}-" : "";
         var output = Path.Combine(folder, "export", $"{number}{ProjectStore.Slug(episode.Title)}-{preset.Height}p{preset.Fps}.mp4");
-        var (segments, marks, end) = await RenderAsync(episode, folder, preset, straps: true, brand, output, progress, ct);
+        var (marks, end) = await RenderAsync(episode, folder, preset, straps: true, brand, output, progress, ct);
 
-        // Beside the video, ready to upload with it: chapter list, subtitles and a cover picture. A chapter to each
+        // Beside the video, ready to upload with it: chapter list and a cover picture (no subtitle file since 2026-11-17). A chapter to each
         // beat, as the finished timeline has them, and the intro and outro; one too short for YouTube joins its
         // neighbour, and too few chapters for YouTube means no list, so none is left from an earlier render.
         var name = Path.ChangeExtension(output, null);
@@ -91,7 +91,6 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
             await File.WriteAllTextAsync(name + ".chapters.txt", chapters, ct);
         else
             File.Delete(name + ".chapters.txt");
-        await File.WriteAllTextAsync(name + ".srt", PublishPack.Srt(segments), ct);
         if (episode.Cover() is { } cover)
         {
             var thumbnail = Files.NewScratchFile(".png");
@@ -147,11 +146,11 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
     public async Task<Preview> PreviewAsync(Episode episode, string folder, Brand? brand, IProgress<RenderProgress>? progress, CancellationToken ct)
     {
         var output = Path.Combine(folder, "export", "preview.mp4");
-        var (_, marks, _) = await RenderAsync(episode, folder, Draft, straps: false, brand, output, progress, ct);
+        var (marks, _) = await RenderAsync(episode, folder, Draft, straps: false, brand, output, progress, ct);
         return new Preview(output, marks);
     }
 
-    private async Task<(IReadOnlyList<CaptionSegment> Segments, IReadOnlyList<ClipMark> Marks, TimeSpan End)> RenderAsync(
+    private async Task<(IReadOnlyList<ClipMark> Marks, TimeSpan End)> RenderAsync(
         Episode episode, string folder, ExportPreset preset, bool straps, Brand? brand, string output, IProgress<RenderProgress>? progress, CancellationToken ct)
     {
         // The job has three stages. Their shares of the bar are rough but fixed, so it only ever moves forward.
@@ -178,7 +177,6 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
             List<Narration> sounds = ends is null ? [.. narrations]
                 : [await BookendSoundAsync(true, ends, null, work, cache, ct), .. narrations, await BookendSoundAsync(false, ends, episode.MusicPath, work, cache, ct)];
             var slots = FfmpegArgs.Timeline([.. sounds.Select(n => n.Duration)]);
-            var segments = narrations.Select((n, i) => new CaptionSegment(slots[i + first].Start, n.Words)).ToList();
 
             CopyTitleFont(work);
             var pictures = await DrawClipsAsync(episode, i => slots[i + first], preset, straps, brand, [.. Enumerable.Range(0, count)], work, cache,
@@ -208,7 +206,7 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
                 marks.Insert(0, new ClipMark("Intro", TimeSpan.Zero, sounds[0].AudioPath, Bookend: true));
                 marks.Add(new ClipMark("Outro", slots[^1].Start, sounds[^1].AudioPath, Bookend: true));
             }
-            return (segments, marks, total);
+            return (marks, total);
         }
         finally
         {

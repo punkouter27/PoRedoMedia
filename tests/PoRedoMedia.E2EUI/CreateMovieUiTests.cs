@@ -44,13 +44,19 @@ public sealed class CreateMovieUiTests : UiTestBase
         await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 240_000 });
         await page.WaitForFunctionAsync("() => { const v = document.querySelector('video[aria-label=\"The finished video\"]'); return v !== null && v.readyState >= 2; }");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Treehouse Day" })).ToBeVisibleAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Download & remove from server" })).ToBeVisibleAsync();
         await ShotAsync(page, "3-video");
 
-        // Every saved movie can be deleted at once, after asking.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Delete all" }).ClickAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Alertdialog)).ToContainTextAsync("deleted for good");
-        await page.GetByRole(AriaRole.Alertdialog).GetByRole(AriaRole.Button, new() { Name = "Delete all" }).ClickAsync();
+        // The download is one zip for YouTube and TikTok, packed after asking (the button is busy meanwhile); once it
+        // has gone, the movie is no longer on the server.
+        var downloadButton = page.GetByRole(AriaRole.Button, new() { NameRegex = new("Download for YouTube & TikTok") });
+        await Assertions.Expect(downloadButton).ToBeVisibleAsync();
+        await downloadButton.ClickAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Alertdialog)).ToContainTextAsync("TikTok");
+        var download = await page.RunAndWaitForDownloadAsync(
+            () => page.GetByRole(AriaRole.Alertdialog).GetByRole(AriaRole.Button, new() { Name = "Download" }).ClickAsync(),
+            new() { Timeout = 240_000 });
+        Assert.EndsWith("-publish.zip", download.SuggestedFilename, StringComparison.Ordinal);
+        Assert.Null(await download.FailureAsync());
         await Assertions.Expect(page.GetByText("No movies yet.")).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 

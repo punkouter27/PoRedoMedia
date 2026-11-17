@@ -467,14 +467,15 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
     }
 
     /// <summary>
-    /// The finished video to download, and what to do once it is downloaded: remove the movie and every file it has
-    /// from this server, since no video is kept here. Null when there is none, or a job is working on the movie.
+    /// The download package (a zip made by <see cref="MakePackage"/>), and what to do once it is downloaded: remove the
+    /// movie and every file it has from this server, since no video is kept here. Null when there is none yet, or a job
+    /// is working on the movie.
     /// </summary>
     public (string Path, Action Downloaded)? DownloadOf(string id)
     {
         if (_job is { State: JobState.Running, MovieId: var busy } && busy == id) return null;
-        if (EpisodeBuilder.LatestMaster(Path.Combine(Episodes, id)) is not { } master || !File.Exists(master)) return null;
-        return (master, () => Delete(id));
+        if (EpisodeBuilder.LatestMaster(Path.Combine(Episodes, id)) is not { } master || EpisodeBuilder.PackagePath(master) is not { } zip || !File.Exists(zip)) return null;
+        return (zip, () => Delete(id));
     }
 
     private static void DeleteFolder(string folder)

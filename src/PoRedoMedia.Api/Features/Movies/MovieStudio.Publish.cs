@@ -272,6 +272,33 @@ public sealed partial class MovieStudio
             open.ThumbnailChoices = await engine.Builder.ThumbnailsAsync(open.Episode, BrandOf(open), ct), "Click the thumbnail you like best to use it.");
     }
 
+    /// <summary>
+    /// Builds the download package: one zip with the finished video, an upright copy for TikTok, the YouTube thumbnail
+    /// and the text for both sites (EpisodeBuilder.PackageAsync). Free: only FFmpeg works. The movie is removed from the
+    /// server once the zip has been downloaded.
+    /// </summary>
+    public string? MakePackage(OpenMovie open)
+    {
+        if (!engine.FfmpegAvailable) return "FFmpeg is needed to make the download, and it was not found on this server.";
+        if (EpisodeBuilder.LatestMaster(open.Folder) is not { } master) return "Render the finished video first.";
+        var info = PackageInfoOf(open);
+        return Start("Packing for YouTube and TikTok", open.Id, open.Folder, async (job, ct) =>
+            await engine.Builder.PackageAsync(master, info, Rendering(job), ct), "The download is ready.");
+    }
+
+    /// <summary>What the package says about the movie, from its own publish notes, series and show.</summary>
+    internal PackageInfo PackageInfoOf(OpenMovie open)
+    {
+        var publish = PublishOf(open);
+        var master = EpisodeBuilder.LatestMaster(open.Folder);
+        var notes = master is null ? null : JsonFile.Load<PublishNotes?>(Path.ChangeExtension(master, null) + ".notes.json", null);
+        var show = BeatPlan.ShowOf(open.Episode.Structure);
+        var tags = publish.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var hashtags = notes?.Hashtags is { Count: > 0 } given ? given : [.. tags.Take(5)];
+        return new PackageInfo(publish.Title, publish.Description, tags, hashtags, BrandOf(open).Kit.ChannelName.Trim(), show == Show.Kids,
+            show == Show.Robot ? "28" : "22");
+    }
+
     public string? PickThumbnail(OpenMovie open, int index)
     {
         if (index < 0 || index >= open.ThumbnailChoices.Count || !File.Exists(open.ThumbnailChoices[index])) return "That thumbnail is no longer there. Make them again.";

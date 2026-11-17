@@ -199,6 +199,7 @@ public static class MovieEndpoints
             studios.For(UserId.From(user)) is var studio && studio.Open(id) is { } open ? Results.Ok(studio.MemeEstimate(open)) : Results.NotFound());
         group.MapPost("/{id}/render", (string id, string? preset, ClaimsPrincipal user, MovieStudios studios) =>
             WithAsync(studios, user, id, async (studio, open) => (await studio.RenderAsync(open, preset), null)));
+        group.MapPost("/{id}/package", (string id, ClaimsPrincipal user, MovieStudios studios) => With(studios, user, id, (studio, open) => (studio.MakePackage(open), null)));
         group.MapPost("/{id}/thumbnails", (string id, ClaimsPrincipal user, MovieStudios studios) => With(studios, user, id, (studio, open) => (studio.MakeThumbnails(open), null)));
         group.MapPost("/{id}/thumbnail", (string id, int index, ClaimsPrincipal user, MovieStudios studios) =>
             With(studios, user, id, (studio, open) => (studio.PickThumbnail(open, index), "Thumbnail saved. It goes with the video when it is uploaded.")));
@@ -252,7 +253,7 @@ public static class MovieEndpoints
 
     private static void MapFiles(RouteGroupBuilder group)
     {
-        // The finished video as a download. Once all of it has gone out, the movie is removed from this server: no video
+        // The download package (one zip for YouTube and TikTok, made by POST /{id}/package). Once all of it has gone out, the movie is removed from this server: no video
         // is kept here (the F1 plan has 1 GB of disk). A download cut short keeps it, for another try or the sweep.
         group.MapGet("/{id}/download", (string id, HttpContext http, ClaimsPrincipal user, MovieStudios studios) =>
         {
@@ -265,7 +266,7 @@ public static class MovieEndpoints
                 return Task.CompletedTask;
             });
             var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, bufferSize: 64 * 1024, useAsync: true);
-            return Results.File(stream, "video/mp4", Path.GetFileName(path));
+            return Results.File(stream, "application/zip", Path.GetFileName(path));
         });
         group.MapGet("/{id}/files/{**path}", (string id, string path, ClaimsPrincipal user, MovieStudios studios) =>
             Served(studios.For(UserId.From(user)).FileOf(id, path)));
@@ -287,7 +288,6 @@ public static class MovieEndpoints
         [".m4a"] = "audio/mp4",
         [".flac"] = "audio/flac",
         [".ogg"] = "audio/ogg",
-        [".srt"] = "text/plain; charset=utf-8",
         [".txt"] = "text/plain; charset=utf-8",
     };
 

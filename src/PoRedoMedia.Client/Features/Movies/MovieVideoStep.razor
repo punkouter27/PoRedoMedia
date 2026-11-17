@@ -105,15 +105,20 @@ var publish = movie.Publish;
                                Narrator="@NarratorChoice.Parse(movie.Narrator)" NarratorChanged="@(n => Store.EditAsync(new MovieEdit("narrator", Text: n.Encode())))" Disabled="Store.IsWorking" IdPrefix="mv-video-roast" />
         }
         <RadzenButton Text="@(publish.MasterUrl is null ? "Render finished video" : "Render again")" Icon="movie" Variant="@(publish.MasterUrl is null ? Variant.Filled : Variant.Outlined)" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
-                      title="@($"Build the finished video file with voice and pictures (no captions are drawn on it), plus a chapter list, a subtitle file, a thumbnail and an upload description.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
+                      title="@($"Build the finished video file with voice and pictures (no captions are drawn on it), plus a chapter list, a thumbnail and an upload description.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
         @if (publish.MasterUrl is { } master)
         {
             <video @ref="_masterVideo" class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>
             <span class="mv-quiet">@publish.MasterName · @publish.MasterSize</span>
             <div class="mv-row mv-equal">
-                <RadzenButton Text="Download & remove from server" Icon="download" Variant="Variant.Filled" Disabled="Store.IsWorking" Click="DownloadAsync"
-                              title="Save the finished video to this device. Once the download finishes, the movie and all its files are removed from the server." />
+                <RadzenButton Text="@(_packing ? "Packing the download…" : "Download for YouTube & TikTok (.zip)")" Icon="download" Variant="Variant.Filled"
+                              Disabled="@(_packing || Store.IsWorking)" IsBusy="_packing" Click="DownloadAsync" class="mv-wide"
+                              title="One zip with everything to publish it: the video for YouTube, an upright 9:16 copy for TikTok, a YouTube thumbnail, the title, description, tags and caption for each site, and a README with the steps. Once the download finishes, the movie and all its files are removed from the server. Free." />
             </div>
+            @if (_packError is { } packError)
+            {
+                <div class="po-field-error" role="alert">@packError</div>
+            }
         }
 
         <h2 class="mv-section">Chapters</h2>
@@ -274,13 +279,33 @@ var publish = movie.Publish;
     }
 
     /// <summary>Asks, then downloads the video; the server removes the movie once the download has finished.</summary>
+    /// <summary>True from the press until the zip has been built and its download started, so one press is one package.</summary>
+    private bool _packing;
+
+    /// <summary>Why the last package could not be made, shown under the button; null when it went.</summary>
+    private string? _packError;
+
     private async Task DownloadAsync()
     {
-        if (Store.Movie is not { } movie) return;
-        if (!await MovieDialogs.ConfirmAsync(Dialogs, "Download and remove from the server?",
-                $"Saves {movie.Publish.MasterName} to this device. When the download finishes, the movie and all its files (clips, teasers, thumbnail) are deleted from the server, so upload to YouTube or download teasers first. To make it again you render it again.",
+        if (_packing || Store.Movie is not { } movie) return;
+        _packError = null;
+        if (!await MovieDialogs.ConfirmAsync(Dialogs, "Download for YouTube and TikTok?",
+                $"Packs one zip: {movie.Publish.MasterName} for YouTube, an upright copy for TikTok, a thumbnail, the text for both sites and a README. Making the upright copy takes a minute or two. When the download finishes, the movie and all its files are deleted from the server, so upload to YouTube from here or download teasers first. To make it again you render it again.",
                 "Download"))
             return;
+        _packing = true;
+        try
+        {
+            _packError = await Store.PackageAndDownloadAsync(movie.Id, ReleaseAsync);
+        }
+        finally
+        {
+            _packing = false;
+        }
+    }
+
+    private async Task ReleaseAsync()
+    {
         try
         {
             await JS.InvokeVoidAsync("poMedia.releaseMedia", _masterVideo);
@@ -289,7 +314,6 @@ var publish = movie.Publish;
         {
             // Nothing playing.
         }
-        await Store.DownloadAndRemoveAsync(movie.Id);
     }
 
     private async Task CopyAsync(string what, string text)

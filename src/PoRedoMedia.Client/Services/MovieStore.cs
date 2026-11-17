@@ -294,7 +294,40 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     }
 
     /// <summary>
-    /// Downloads the open movie's finished video. The server removes the movie once the download has finished, so it is
+    /// Has the server pack the movie's download (one zip for YouTube and TikTok), waits for it, then downloads it.
+    /// </summary>
+    /// <param name="beforeDownload">Run just before the download starts (the page lets go of the playing video).</param>
+    /// <returns>Why it could not be made, in words fit to show; null when the download started.</returns>
+    public async Task<string?> PackageAndDownloadAsync(string id, Func<Task>? beforeDownload = null)
+    {
+        var reply = await api.DoAsync(id, "package");
+        if (reply.Error is { } refused) return refused;
+        MovieJobDto? job;
+        do
+        {
+            await Task.Delay(1000);
+            try
+            {
+                job = await api.JobAsync();
+            }
+            catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+            {
+                job = Job; // the connection dropped for a moment: the packing carries on, and so does the asking
+                continue;
+            }
+            Job = job;
+            Notify();
+        }
+        while (job is { State: "running" });
+        if (job is not { State: "done" })
+            return job?.Error ?? job?.Message ?? "The download could not be made. Try again.";
+        if (beforeDownload is not null) await beforeDownload();
+        await DownloadAndRemoveAsync(id);
+        return null;
+    }
+
+    /// <summary>
+    /// Downloads the open movie's package. The server removes the movie once the download has finished, so it is
     /// closed here, and the list read again once the download has had time to go.
     /// </summary>
     public async Task DownloadAndRemoveAsync(string id)

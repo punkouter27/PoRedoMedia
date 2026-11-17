@@ -95,7 +95,7 @@ are read through `RecipeBook`, which skips functions that no longer exist. Every
 function (and its SRT export) is gone, a Create Movie render burns in only each beat's strap (`Render/AssStrap`), and
 teasers carry only their hook and channel bar. `CaptionStyle` keeps its name but now holds only the series' accent
 colour (old caption fields in saved movies are skipped). Meme-ify's meme text (each cue's punchline, `MemeMix` caption
-size and "on top"), the movie's `.srt` file beside the export and Comic-ify's lettered panels are other features and stay.
+size and "on top") and Comic-ify's lettered panels are other features and stay. The movie's `.srt` sidecar went too (owner, 2026-11-17).
 
 **Host plumbing** (2026-11-17). Serilog is the logger (`Configuration/TelemetryExtensions.AddPoSerilog`, levels in the
 `Serilog` section of appsettings; Application Insights still gets every event). Errors are problem details
@@ -165,8 +165,12 @@ the working blobs and output row are deleted. Kids' clips get Meme-ify in the "s
 (`Clip.NoMemes`, the "memes" edit). A movie render (or the one-go make) is one run of the daily quota
 (`MovieStudio.StartRenderAsync`), refunded when the job ends without a video.
 Its AI cost is logged as "meme-ify"; `Movie:MemeifyUsd` prices the estimate shown first. **No video is kept on the
-server** (F1 has 1 GB of disk): the finished video is not put in the Library; `GET /api/movies/{id}/download` streams it
-and, once the download completes, deletes the whole movie folder (`MovieStudio.DownloadOf`). `staging/` is emptied after
+server** (F1 has 1 GB of disk): the finished video is not put in the Library. The download is one package: `POST /api/movies/{id}/package` (a job,
+`MovieStudio.MakePackage` → `EpisodeBuilder.PackageAsync`) zips the video for YouTube, an upright 1080x1920 copy for
+TikTok (blurred fill, no text, ≤ 10 min), a 1280x720 JPG thumbnail under 2 MB, `youtube.txt`, `tiktok.txt` and a
+`README.txt` (text from the movie's own publish notes, held to each site's limits by `Render/PublishPackage`; no AI);
+`GET /api/movies/{id}/download` streams that zip and, once the download completes, deletes the whole movie folder
+(`MovieStudio.DownloadOf`). `staging/` is emptied after
 every render, and `MovieSweeper` removes movies and staged films idle for 3 hours.
 With no server speech model, a film that keeps its own sound is heard by the browser's Whisper
 (`poDeviceAi.transcribeMedia`), stored as the item's source speech like an upload's. `SourceAudioAnalysis` uses speech

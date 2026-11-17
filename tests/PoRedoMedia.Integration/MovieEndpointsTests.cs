@@ -96,12 +96,47 @@ public sealed class MovieEndpointsTests(AzuriteFixture azurite)
             tokenless.DefaultRequestHeaders.Add("X-Fake-User", "dev|tokenless");
             Assert.Equal(HttpStatusCode.BadRequest, (await tokenless.PostAsJsonAsync("/api/movies/write", request, WireJson.Default.MovieLessonRequest)).StatusCode);
 
-            Assert.Equal(HttpStatusCode.NoContent, (await me.DeleteAsync($"/api/movies/{id}")).StatusCode);
+            // The download is one zip for YouTube and TikTok, packed first; once it has gone out the movie is removed.
+            Assert.Equal(HttpStatusCode.NotFound, (await me.GetAsync($"/api/movies/{id}/download")).StatusCode);
+            Assert.Null((await (await me.PostAsync($"/api/movies/{id}/package", null)).Content.ReadFromJsonAsync(WireJson.Default.MovieReply))!.Error);
+            for (var i = 0; i < 600; i++)
+            {
+                await Task.Delay(250);
+                job = await me.GetFromJsonAsync("/api/movies/job", WireJson.Default.MovieJobDto);
+                if (job is { State: not "running" } && job.Title.StartsWith("Packing", StringComparison.Ordinal))
+                    break;
+            }
+            Assert.Equal(("done", null), (job!.State, job.Error));
+            var download = await me.GetAsync($"/api/movies/{id}/download");
+            Assert.Equal("application/zip", download.Content.Headers.ContentType?.MediaType);
+            using (var zip = new System.IO.Compression.ZipArchive(await download.Content.ReadAsStreamAsync()))
+            {
+                Assert.Equal(
+                    ["README.txt", "tiktok-video-9x16.mp4", "tiktok.txt", "youtube-thumbnail.jpg", "youtube-video.mp4", "youtube.txt"],
+                    zip.Entries.Select(e => e.FullName).Order(StringComparer.Ordinal));
+                Assert.All(zip.Entries.Where(e => e.FullName.EndsWith(".mp4", StringComparison.Ordinal)), e => Assert.True(e.Length > 1000));
+                Assert.InRange(zip.GetEntry("youtube-thumbnail.jpg")!.Length, 1, 2 * 1024 * 1024 - 1);
+                using var youTube = new StreamReader(zip.GetEntry("youtube.txt")!.Open());
+                Assert.StartsWith("TITLE", await youTube.ReadToEndAsync());
+            }
+            for (var i = 0; i < 40 && (await me.GetFromJsonAsync("/api/movies", WireJson.Default.ListMovieSummaryDto))!.Count > 0; i++)
+                await Task.Delay(250);
             Assert.Empty((await me.GetFromJsonAsync("/api/movies", WireJson.Default.ListMovieSummaryDto))!);
         }
         finally
         {
-            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            // The download's own clean-up may still be finishing in the background: give it a moment.
+            for (var attempt = 0; Directory.Exists(root); attempt++)
+            {
+                try
+                {
+                    Directory.Delete(root, recursive: true);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException && attempt < 20)
+                {
+                    await Task.Delay(250);
+                }
+            }
         }
     }
 

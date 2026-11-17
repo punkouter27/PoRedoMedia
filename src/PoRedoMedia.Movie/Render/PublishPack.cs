@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Text;
-
 namespace PoRedoMedia.Movie.Render;
 
 /// <summary>The text files written beside a finished video so it is ready to upload.</summary>
@@ -32,42 +29,7 @@ public static class PublishPack
     /// <summary>Title choices, description, tags and hashtags, laid out to copy into an upload form.</summary>
     public static string Description(PublishNotes notes) =>
         $"TITLES\n{string.Join('\n', notes.Titles)}\n\nDESCRIPTION\n{notes.Description}\n\n{string.Join(' ', notes.Hashtags)}\n\nTAGS\n{string.Join(", ", notes.Tags)}\n";
-
-    /// <summary>
-    /// The narration as a subtitle file beside the finished video, for the viewer's own player or YouTube to show if they
-    /// choose. Nothing of it is drawn on the video itself. A line is up to eight words, or to the end of a sentence.
-    /// </summary>
-    public static string Srt(IEnumerable<CaptionSegment> segments)
-    {
-        var srt = new StringBuilder();
-        var number = 1;
-        foreach (var segment in segments)
-        {
-            var line = new List<WordTiming>();
-            foreach (var word in segment.Words)
-            {
-                line.Add(word);
-                if (line.Count == 8 || word.Text[^1] is '.' or '!' or '?')
-                    Write(line);
-            }
-            Write(line);
-
-            void Write(List<WordTiming> words)
-            {
-                if (words.Count == 0) return;
-                var (start, end) = (segment.Offset + words[0].Start, segment.Offset + words[^1].Start + words[^1].Duration);
-                srt.Append(CultureInfo.InvariantCulture, $"{number++}\n{Time(start)} --> {Time(end)}\n{string.Join(' ', words.Select(w => w.Text))}\n\n");
-                words.Clear();
-            }
-        }
-        return srt.ToString();
-
-        static string Time(TimeSpan t) => t.ToString(@"hh\:mm\:ss\,fff", CultureInfo.InvariantCulture);
-    }
 }
-
-/// <summary>One clip's words, positioned on the episode timeline by <paramref name="Offset"/>, for the subtitle file.</summary>
-public sealed record CaptionSegment(TimeSpan Offset, IReadOnlyList<WordTiming> Words);
 
 /// <summary>What to paste into the upload form beside the finished video.</summary>
 public sealed record PublishNotes(IReadOnlyList<string> Titles, string Description, IReadOnlyList<string> Tags, IReadOnlyList<string> Hashtags)
