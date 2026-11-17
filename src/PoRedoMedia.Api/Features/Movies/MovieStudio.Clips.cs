@@ -31,9 +31,6 @@ public sealed partial class MovieStudio
                 "hostVisible" => Edit(open, e => EpisodeEditor.SetHostVisible(e, Clip(), edit.Flag == true)),
                 "useTake" => Edit(open, e => EpisodeEditor.UseEarlierTake(e, Clip(), edit.Index ?? 0)),
                 "robotView" => Edit(open, e => EpisodeEditor.SetRobotView(e, Clip(), edit.Flag == true)),
-                "captions" => edit.Captions is { } c && Enum.TryParse<CaptionPreset>(c.Preset, out var preset) && AssCaptions.IsHexColour(c.Accent)
-                    ? Edit(open, e => e with { Captions = new CaptionStyle(preset, Math.Clamp(c.FontSize, 32, 96), c.Accent.ToUpperInvariant(), Math.Clamp(c.Stroke, 0, 10)) })
-                    : "The accent colour is typed as # and six letters or digits, such as #22CC88.",
                 "removeMusic" => Edit(open, e => EpisodeEditor.SetMusic(e, null)),
                 "memes" => Edit(open, e => EpisodeEditor.SetMemes(e, Clip(), edit.Flag != false)),
                 "roastVoice" => NormalizeRoastVoice(edit.Text) is { } voice ? Edit(open, e => EpisodeEditor.SetRoastVoice(e, voice)) : "That roast voice is not known.",

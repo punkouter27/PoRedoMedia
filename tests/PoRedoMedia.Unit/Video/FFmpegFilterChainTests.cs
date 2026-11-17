@@ -129,11 +129,6 @@ public sealed class FFmpegFilterChainTests
         // 2.5 s display window starting at the cue timestamp.
         Assert.Contains("between(t\\,2\\,4.5)", chain, StringComparison.Ordinal);
         Assert.Contains("y=h-text_h-50", chain, StringComparison.Ordinal); // bottom by default
-
-        // A movie clip keeps the bottom for the captions it gets later: bottom text goes to the top.
-        var movie = FFmpegArgs.BuildVideoFilterChain([Sound(2000, caption: "oh no")], aggressiveVisuals: false, keepBottomClear: true);
-        Assert.Contains("y=40", movie, StringComparison.Ordinal);
-        Assert.DoesNotContain("y=h-text_h-50", movie, StringComparison.Ordinal);
     }
 
     [Fact]

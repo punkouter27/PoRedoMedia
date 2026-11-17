@@ -8,9 +8,9 @@ using PoRedoMedia.Shared.Models;
 namespace PoRedoMedia.Api.Features.Video;
 
 /// <summary>
-/// The three video functions as one step, because they end in one render: Meme-ify adds sounds,
-/// stickers and text at the right moments, Insult roast adds a spoken track, Auto-captions burns
-/// in subtitles. Whichever are ticked are prepared, then ffmpeg runs once.
+/// The video functions as one step, because they end in one render: Meme-ify adds sounds,
+/// stickers and text at the right moments, Insult roast adds a spoken track. Whichever are ticked
+/// are prepared, then ffmpeg runs once. No subtitles are drawn on the video (removed 2026-11-17).
 /// </summary>
 /// <remarks>
 /// What is learned about a video (frame labels, loudness, speech) is stored with the source and
@@ -38,13 +38,12 @@ public sealed class VideoStep(
     public IReadOnlySet<MediaFunction> Handles { get; } = Available(director, roast, transcription, configuration, environment);
 
     /// <summary>
-    /// Only what this server can actually do: no director, no Meme-ify. Captions are always
-    /// offered, because the words can also come from the on-device speech model.
+    /// Only what this server can actually do: no director, no Meme-ify.
     /// </summary>
     private static HashSet<MediaFunction> Available(
         IDirectorService? director, IVideoRoast? roast, ITranscriptionService transcription, IConfiguration configuration, IHostEnvironment environment)
     {
-        var available = new HashSet<MediaFunction> { MediaFunction.Captions };
+        var available = new HashSet<MediaFunction>();
         if (director is not null)
             available.Add(MediaFunction.Memeify);
         if (roast is not null && MediaRoast.Voices(configuration, environment).Count > 0)
@@ -56,7 +55,6 @@ public sealed class VideoStep(
     {
         var source = context.Source;
         var memeify = context.Has(MediaFunction.Memeify);
-        var captions = context.Has(MediaFunction.Captions);
         var persona = context.Option(RunOptions.VideoPersona);
         var mix = MixOf(context);
 
@@ -71,7 +69,7 @@ public sealed class VideoStep(
         // the trimmed start, which is also how the render sees the video.
         if (trimmed)
             sourceAudio = Trimmed(sourceAudio, trimStart, trimEnd);
-        var transcript = Transcript(context, sourceAudio, captions);
+        var transcript = Transcript(sourceAudio);
         if (transcript.Count > 0)
             await context.ReportAsync($"Heard {transcript.Count} line(s) of speech. First: \"{transcript[0].Text}\"");
 
@@ -168,11 +166,9 @@ public sealed class VideoStep(
             AggressiveVisuals: memeify && (mix.Chaos == MemeMix.Max || (mix.Chaos >= 2 && DirectorPrompt.Persona(persona) is "brainrot" or "mlg")),
             Cues: cues,
             AspectRatio: context.Option(RunOptions.VideoAspect),
-            Subtitles: captions && transcript.Count > 0 ? transcript : null,
             TrimStartSeconds: trimStart,
             TrimSeconds: keep,
             SoundsUnderDb: (context.Option(RunOptions.VideoVoiceFirst) == "1" ? VoiceFirstSoundsUnderDb : 0) - MemeMix.VolumeDb[mix.SoundVolume],
-            KeepBottomClear: context.Option(RunOptions.VideoKeepBottomClear) == "1",
             CaptionFontSize: MemeMix.CaptionFontSizes[mix.CaptionSize]), ct);
 
         // The roast is stored with the source and replaced by the next one; the result keeps its own copy.
@@ -183,9 +179,6 @@ public sealed class VideoStep(
                 MediaAnalysisPaths.RoastClip(output.Id.Value, 0, extension), await blobs.ReadAllBytesAsync(track.AudioPath, ct),
                 extension == "wav" ? "audio/wav" : "audio/mpeg", ct);
         }
-
-        if (captions && transcript.Count > 0)
-            await MediaTranscript.SaveAsync(blobs, output.Id, transcript, ct);
 
         var size = (await storage.Blob(output.SourcePath).GetPropertiesAsync(cancellationToken: ct)).Value.ContentLength;
         output = output with { SizeBytes = size, DurationSeconds = seconds > 0 ? seconds : duration };
@@ -248,21 +241,8 @@ public sealed class VideoStep(
         };
     }
 
-    /// <summary>What was said, when speech is available; otherwise nothing, with the reason noted if captions were asked for.</summary>
-    private IReadOnlyList<TranscriptSegmentDto> Transcript(RunContext context, SourceAudio sourceAudio, bool captionsWanted)
-    {
-        var problem = sourceAudio.Speech.Count > 0 ? null
-            : !sourceAudio.HasAudio ? "the video has no sound"
-            : !transcription.IsEnabled ? "no speech model is configured here and none ran on your device"
-            : sourceAudio.SpeechError is not null ? "the speech model failed"
-            : "no speech was heard";
-        if (problem is null)
-            return sourceAudio.Speech;
-
-        if (captionsWanted)
-            context.AddNote($"No captions were added because {problem}.");
-        return [];
-    }
+    /// <summary>What was said, when speech is available (the director and the roast time their jokes by it); otherwise nothing.</summary>
+    private static IReadOnlyList<TranscriptSegmentDto> Transcript(SourceAudio sourceAudio) => sourceAudio.Speech;
 
     /// <summary>
     /// Labels stored earlier; else the whole clip watched at once, where that is configured; else

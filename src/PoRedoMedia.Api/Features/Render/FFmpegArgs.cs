@@ -50,7 +50,7 @@ internal static partial class FFmpegArgs
     /// The whole render command: inputs, the -filter_complex, and the encode settings.
     /// Audio: keeps the original video audio and layers each meme sound on top (adelay + amix),
     /// with a limiter to prevent clipping.
-    /// Video: chains the base look and captions, then applies each cue's windowed visual effect and
+    /// Video: chains the base look and the meme text, then applies each cue's windowed visual effect and
     /// sticker overlay as a separate pass so they only affect their own time range.
     /// </summary>
     internal static string BuildFFmpegArgs(
@@ -61,10 +61,8 @@ internal static partial class FFmpegArgs
         double sourceDurationSeconds,
         bool sourceHasAudio,
         string? aspectRatio = null,
-        IReadOnlyList<TranscriptSegmentDto>? subtitles = null,
         double trimStartSeconds = 0,
         double sourceVolume = 0.85,
-        bool keepBottomClear = false,
         int captionFontSize = CaptionFontSize)
     {
         var sb = new StringBuilder();
@@ -92,7 +90,7 @@ internal static partial class FFmpegArgs
             sb.Append(CultureInfo.InvariantCulture, $" -i \"{distinctOverlays[i]}\"");
         }
 
-        var videoChain = BuildVideoFilterChain(entries, aggressiveVisuals, aspectRatio, subtitles, keepBottomClear, captionFontSize);
+        var videoChain = BuildVideoFilterChain(entries, aggressiveVisuals, aspectRatio, captionFontSize);
         var hasBaseVideoFilters = !string.IsNullOrWhiteSpace(videoChain);
 
         // Cue-scoped visual effects. Each is applied on a full-size branch that is overlaid back
@@ -245,8 +243,8 @@ internal static partial class FFmpegArgs
     /// <summary>
     /// Builds the base video filter chain. Always downscales to ≤720p so heavy 1080p/4K phone clips
     /// encode in reasonable time on constrained hosts. Aggressive visuals (a run-wide opt-in)
-    /// enable deep-fry EQ + unsharp. Aspect ratio 9:16 adds vertical framing. Captions are overlaid
-    /// using drawtext.
+    /// enable deep-fry EQ + unsharp. Aspect ratio 9:16 adds vertical framing. The meme text (each cue's
+    /// punchline) is drawn with drawtext; no subtitles of what is said are drawn.
     /// </summary>
     // Cue-level visual effects deliberately do NOT belong here. This chain is comma-joined with no
     // per-filter time bounds, so an effect attached to one cue would apply to the whole video, and
@@ -256,8 +254,6 @@ internal static partial class FFmpegArgs
         IReadOnlyList<RenderVisualEntry> sounds,
         bool aggressiveVisuals,
         string? aspectRatio = null,
-        IReadOnlyList<TranscriptSegmentDto>? subtitles = null,
-        bool keepBottomClear = false,
         int captionFontSize = CaptionFontSize)
     {
         var filters = new List<string>();
@@ -294,29 +290,13 @@ internal static partial class FFmpegArgs
             var sanitized = SanitizeForDrawtext(s.CaptionText.Trim().ToUpperInvariant());
             var startSec = (s.TimestampMs / 1000.0).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
             var endSec = (s.TimestampMs / 1000.0 + 2.5).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-            // With the bottom kept for captions burned in later (a movie clip), bottom text goes to the top.
             var yPos = s.CaptionPosition?.ToLowerInvariant() switch
             {
                 "top" => "40",
                 "center" => "(h-text_h)/2",
-                _ when keepBottomClear => "40",
                 _ => "h-text_h-50"
             };
             filters.Add($"drawtext=text='{sanitized}':expansion=none{fontArg}:fontsize={captionFontSize}:fontcolor=white:borderw={Math.Max(2, captionFontSize / 12)}:bordercolor=black:x=(w-text_w)/2:y={yPos}:enable='between(t\\,{startSec}\\,{endSec})'");
-        }
-
-        // Speech subtitles: smaller, boxed, pinned to the very bottom so they sit under the
-        // punchline captions (which use h-text_h-50) instead of on top of them.
-        if (subtitles is { Count: > 0 })
-        {
-            var inv = System.Globalization.CultureInfo.InvariantCulture;
-            foreach (var card in SubtitleChunker.Chunk(subtitles))
-            {
-                var sanitized = SanitizeForDrawtext(card.Text);
-                var startSec = card.StartSeconds.ToString("0.###", inv);
-                var endSec = card.EndSeconds.ToString("0.###", inv);
-                filters.Add($"drawtext=text='{sanitized}':expansion=none{fontArg}:fontsize=26:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=6:x=(w-text_w)/2:y=h-text_h-14:enable='between(t\\,{startSec}\\,{endSec})'");
-            }
         }
 
         return string.Join(',', filters);

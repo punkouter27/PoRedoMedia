@@ -18,11 +18,11 @@ public sealed partial class EpisodeBuilder
 
     /// <summary>
     /// Renders each teaser as an upright video: its moments cut from the clips' finished pictures (drawn at 1080p
-    /// without captions, through the clip cache, and only for the clips the teasers use) and from their sound.
+    /// without straps, through the clip cache, and only for the clips the teasers use) and from their sound.
     /// Nothing is generated: no picture, voice or model is asked for anything.
     /// </summary>
     /// <returns>The folder holding them, inside the episode's export folder.</returns>
-    public async Task<string> ExportTeasersAsync(Episode episode, string folder, IReadOnlyList<Teaser> teasers, CaptionStyle captions, Brand? brand,
+    public async Task<string> ExportTeasersAsync(Episode episode, string folder, IReadOnlyList<Teaser> teasers, Brand? brand,
         IProgress<RenderProgress>? progress, CancellationToken ct)
     {
         const double DrawShare = 0.6; // drawing the clips is most of the work; each teaser is then one short encode
@@ -40,14 +40,14 @@ public sealed partial class EpisodeBuilder
         try
         {
             CopyTitleFont(work);
-            var pictures = await DrawClipsAsync(episode, i => narrations[i].Words, i => slots[i], ExportPreset.Hd30, null, brand, used, work, new MediaCache(ClipCacheFolder),
+            var pictures = await DrawClipsAsync(episode, i => slots[i], ExportPreset.Hd30, false, brand, used, work, new MediaCache(ClipCacheFolder),
                 (activity, fraction, clips) => progress?.Report(new RenderProgress(activity, DrawShare * fraction, clips)), ct);
             var number = episode.Number > 0 ? $"{episode.Number:00}-" : "";
             for (var t = 0; t < teasers.Count; t++)
             {
                 var teaser = teasers[t];
                 progress?.Report(new RenderProgress($"Cutting teaser {t + 1} of {teasers.Count} · {teaser.Hook}", DrawShare + (1 - DrawShare) * t / teasers.Count));
-                var (args, _) = await TeaserCutAsync(teaser, narrations, place, pictures, captions, Bookends(brand), null, work, ct);
+                var (args, _) = await TeaserCutAsync(teaser, narrations, place, pictures, Bookends(brand), null, work, ct);
                 var file = Path.Combine(output, $"{number}{ProjectStore.Slug(episode.Title)}-teaser-{t + 1}.mp4");
                 await ffmpeg.RunAsync(args(file), work, teaser.Length, null, ct);
             }
@@ -66,7 +66,7 @@ public sealed partial class EpisodeBuilder
     /// Nothing is generated.
     /// </summary>
     /// <returns>The video's path.</returns>
-    public async Task<string> TeaserDraftAsync(Episode episode, string folder, Teaser teaser, CaptionStyle captions, Brand? brand, CancellationToken ct)
+    public async Task<string> TeaserDraftAsync(Episode episode, string folder, Teaser teaser, Brand? brand, CancellationToken ct)
     {
         var narrations = new List<Narration>(episode.Clips.Count);
         foreach (var clip in episode.Clips)
@@ -79,8 +79,8 @@ public sealed partial class EpisodeBuilder
         try
         {
             CopyTitleFont(work);
-            var pictures = await DrawClipsAsync(episode, i => narrations[i].Words, i => slots[i], Draft, null, brand, used, work, cache, null, ct);
-            var (args, made) = await TeaserCutAsync(teaser, narrations, place, pictures, captions, Bookends(brand), ExportPreset.UprightDraft, work, ct);
+            var pictures = await DrawClipsAsync(episode, i => slots[i], Draft, false, brand, used, work, cache, null, ct);
+            var (args, made) = await TeaserCutAsync(teaser, narrations, place, pictures, Bookends(brand), ExportPreset.UprightDraft, work, ct);
             // The command names the clip pictures and sounds, whose own names change with what is in them.
             return await cache.GetOrCreateAsync([string.Join('\n', args("teaser.mp4")), .. made], ".mp4", scratch => ffmpeg.RunAsync(args(scratch), work, teaser.Length, null, ct));
         }
@@ -91,33 +91,23 @@ public sealed partial class EpisodeBuilder
     }
 
     /// <summary>
-    /// Writes a teaser's hook, captions and channel name into the working folder, and gives its command line for any
+    /// Writes a teaser's hook and channel name into the working folder (no captions of what is said), and gives its command line for any
     /// output path, with the words that decide how it looks besides the command itself.
     /// </summary>
     /// <param name="brand">The kit, when it names a channel; null for no channel bar.</param>
     /// <param name="size">The frame; null for the full upright size.</param>
     private static async Task<(Func<string, IReadOnlyList<string>> Args, IReadOnlyList<string> Made)> TeaserCutAsync(Teaser teaser, IReadOnlyList<Narration> narrations,
-        IReadOnlyDictionary<Guid, int> place, string?[] pictures, CaptionStyle captions, Brand? brand, ExportPreset? size, string work, CancellationToken ct)
+        IReadOnlyDictionary<Guid, int> place, string?[] pictures, Brand? brand, ExportPreset? size, string work, CancellationToken ct)
     {
-        // Each moment's words, timed from where the moment falls in the teaser, become its captions.
-        var segments = new List<CaptionSegment>();
-        var at = TimeSpan.Zero;
-        foreach (var moment in teaser.Moments)
-        {
-            var words = narrations[place[moment.ClipId]].Words.Where(w => w.Start >= moment.Start && w.Start < moment.Start + moment.Length).ToList();
-            segments.Add(new CaptionSegment(at - moment.Start, words));
-            at += moment.Length;
-        }
-        var (hook, ass, channel) = (FfmpegArgs.HookLines(teaser.Hook), AssCaptions.Build(segments, captions, portrait: true), brand?.Kit.ChannelName.Trim());
+        var (hook, channel) = (FfmpegArgs.HookLines(teaser.Hook), brand?.Kit.ChannelName.Trim());
         // A file for each line of the hook, so each can drop in on its own.
         var lines = hook.Split('\n');
         var hookFiles = lines.Select((_, i) => $"teaser_hook_{i}.txt").ToList();
         for (var i = 0; i < lines.Length; i++)
             await File.WriteAllTextAsync(Path.Combine(work, hookFiles[i]), lines[i], ct);
-        await File.WriteAllTextAsync(Path.Combine(work, "teaser.ass"), ass, ct);
         if (channel is not null)
             await File.WriteAllTextAsync(Path.Combine(work, "teaser_channel.txt"), channel, ct);
         List<TeaserCut> cuts = [.. teaser.Moments.Select(m => new TeaserCut(pictures[place[m.ClipId]]!, narrations[place[m.ClipId]].AudioPath, m.Start, m.Length))];
-        return (to => FfmpegArgs.TeaserVideo(cuts, hookFiles, channel is null ? null : "teaser_channel.txt", "teaser.ass", to, teaser.Fill, size), [hook, ass, channel ?? ""]);
+        return (to => FfmpegArgs.TeaserVideo(cuts, hookFiles, channel is null ? null : "teaser_channel.txt", to, teaser.Fill, size), [hook, channel ?? ""]);
     }
 }

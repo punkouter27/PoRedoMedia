@@ -154,9 +154,9 @@ public sealed class RunExecutorTests
     [Fact]
     public async Task A_step_that_handles_several_functions_runs_once_for_all_of_them()
     {
-        var video = new FakeStep([Memeify, VideoRoast, Captions], _ => { _calls.Add("video"); return Task.CompletedTask; });
+        var video = new FakeStep([Memeify, VideoRoast], _ => { _calls.Add("video"); return Task.CompletedTask; });
 
-        await Executor(video).ExecuteAsync(NewRun(NewMedia(MediaKind.Video), Memeify, VideoRoast, Captions), default);
+        await Executor(video).ExecuteAsync(NewRun(NewMedia(MediaKind.Video), Memeify, VideoRoast), default);
 
         Assert.Equal(["video"], _calls);
         Assert.Equal(RunStatus.Complete, Assert.Single(_runs.All).Status);
@@ -188,7 +188,7 @@ public sealed class RunExecutorTests
 
         // A video run takes the one render slot; an image run waits on a remote model in the other lane.
         Assert.True(RunDispatcher.Renders([Memeify]));
-        Assert.True(RunDispatcher.Renders([Captions, VideoRoast]));
+        Assert.True(RunDispatcher.Renders([VideoRoast]));
         Assert.False(RunDispatcher.Renders([PhotoToVideo, BulkStyles]));
 
         // One owner queueing many runs does not hold up another; each owner keeps their own order.

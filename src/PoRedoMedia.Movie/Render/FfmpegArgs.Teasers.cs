@@ -7,13 +7,13 @@ public static partial class FfmpegArgs
 {
     /// <summary>
     /// An upright teaser: its moments cut from the finished clips and their sound and joined, the 16:9 picture centred
-    /// over a blurred, enlarged copy of itself (or cropped to fill the frame), the hook across the top, captions, and
+    /// over a blurred, enlarged copy of itself (or cropped to fill the frame), the hook across the top, and
     /// the channel's name in a bar at the foot. Its sound is levelled like the master's.
     /// </summary>
     /// <param name="hookFiles">The hook's lines (see <see cref="HookLines"/>), a text file each in the working folder, as for a title card: the words are drawn, never run.</param>
     /// <param name="fill">Crop the picture to fill the frame instead of showing it whole over a blurred copy.</param>
     /// <param name="size">A smaller upright frame for a quick draft to watch; the full 1080 by 1920 when null.</param>
-    public static IReadOnlyList<string> TeaserVideo(IReadOnlyList<TeaserCut> cuts, IReadOnlyList<string> hookFiles, string? channelFile, string? captionsFile, string output,
+    public static IReadOnlyList<string> TeaserVideo(IReadOnlyList<TeaserCut> cuts, IReadOnlyList<string> hookFiles, string? channelFile, string output,
         bool fill = false, ExportPreset? size = null)
     {
         var preset = size ?? ExportPreset.Upright;
@@ -34,7 +34,6 @@ public static partial class FfmpegArgs
             framed = "[bg][fg]overlay=(W-w)/2:(H-h)/2";
         }
         graph.Add(framed +
-            (captionsFile is null ? "" : $",ass={captionsFile}:fontsdir=.") +
             string.Concat(hookFiles.Select((file, i) => $",drawtext=textfile={file}:expansion=none:fontfile={TitleFontFile}:fontcolor=white:fontsize=w/15:x=(w-text_w)/2:" +
                 $"{Drop(i, $"h*0.09+{i * Px(150)}", "h*0.12")}:box=1:boxcolor=black@0.5:boxborderw={Px(28)}")) +
             (channelFile is null ? "" : $",drawbox=x=0:y=ih-{Px(150)}:w=iw:h={Px(150)}:color=black@0.55:t=fill,drawtext=textfile={channelFile}:expansion=none:fontfile={TitleFontFile}:fontcolor=white:fontsize={Px(48)}:x=(w-text_w)/2:y=h-{Px(102)}") +

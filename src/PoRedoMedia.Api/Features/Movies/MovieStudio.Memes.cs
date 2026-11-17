@@ -16,7 +16,7 @@ namespace PoRedoMedia.Api.Features.Movies;
 public sealed partial class MovieStudio
 {
     /// <summary>Names a meme-ified clip on disk. Change it when what Meme-ify is asked for changes, so clips are made again.</summary>
-    private const string MemeVersion = "meme 9"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"; 6: the roast never talks over the narrator; 7: kids' roast and captions are meaner and sarcastic; 8: the meme mix levels; 9: jokes with no pause go after the narration, unused room is cut
+    private const string MemeVersion = "meme 10"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"; 6: the roast never talks over the narrator; 7: kids' roast and captions are meaner and sarcastic; 8: the meme mix levels; 9: jokes with no pause go after the narration, unused room is cut; 10: no captions are burned in later, so meme text goes where directed
 
     private bool CanMeme => memes?.Handles.Contains(MediaFunction.Memeify) == true;
 
@@ -60,8 +60,6 @@ public sealed partial class MovieStudio
             options.TryAdd(RunOptions.VideoPersona, "sitcom");
             options[RunOptions.VideoChildIsIt] = "1"; // the owner wants the child called "it", in the meme text too
         }
-        // The movie burns its own captions along the bottom afterwards, so the meme text goes elsewhere.
-        options[RunOptions.VideoKeepBottomClear] = "1";
         options[RunOptions.VideoMix] = mix.Encode();
         // Over a narrator, the narrator stays on top: the meme sounds come in under the voice-over.
         if (narrated) options[RunOptions.VideoVoiceFirst] = "1";
@@ -226,7 +224,7 @@ public sealed partial class MovieStudio
             {
                 File.Delete(scratch);
             }
-            // The words said in it, at their times, become its captions, as the voice-over''s would have.
+            // The words said in it, at their times, become its subtitle file's lines, as the voice-over''s would have.
             JsonFile.Save(Clip.HeardFor(target), narration.Words.ToList());
             await engine.Builder.PosterAsync(target, ct);
         }

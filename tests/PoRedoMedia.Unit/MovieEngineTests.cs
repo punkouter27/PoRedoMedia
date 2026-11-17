@@ -117,7 +117,7 @@ public sealed class MovieEngineTests
     [Fact]
     public void Every_clip_is_meme_ified_as_it_plays_with_a_roast()
     {
-        HashSet<MediaFunction> everything = [MediaFunction.Memeify, MediaFunction.VideoRoast, MediaFunction.Captions];
+        HashSet<MediaFunction> everything = [MediaFunction.Memeify, MediaFunction.VideoRoast];
         Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], MovieStudio.MemeRun(Show.General, everything, narrated: false).Functions);
         Assert.Equal([MediaFunction.Memeify, MediaFunction.VideoRoast], MovieStudio.MemeRun(Show.Robot, everything, narrated: true).Functions);
         // Kids' clips get the spoken roast by default too, kept clean, in the sitcom persona with the child as "it".
@@ -127,7 +127,7 @@ public sealed class MovieEngineTests
         Assert.Equal([MediaFunction.Memeify], MovieStudio.MemeRun(Show.Kids, everything, narrated: true, roastVoice: "Off").Functions);
         Assert.Equal("sitcom", kids.Options[RunOptions.VideoPersona]);
         Assert.Equal("1", kids.Options[RunOptions.VideoVoiceFirst]); // the narrator stays on top of the meme sounds, kids' clips too
-        Assert.Equal("1", kids.Options[RunOptions.VideoKeepBottomClear]); // meme text keeps off the captions burned in later
+        Assert.False(kids.Options.ContainsKey("Video.keepBottomClear")); // no captions are burned in later, so meme text goes where directed
         Assert.Equal("1", kids.Options[RunOptions.VideoChildIsIt]); // the child is "it" in the meme text too
         Assert.False(MovieStudio.MemeRun(Show.General, everything, narrated: true).Options.ContainsKey(RunOptions.VideoChildIsIt));
 
@@ -214,11 +214,17 @@ public sealed class MovieEngineTests
     }
 
     [Fact]
-    public void Captions_are_drawn_with_a_font_that_is_there_and_the_sign_in_page_is_googles_own()
+    public void Only_the_beats_strap_is_drawn_over_a_clip_with_a_font_that_is_there_and_the_sign_in_page_is_googles_own()
     {
         // FFmpeg is handed the font by file, from the working folder: a server has none installed to look up by name.
-        var args = FfmpegArgs.ClipVideo(ClipSource.Image, "picture.png", TimeSpan.FromSeconds(5), ExportPreset.Hd30, "out.mp4", "captions.ass");
-        Assert.Contains(args, arg => arg.Contains("ass=captions.ass:fontsdir=."));
+        var args = FfmpegArgs.ClipVideo(ClipSource.Image, "picture.png", TimeSpan.FromSeconds(5), ExportPreset.Hd30, "out.mp4", "strap.ass");
+        Assert.Contains(args, arg => arg.Contains("ass=strap.ass:fontsdir=."));
+        Assert.DoesNotContain(FfmpegArgs.ClipVideo(ClipSource.Image, "picture.png", TimeSpan.FromSeconds(5), ExportPreset.Hd30, "out.mp4"), arg => arg.Contains("ass="));
+        // The strap file holds the beat's name and nothing else: no captions of what is said (removed 2026-11-17).
+        var strap = AssStrap.Build("#FF5CA8", portrait: false, "Fail");
+        Assert.Single(strap.Split('\n'), line => line.StartsWith("Dialogue:", StringComparison.Ordinal));
+        Assert.Contains("FAIL", strap);
+        Assert.DoesNotContain("Style: Default", strap);
         Assert.Equal(OperatingSystem.IsWindows() ? "Segoe UI" : Fonts.FallbackFamily, Fonts.Family("Segoe UI"));
 
         var youTube = new YouTube("client id", "secret", (_, _) => throw new InvalidOperationException("nothing is sent to build a link"));

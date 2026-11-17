@@ -6,7 +6,7 @@ namespace PoRedoMedia.Api.Features.Render;
 
 /// <summary>
 /// Other forms of a result, all under <c>/api/media/{id}/export/</c>: a looping GIF of a video,
-/// the video re-framed for a social feed, its captions as an SRT file, and its roast as a sound file.
+/// the video re-framed for a social feed, and its roast as a sound file.
 /// </summary>
 public static class ExportEndpoints
 {
@@ -94,7 +94,7 @@ public static class ExportEndpoints
 
     /// <summary>
     /// One export of the caller's item: <c>gif</c> and <c>social?aspect=</c> once they have been
-    /// made, <c>srt</c> for the captions burned into a video, <c>roast</c> for the insults alone as
+    /// made, <c>roast</c> for the insults alone as
     /// the voice performed them. 404 when the item has no such thing.
     /// </summary>
     private static async Task<IResult> ExportAsync(
@@ -111,10 +111,6 @@ public static class ExportEndpoints
 
             case "social" when item.Kind == MediaKind.Video && FFmpegArgs.SocialFrame(aspect) is not null:
                 return await delivery.ServeAsync(http, MediaAnalysisPaths.Social(id.Value, aspect!), $"social-{aspect}.mp4", ct: ct);
-
-            case "srt" when await blobs.ExistsAsync(MediaAnalysisPaths.Transcript(id.Value), ct):
-                var srt = SrtWriter.Write(await MediaTranscript.LoadAsync(blobs, id, ct));
-                return Results.File(Encoding.UTF8.GetBytes(srt), "application/x-subrip", "captions.srt");
 
             case "roast":
                 foreach (var extension in new[] { "mp3", "wav" })

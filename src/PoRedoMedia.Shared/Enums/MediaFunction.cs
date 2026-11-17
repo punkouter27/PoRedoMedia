@@ -13,5 +13,4 @@ public enum MediaFunction
     // Video
     Memeify,
     VideoRoast,
-    Captions,
 }

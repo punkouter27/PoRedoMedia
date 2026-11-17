@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Settings gear, /diag, 404 page, form messages</title>
+<title>Settings gear, /diag, 404 page, form messages, no captions</title>
 <style>
   :root { --brand: linear-gradient(90deg, #4340d2, #7c3aed); --ink: #1f2330; --muted: #5d6475; --bad: #c62828; --ok: #2e7d32; --warn: #b26a00; }
   body { margin: 0; padding: 24px 16px; font: 15px/1.45 system-ui, sans-serif; color: var(--ink); background: #f4f5fb; }
@@ -71,6 +71,20 @@
 <div class="pair">
   <div class="panel before"><b>Before</b><div class="body">Comic-ify: <textarea>hi</textarea><button disabled>Make comic</button><br><small>Greyed out with no reason given.</small></div></div>
   <div class="panel after"><b>After</b><div class="body">Comic-ify: <textarea>hi</textarea><div class="field-error">Paste a conversation of at least a couple of lines.</div><button>Make comic</button><br><small>Same rules on the server (validation problem); the button is off while it sends.</small></div></div>
+</div>
+<h2>5. No caption text drawn over videos</h2>
+<div class="pair">
+  <div class="panel before"><b>Before</b>
+    <div class="body" style="background:#222;color:#fff;height:150px;position:relative;border-radius:6px">
+      <span style="position:absolute;left:0;right:0;bottom:16px;text-align:center;font:800 30px system-ui;color:#fff;-webkit-text-stroke:2px #FF5CA8">wiggles!</span>
+      <small style="position:absolute;left:8px;top:6px;opacity:.7">0:00:32 / 0:00:42</small></div>
+    <div class="body">Create Movie burned karaoke captions in (the Kids series' accent is pink); Meme-ify had an Auto-captions function.</div>
+  </div>
+  <div class="panel after"><b>After</b>
+    <div class="body" style="background:#222;color:#fff;height:150px;position:relative;border-radius:6px">
+      <small style="position:absolute;left:8px;top:6px;opacity:.7">0:00:32 / 0:00:42</small></div>
+    <div class="body">No words of what is said on the picture. Kept: the beat's strap as a section starts, Meme-ify's meme punchlines, the .srt file beside a movie export, comic lettering.</div>
+  </div>
 </div>
 </body>
 </html>

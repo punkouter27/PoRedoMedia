@@ -339,8 +339,7 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
     }
 
     /// <summary>
-    /// Every change to a movie comes through here: it is saved, then remembered so it can be undone. A run of caption
-    /// changes (a slider being dragged) is undone as one.
+    /// Every change to a movie comes through here: it is saved, then remembered so it can be undone.
     /// </summary>
     /// <returns>Why it could not be saved, or null.</returns>
     public string? Edit(OpenMovie open, Func<Episode, Episode> change)
@@ -352,10 +351,9 @@ public sealed partial class MovieStudio(MovieEngine engine, UserId user, IMediaR
                 var before = open.Episode;
                 var updated = change(before);
                 if (ReferenceEquals(updated, before)) return null;
-                var captionsOnly = (updated with { Captions = before.Captions }) == before;
                 ProjectStore.Save(updated, open.Folder);
                 open.Episode = updated;
-                open.History.Record(before, merges: captionsOnly);
+                open.History.Record(before);
                 return null;
             }
             catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException)

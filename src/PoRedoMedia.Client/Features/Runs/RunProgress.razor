@@ -88,10 +88,6 @@
                     <MediaView Media="output" />
                 }
                 <figcaption>@output.Title</figcaption>
-                @if (output.Kind == MediaKind.Video && Run.Run.Functions.Contains(MediaFunction.Captions))
-                {
-                    <a href="@($"api/media/{output.Id}/export/srt")" download="captions.srt">Download the captions (SRT)</a>
-                }
                 @if (output.Kind == MediaKind.Video && output.Text is not null)
                 {
                     <a href="@($"api/media/{output.Id}/export/roast")" download>Download the roast alone (audio)</a>

@@ -61,12 +61,6 @@ public static class RunOptions
     /// </summary>
     public const string VideoVoiceFirst = "Video.voiceFirst";
 
-    /// <summary>
-    /// "1" when captions will be burned along the bottom of the result afterwards (a Create Movie clip): meme text meant
-    /// for the bottom is drawn at the top instead, so the two never cover each other. Absent = text goes where directed.
-    /// </summary>
-    public const string VideoKeepBottomClear = "Video.keepBottomClear";
-
     /// <summary>"1" when the video stars a child to be called "it" (a Kids' movie clip): meme text uses no gendered word for it.</summary>
     public const string VideoChildIsIt = "Video.childIsIt";
 

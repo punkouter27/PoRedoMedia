@@ -25,7 +25,7 @@ public sealed record MovieShowDto(
 /// <param name="ServerSpeech">The server can hear what is said in a film; when false, the browser's own speech model does it.</param>
 public sealed record MovieConfigDto(
     bool Ffmpeg, bool Script, bool Voice, bool Pictures, bool DraftPictures, bool YouTube,
-    MovieShowDto[] Shows, MovieOption[] Looks, MovieOption[] Kinds, MovieOption[] CaptionPresets, MovieOption[] Layouts,
+    MovieShowDto[] Shows, MovieOption[] Looks, MovieOption[] Kinds, MovieOption[] Layouts,
     MovieOption[] ExportPresets, MovieIntroStart[] IntroStarts, string? Notice, int MaxFilms, int MaxTopicLength,
     bool Memes = false, decimal MemePrice = 0, int MaxClipSeconds = 60, int MaxMovieSeconds = 600, bool ServerSpeech = true,
     string[]? RoastVoices = null);
@@ -37,19 +37,17 @@ public sealed record MovieIntroStart(string Name, string Accent, string Layout);
 /// <param name="LogoUrl">The kit's own picture or sound, when it has one; null means the app's made-up one is used.</param>
 public sealed record MovieKitDto(
     string Show, string ChannelName, string Tagline, int OutroSeconds, bool Grain, string Structure, string Look, string Layout,
-    string CaptionPreset, string Accent, int FontSize, int Stroke,
+    string Accent,
     string? LogoUrl, string? MascotUrl, string? StingUrl, string? MusicUrl, string? MusicName, string? StingName,
     int NextNumber, bool HasHostDesign);
 
 /// <summary>The kit's editable fields, sent whole.</summary>
 public sealed record MovieKitUpdate(
     string ChannelName, string Tagline, int OutroSeconds, bool Grain, string Structure, string Look, string Layout,
-    string CaptionPreset, string Accent, int FontSize, int Stroke);
+    string Accent);
 
 /// <summary>One saved movie as the list shows it.</summary>
 public sealed record MovieSummaryDto(string Id, string Title, string Show, string Details, string? ThumbUrl, DateTimeOffset Saved, int Number, bool Damaged);
-
-public sealed record MovieCaptionsDto(string Preset, string Accent, int FontSize, int Stroke);
 
 /// <summary>One clip of a movie, with everything its card and the inspector show.</summary>
 /// <param name="Tiers">The depths the clip has words for already; another is written when first asked for.</param>
@@ -67,10 +65,8 @@ public sealed record MovieClipDto(
 public sealed record MovieMarkDto(string Title, double Start, bool Bookend);
 
 /// <summary>One word of the narration and when it is said, from the start of the video.</summary>
-public sealed record MovieWordDto(string Text, double Start, double Length);
-
-/// <summary>The quick preview: the small video, where each clip starts in it, and its words for captions drawn live.</summary>
-public sealed record MoviePreviewDto(string Url, MovieMarkDto[] Marks, MovieWordDto[] Words, double Seconds);
+/// <summary>The quick preview: the small video and where each clip starts in it.</summary>
+public sealed record MoviePreviewDto(string Url, MovieMarkDto[] Marks, double Seconds);
 
 public sealed record MovieTeaserMomentDto(int Clip, double Start, double Length);
 
@@ -86,7 +82,7 @@ public sealed record MoviePublishDto(
 /// <param name="PicturesToMake">Clips still waiting for a picture.</param>
 /// <param name="OffSeriesLook">Its look, captions or music have moved away from the series' own.</param>
 public sealed record MovieDto(
-    string Id, string Title, string Topic, int Number, string Show, string Structure, string Look, MovieCaptionsDto Captions,
+    string Id, string Title, string Topic, int Number, string Show, string Structure, string Look,
     MovieClipDto[] Clips, double RuntimeSeconds, string Meta, bool CanUndo, bool CanRedo, string? MusicName,
     int PicturesToMake, bool HasDraftPictures, bool OffSeriesLook, MoviePreviewDto? Preview, MoviePublishDto Publish,
     MovieTeaserDto[] Teasers, string[] SpendLines, string? RoastVoice = null, bool CrudeRoast = false, string? Mix = null, string? Narrator = null);
@@ -123,8 +119,7 @@ public sealed record MovieEstimateDto(string Summary, decimal? Dollars, bool Not
 /// is undoable.
 /// </summary>
 public sealed record MovieEdit(
-    string Op, Guid? ClipId = null, string? Text = null, bool? Flag = null, int? Index = null, Guid[]? Order = null,
-    MovieCaptionsDto? Captions = null);
+    string Op, Guid? ClipId = null, string? Text = null, bool? Flag = null, int? Index = null, Guid[]? Order = null);
 
 public sealed record MoviePrefsDto(decimal MonthlyBudget, bool DraftPictures, string ExportPreset, decimal MonthSpent);
 

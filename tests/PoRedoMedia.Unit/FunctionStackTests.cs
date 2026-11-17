@@ -7,7 +7,7 @@ namespace PoRedoMedia.UnitTests;
 public sealed class FunctionStackTests
 {
     private static readonly MediaFunction[] ImageFunctions = [Restyle, MemeCaption, RapRoast, PhotoToVideo, BulkStyles];
-    private static readonly MediaFunction[] VideoFunctions = [Memeify, VideoRoast, Captions];
+    private static readonly MediaFunction[] VideoFunctions = [Memeify, VideoRoast];
 
     // SPEC 2.1, restated independently of the implementation and checked for every one of the
     // 1023 non-empty subsets of the ten functions, against each media kind.
@@ -69,6 +69,6 @@ public sealed class FunctionStackTests
         Assert.Equal(100 + 10, Cost([Restyle, MemeCaption], ("Vision.model", AiCatalog.BrowserVision)));
         Assert.Equal(300, Cost([BulkStyles], ("BulkStyles.prompt0", "a"), ("BulkStyles.prompt1", "b"), ("BulkStyles.prompt2", "c")));
         Assert.Equal(1011 + 10000, Cost([RapRoast, PhotoToVideo]));
-        Assert.Equal(11 + 20, Cost([Memeify, VideoRoast, Captions]));
+        Assert.Equal(11 + 20, Cost([Memeify, VideoRoast]));
     }
 }

@@ -99,7 +99,7 @@ public sealed record SeriesKit(string ChannelName = "", string Tagline = "", Cap
             Sting = Bare(kit.Sting),
             Music = Bare(kit.Music),
             Mascot = Bare(kit.Mascot),
-            Captions = kit.Captions is { } style && AssCaptions.IsHexColour(style.AccentColor) ? style : new CaptionStyle(),
+            Captions = kit.Captions is { } style && AssStrap.IsHexColour(style.AccentColor) ? style : new CaptionStyle(),
             OutroSeconds = Math.Clamp(kit.OutroSeconds, MinOutroSeconds, MaxOutroSeconds),
             Layout = Enum.IsDefined(kit.Layout) ? kit.Layout : IntroLayout.Side,
             Structure = BeatPlan.Structures(show).Contains(kit.Structure) ? kit.Structure : BeatPlan.Structures(show)[0],

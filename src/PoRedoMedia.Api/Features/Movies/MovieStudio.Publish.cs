@@ -27,7 +27,7 @@ public sealed partial class MovieStudio
         string? Url(string? name) => SeriesKit.PathOf(folder, name) is { } path
             ? $"/api/movies/kit/{show}/files/{Uri.EscapeDataString(name!)}?v={File.GetLastWriteTimeUtc(path).Ticks:x}" : null;
         return new MovieKitDto(show.ToString(), kit.ChannelName, kit.Tagline, kit.OutroSeconds, kit.Grain, kit.Structure.ToString(), kit.Look.ToString(), kit.Layout.ToString(),
-            kit.Captions.Preset.ToString(), kit.Captions.AccentColor, kit.Captions.FontSize, kit.Captions.StrokeWidth,
+            kit.Captions.AccentColor,
             Url(kit.Logo), Url(kit.Mascot), Url(kit.Sting), Url(kit.Music), SeriesKit.PathOf(folder, kit.Music) is null ? null : kit.Music,
             SeriesKit.PathOf(folder, kit.Sting) is null ? null : kit.Sting,
             ProjectStore.NextNumber(Episodes, show), File.Exists(Path.Combine(Host, "sheet.png")));
@@ -38,9 +38,9 @@ public sealed partial class MovieStudio
     /// <returns>Why the kit could not be saved, or null.</returns>
     public string? SaveKit(Show show, MovieKitUpdate update)
     {
-        if (!AssCaptions.IsHexColour(update.Accent)) return "The accent colour is typed as # and six letters or digits, such as #22CC88.";
+        if (!AssStrap.IsHexColour(update.Accent)) return "The accent colour is typed as # and six letters or digits, such as #22CC88.";
         if (!Enum.TryParse<BeatStructure>(update.Structure, out var structure) || !BeatPlan.Structures(show).Contains(structure)) return "That shape does not belong to this series.";
-        if (!Enum.TryParse<Look>(update.Look, out var look) || !Enum.TryParse<IntroLayout>(update.Layout, out var layout) || !Enum.TryParse<CaptionPreset>(update.CaptionPreset, out var preset))
+        if (!Enum.TryParse<Look>(update.Look, out var look) || !Enum.TryParse<IntroLayout>(update.Layout, out var layout))
             return "That choice is not known.";
         var kit = SeriesKit.Load(KitFolder(show), show) with
         {
@@ -51,7 +51,7 @@ public sealed partial class MovieStudio
             Structure = structure,
             Look = look,
             Layout = layout,
-            Captions = new CaptionStyle(preset, Math.Clamp(update.FontSize, 32, 96), update.Accent.ToUpperInvariant(), Math.Clamp(update.Stroke, 0, 10)),
+            Captions = new CaptionStyle(update.Accent.ToUpperInvariant()),
         };
         return StoreKit(show, kit);
     }
@@ -223,7 +223,7 @@ public sealed partial class MovieStudio
         var memeFailures = await MemeifyAsync(job, open, ct);
         job.Phase = (from + span * 0.5, span * 0.45);
         var (episode, brand) = (open.Episode, BrandOf(open));
-        var video = await engine.Builder.ExportAsync(WithMemes(open), open.Folder, preset, episode.Captions, brand, Rendering(job), ct);
+        var video = await engine.Builder.ExportAsync(WithMemes(open), open.Folder, preset, brand, Rendering(job), ct);
         job.Made = true;
         job.Phase = (from + span * 0.95, span * 0.05);
         open.VideoLink = null;
@@ -321,7 +321,7 @@ public sealed partial class MovieStudio
             var lengths = await engine.Builder.ClipLengthsAsync(episode, open.Folder, ct);
             if (Teasers.Fit([ToTeaser(open.Teasers[index], episode)], lengths) is not [var teaser])
                 return (null, "This teaser does not fit in ten seconds of its clips. Move a moment to a longer clip.");
-            return (Temp(await engine.Builder.TeaserDraftAsync(episode, open.Folder, teaser, episode.Captions, BrandOf(open), ct)), null);
+            return (Temp(await engine.Builder.TeaserDraftAsync(episode, open.Folder, teaser, BrandOf(open), ct)), null);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
@@ -342,7 +342,7 @@ public sealed partial class MovieStudio
             var teasers = Teasers.Fit(kept.Select(t => ToTeaser(t, episode)), lengths);
             if (teasers.Count == 0)
                 throw new InvalidOperationException("None of the teasers kept fits in ten seconds of its clips. Move a moment to a longer clip, or suggest them again.");
-            var folder = await engine.Builder.ExportTeasersAsync(episode, open.Folder, teasers, episode.Captions, BrandOf(open), Rendering(job), ct);
+            var folder = await engine.Builder.ExportTeasersAsync(episode, open.Folder, teasers, BrandOf(open), Rendering(job), ct);
             JsonFile.Save(Path.Combine(folder, "hooks.json"), teasers.Select(t => t.Hook).ToList());
             job.Message = $"Rendered {Count(teasers.Count, "teaser")}."
                 + (teasers.Count < kept.Count ? $" {Count(kept.Count - teasers.Count, "teaser")} did not fit in ten seconds and was left out." : "");
@@ -484,15 +484,13 @@ public sealed partial class MovieStudio
         MoviePreviewDto? preview = null;
         if (open.Preview is { } built && Link(open, built.VideoPath) is { } url)
         {
-            var words = built.Segments.SelectMany(s => s.Words.Select(w => new MovieWordDto(w.Text, (s.Offset + w.Start).TotalSeconds, w.Duration.TotalSeconds))).ToArray();
             var marks = built.Marks.Select(m => new MovieMarkDto(m.Title, m.Start.TotalSeconds, m.Bookend)).ToArray();
-            preview = new(url, marks, words, 0);
+            preview = new(url, marks, 0);
         }
 
         var toMake = engine.PicturesAvailable ? CostEstimate.For(episode, engine.ImageModel, Quality).ClipIds.Count : 0;
         var spendLines = SpendLog.Breakdown(folder).Select(line => $"{line.What} · {line.Units:N0} · {SpendLog.Money(line.Dollars)}").ToArray();
         return new MovieDto(open.Id, episode.Title, episode.Topic, episode.Number, show.ToString(), episode.Structure.ToString(), episode.Look.ToString(),
-            new(episode.Captions.Preset.ToString(), episode.Captions.AccentColor, episode.Captions.FontSize, episode.Captions.StrokeWidth),
             clips, runtime, meta, open.History.CanUndo, open.History.CanRedo,
             episode.MusicPath is { } music && File.Exists(music) ? Path.GetFileName(music)["music-".Length..] : null,
             toMake, episode.Clips.Any(c => c.Draft), OffSeriesLook(open), preview, PublishOf(open), [.. open.Teasers], spendLines,

@@ -105,7 +105,7 @@ var publish = movie.Publish;
                                Narrator="@NarratorChoice.Parse(movie.Narrator)" NarratorChanged="@(n => Store.EditAsync(new MovieEdit("narrator", Text: n.Encode())))" Disabled="Store.IsWorking" IdPrefix="mv-video-roast" />
         }
         <RadzenButton Text="@(publish.MasterUrl is null ? "Render finished video" : "Render again")" Icon="movie" Variant="@(publish.MasterUrl is null ? Variant.Filled : Variant.Outlined)" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
-                      title="@($"Build the finished video file with voice, pictures and captions, plus a chapter list, subtitles, a thumbnail and an upload description.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
+                      title="@($"Build the finished video file with voice and pictures (no captions are drawn on it), plus a chapter list, a subtitle file, a thumbnail and an upload description.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
         @if (publish.MasterUrl is { } master)
         {
             <video @ref="_masterVideo" class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>

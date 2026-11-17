@@ -26,7 +26,7 @@ public static class ProjectStore
         WriteIndented = true,
         Converters =
         {
-            new JsonStringEnumConverter<BeatStructure>(), new JsonStringEnumConverter<Show>(), new JsonStringEnumConverter<CaptionPreset>(),
+            new JsonStringEnumConverter<BeatStructure>(), new JsonStringEnumConverter<Show>(),
             new JsonStringEnumConverter<Tier>(), new JsonStringEnumConverter<VisualKind>(), new JsonStringEnumConverter<Look>(),
             new JsonStringEnumConverter<IntroLayout>(),
         },
@@ -67,7 +67,7 @@ public static class ProjectStore
     // reported as a damaged file and not left to crash later.
     private static void CheckShape(Episode episode, string path)
     {
-        var sound = AssCaptions.IsHexColour(episode.Captions.AccentColor)
+        var sound = AssStrap.IsHexColour(episode.Captions.AccentColor)
             // A clip always has the depth it is on; the other depths are written on demand and may be absent.
             && episode.Clips.All(c => c is not null && c.Scripts.ContainsKey(c.ActiveTier) && c.Scripts.Values.All(script => script is not null)
                 && (c.Visual.EarlierTakes ?? []).All(take => take is not null && take.All(path => path is not null)));

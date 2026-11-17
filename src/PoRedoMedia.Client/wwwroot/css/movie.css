@@ -146,7 +146,6 @@
 .mv-screen video { width: 100%; height: 100%; cursor: pointer; }
 .mv-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .mv-aa { position: absolute; right: 8px; top: 8px; font-weight: 700; background: var(--po-glass) !important; }
-.mv-captions-panel { position: absolute; right: 8px; top: 52px; z-index: 2; display: flex; flex-direction: column; gap: 0.6rem; width: min(300px, calc(100% - 16px)); padding: 0.8rem; border: 1px solid var(--po-line); border-radius: var(--po-radius-sm); background: var(--rz-base-background-color); box-shadow: 0 12px 30px rgb(0 0 0 / 25%); }
 .mv-slider { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; }
 .mv-swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .mv-swatches button { width: 30px; height: 30px; border: 1px solid var(--po-line); border-radius: 50%; cursor: pointer; }

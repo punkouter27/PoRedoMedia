@@ -32,10 +32,10 @@ Wire enums travel as strings over both HTTP and SignalR. Shared is `IsAotCompati
 the AOT analyzer on, so trim- or AOT-unsafe code fails the build; JSON goes through the source-generated `WireJson`.
 
 **Api layout.** `Features/<Slice>/` are vertical slices (Media, Runs, Auth, Render, Sharing, one folder per image
-function, and `Video/` for the one step that runs Meme-ify, Insult roast and Auto-captions together; its meme sounds and roast lines take turns, `TurnTaking`, and the renderer levels every clip to -16 LUFS); each exposes
+function, and `Video/` for the one step that runs Meme-ify and Insult roast together; its meme sounds and roast lines take turns, `TurnTaking`, and the renderer levels every clip to -16 LUFS); each exposes
 `MapX(this IEndpointRouteBuilder)` called from `Program.cs`. `Common/` holds cross-slice contracts, strongly typed IDs,
 storage, AI providers (`Common/Ai`, including the video vision and speech clients) and `ImageBytes` (all still-image
-decode/encode, on SkiaSharp). Exports of a result live under `/api/media/{id}/export/{gif|social|srt|roast}`
+decode/encode, on SkiaSharp). Exports of a result live under `/api/media/{id}/export/{gif|social|roast}`
 (`social?aspect=9x16|1x1|16x9` re-frames a video on a blurred fill; gif and social are made once by a POST that
 costs a run, then kept beside the video). `Features/Preferences` serves `GET/PUT /api/preferences` (one per-user
 string map, 16 KB cap, not yet read by the client).
@@ -90,6 +90,12 @@ through in-process JS. Signed in, `Services/PreferenceSync` pulls `/api/preferen
 wins) and PUTs the whole synced set (`poredomedia:adv:*`, `poredomedia:fx`, `poredomedia:sfx:*`, `poredomedia:recipes`) a second after any change; recipes
 are read through `RecipeBook`, which skips functions that no longer exist. Every function the server can run is always offered. E2E tests turn switches on with
 `SignedInPageAsync(path, "poredomedia:adv:device-ai", ...)`.
+
+**No captions on videos** (2026-11-17, the owner's call). Nothing writes what is said over a video: the Auto-captions
+function (and its SRT export) is gone, a Create Movie render burns in only each beat's strap (`Render/AssStrap`), and
+teasers carry only their hook and channel bar. `CaptionStyle` keeps its name but now holds only the series' accent
+colour (old caption fields in saved movies are skipped). Meme-ify's meme text (each cue's punchline, `MemeMix` caption
+size and "on top"), the movie's `.srt` file beside the export and Comic-ify's lettered panels are other features and stay.
 
 **Host plumbing** (2026-11-17). Serilog is the logger (`Configuration/TelemetryExtensions.AddPoSerilog`, levels in the
 `Serilog` section of appsettings; Application Insights still gets every event). Errors are problem details

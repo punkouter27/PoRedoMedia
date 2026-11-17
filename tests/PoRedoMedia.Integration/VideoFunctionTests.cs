@@ -117,14 +117,14 @@ public sealed class VideoFunctionTests(AzuriteFixture azurite) : IDisposable
     }
 
     [DockerFact]
-    public async Task All_three_video_functions_in_one_run_make_one_video_with_its_roast_text_and_captions_file()
+    public async Task Both_video_functions_in_one_run_make_one_video_with_its_roast_text_and_no_captions()
     {
         var user = $"dev|{Guid.NewGuid()}";
         var client = await Factory.SignedInAsync(user);
         await SeedSoundAsync();
         var source = await AddVideoAsync(user);
 
-        var run = await RunAsync(client, source, [MediaFunction.Captions, MediaFunction.VideoRoast, MediaFunction.Memeify],
+        var run = await RunAsync(client, source, [MediaFunction.VideoRoast, MediaFunction.Memeify],
             new() { [RunOptions.VideoPersona] = "sitcom", [RunOptions.VideoAspect] = "1:1" });
 
         Assert.True(run.Status == RunStatus.Complete, run.Error);
@@ -139,28 +139,8 @@ public sealed class VideoFunctionTests(AzuriteFixture azurite) : IDisposable
         Assert.Equal(1, audioStreams);
         Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync(video.ThumbUrl)).StatusCode);
 
-        var srt = await client.GetStringAsync($"/api/media/{video.Id}/export/srt");
-        Assert.Contains("This is a mock transcript.", srt);
-        Assert.Contains("-->", srt);
-    }
-
-    [DockerFact]
-    public async Task Captions_alone_render_without_asking_the_director_and_a_second_run_reuses_the_analysis()
-    {
-        var user = $"dev|{Guid.NewGuid()}";
-        var client = await Factory.SignedInAsync(user);
-        var source = await AddVideoAsync(user);
-
-        var first = await RunAsync(client, source, [MediaFunction.Captions]);
-        var second = await RunAsync(client, source, [MediaFunction.Captions]);
-
-        Assert.True(first.Status == RunStatus.Complete, first.Error);
-        Assert.True(second.Status == RunStatus.Complete, second.Error);
-        Assert.Equal(0, _director.Calls);
-        var gallery = (await client.GetFromJsonAsync("/api/media", WireJson.Default.ListMediaDto))!;
-        Assert.Equal("Captions", gallery.Single(m => m.Id == first.OutputIds[0]).Origin);
-        // A video with no captions burned in has no captions file.
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/media/{source.Id}/export/srt")).StatusCode);
+        // No captions of what is said are drawn or kept (removed 2026-11-17), so there is no captions file either.
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/media/{video.Id}/export/srt")).StatusCode);
     }
 
     [DockerFact]

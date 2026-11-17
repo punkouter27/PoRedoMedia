@@ -110,7 +110,7 @@ public sealed partial class EpisodeBuilder
         clip is { OwnSound: true, Visual.UserVideoPath: { } film } && File.Exists(film) ? film : null;
 
     // The film's sound, cut or padded to the film's length, stands in for the narration: the timeline, the joins and
-    // the captions then treat the clip like any other. Words typed for it are spread across it as captions. Free: no
+    // the subtitle file then treat the clip like any other. Words typed for it are spread across it as its lines. Free: no
     // service is asked for anything.
     private async Task<Narration> TakeSoundAsync(string film, string text, string audio, CancellationToken ct)
     {

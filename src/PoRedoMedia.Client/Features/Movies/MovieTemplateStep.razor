@@ -62,7 +62,7 @@
             <div class="mv-row">
                 <input type="color" value="@kit.Accent" @onchange="@(e => SaveAsync(kit with { Accent = e.Value?.ToString() ?? kit.Accent }))" aria-label="Pick the accent colour" class="mv-colour" />
                 <RadzenTextBox Name="mv-accent" Value="@kit.Accent" MaxLength="7" Placeholder="#FFD400" Change="@(v => SaveAsync(kit with { Accent = v }))"
-                               title="The series colour, typed as # and six letters or digits, such as #22CC88. It fills the intro and outro background and colours the section straps and captions of new movies." />
+                               title="The series colour, typed as # and six letters or digits, such as #22CC88. It fills the intro and outro background and colours the section straps of new movies." />
             </div>
         </div>
 
@@ -173,7 +173,7 @@
         @if (Store.Movie is { OffSeriesLook: true } movie && movie.Show == Store.Show)
         {
             <RadzenButton Text="Give the open movie this look" Variant="Variant.Outlined" Click="@(() => Store.EditAsync(new MovieEdit("seriesLook")))"
-                          title="The open movie was made before the series' picture style, captions or outro music changed. This gives it the series look, as one step Undo reverses. Pictures already drawn are not redrawn, and nothing is paid for." />
+                          title="The open movie was made before the series' picture style, accent colour or outro music changed. This gives it the series look, as one step Undo reverses. Pictures already drawn are not redrawn, and nothing is paid for." />
         }
     </div>
 
@@ -257,7 +257,7 @@
     /// <summary>Saves the kit with one thing changed, then draws the still again.</summary>
     private async Task SaveAsync(MovieKitDto kit)
     {
-        var (saved, error) = await Api.SaveKitAsync(Store.Show, new MovieKitUpdate(kit.ChannelName, kit.Tagline, kit.OutroSeconds, kit.Grain, kit.Structure, kit.Look, kit.Layout, kit.CaptionPreset, kit.Accent, kit.FontSize, kit.Stroke));
+        var (saved, error) = await Api.SaveKitAsync(Store.Show, new MovieKitUpdate(kit.ChannelName, kit.Tagline, kit.OutroSeconds, kit.Grain, kit.Structure, kit.Look, kit.Layout, kit.Accent));
         Took(saved, error);
     }
 

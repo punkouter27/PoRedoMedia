@@ -1,11 +1,10 @@
 namespace PoRedoMedia.Movie.Library;
 
-public enum CaptionPreset { KaraokeHighlight, TwoLineBlock, CleanSubtitle, ComicBanner }
-
-/// <param name="FontSize">In pixels on a 1080-line frame; scales with the export resolution.</param>
+/// <summary>
+/// The series' accent colour: the intro and outro, the section straps, the thumbnail and the film finish take it.
+/// Kept under its old name (it also held the burned-in captions' preset, size and outline until 2026-11-17, when
+/// captions of what is said were removed) so saved movies and kits load as they are; their old caption fields are
+/// skipped when read.
+/// </summary>
 /// <param name="AccentColor">#RRGGBB.</param>
-public sealed record CaptionStyle(
-    CaptionPreset Preset = CaptionPreset.KaraokeHighlight,
-    int FontSize = 64,
-    string AccentColor = "#FFD400",
-    int StrokeWidth = 4);
+public sealed record CaptionStyle(string AccentColor = "#FFD400");

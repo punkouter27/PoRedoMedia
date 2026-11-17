@@ -415,7 +415,6 @@ public static class MovieEndpoints
             ],
             [new("Comic", "Comic book"), new("Photoreal", "Photograph"), new("FlatVector", "Flat vector"), new("Cinematic", "Cinematic")],
             [.. Visuals.Kinds.Where(k => visuals?.CanMake(k.Kind) ?? k.Kind == VisualKind.TitleCard).Select(k => new MovieOption(k.Kind.ToString(), k.Label))],
-            [new("KaraokeHighlight", "Karaoke highlight"), new("TwoLineBlock", "Two-line block"), new("CleanSubtitle", "Clean subtitle"), new("ComicBanner", "Comic banner")],
             [new("Side", "Side"), new("Centre", "Centre"), new("Lower", "Lower band")],
             [new("Hd30", "1080p, 30 fps"), new("Hd60", "1080p, 60 fps"), new("Uhd30", "4K, 30 fps"), new("Uhd60", "4K, 60 fps")],
             [new("Workshop", "#22CC88", "Side"), new("Blueprint", "#2F80ED", "Centre"), new("Safety amber", "#FFB020", "Lower"), new("Night shift", "#8B5CF6", "Centre")],

@@ -3,14 +3,13 @@ using PoRedoMedia.Shared.Models;
 namespace PoRedoMedia.Api.Features.Render;
 
 /// <summary>One render: the source, where the output goes, and the cues to lay over it.</summary>
-/// <param name="TrimStartSeconds">Where in the source the result starts. Cue and subtitle times count from here.</param>
+/// <param name="TrimStartSeconds">Where in the source the result starts. Cue times count from here.</param>
 /// <param name="TrimSeconds">How much of the source is kept from there; null = to the end.</param>
 /// <param name="SoundsUnderDb">
 /// How far below their usual level the meme sounds play, with the source at its full level: for a source whose own sound
 /// is a narrator to be heard over them (a Create Movie clip). 0 = the usual mix; below 0 plays them louder than usual.
 /// </param>
 /// <param name="CaptionFontSize">The meme captions' font size.</param>
-/// <param name="KeepBottomClear">Captions are burned along the bottom later, so meme text meant for the bottom goes to the top.</param>
 public sealed record RenderJob(
     MediaId MediaId,
     string SourceBlobPath,
@@ -18,11 +17,9 @@ public sealed record RenderJob(
     bool AggressiveVisuals,
     IReadOnlyList<RenderVisualEntry> Cues,
     string? AspectRatio = null,
-    IReadOnlyList<TranscriptSegmentDto>? Subtitles = null,
     double TrimStartSeconds = 0,
     double? TrimSeconds = null,
     double SoundsUnderDb = 0,
-    bool KeepBottomClear = false,
     int CaptionFontSize = 36);
 
 /// <summary>A cue as the renderer sees it: its sound, and the look around it.</summary>

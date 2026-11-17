@@ -1,8 +1,8 @@
 namespace PoRedoMedia.Movie.Render;
 
-/// <summary>A quick low-resolution render for the preview player, plus the word timings its caption overlay draws from.</summary>
+/// <summary>A quick low-resolution render for the preview player.</summary>
 /// <param name="Marks">Where each clip starts, with its narration file, for the waveform under the player.</param>
-public sealed record Preview(string VideoPath, IReadOnlyList<CaptionSegment> Segments, IReadOnlyList<ClipMark> Marks);
+public sealed record Preview(string VideoPath, IReadOnlyList<ClipMark> Marks);
 
 /// <summary>One clip's place on the finished timeline.</summary>
 /// <param name="Bookend">The series intro or outro, not one of the episode's clips.</param>

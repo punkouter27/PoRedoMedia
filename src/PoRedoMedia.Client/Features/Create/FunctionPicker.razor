@@ -3,7 +3,7 @@
    here (the server still runs it for older recipes and runs). *@
 
 <div class="function-grid" role="group" aria-label="Functions">
-    @foreach (var function in FunctionStack.For(Kind).Where(f => f != MediaFunction.Captions))
+    @foreach (var function in FunctionStack.For(Kind))
     {
         var f = function;
         var available = Available.Contains(f);
@@ -38,7 +38,6 @@
         MediaFunction.BulkStyles => "auto_awesome_mosaic",
         MediaFunction.Memeify => "celebration",
         MediaFunction.VideoRoast => "record_voice_over",
-        MediaFunction.Captions => "closed_caption",
         _ => "bolt",
     };
 

@@ -10,7 +10,7 @@ namespace PoRedoMedia.Shared;
 public static class FunctionStack
 {
     public static MediaKind KindOf(MediaFunction function) =>
-        function is MediaFunction.Memeify or MediaFunction.VideoRoast or MediaFunction.Captions
+        function is MediaFunction.Memeify or MediaFunction.VideoRoast
             ? MediaKind.Video
             : MediaKind.Image;
 
@@ -48,7 +48,6 @@ public static class FunctionStack
         MediaFunction.BulkStyles => "Bulk styles",
         MediaFunction.Memeify => "Meme-ify",
         MediaFunction.VideoRoast => "Insult roast",
-        MediaFunction.Captions => "Auto-captions",
         _ => function.ToString(),
     };
 
@@ -62,7 +61,6 @@ public static class FunctionStack
         MediaFunction.BulkStyles => "Up to ten style variations at once. Runs on its own.",
         MediaFunction.Memeify => "Add meme sounds, stickers and text at the right moments.",
         MediaFunction.VideoRoast => "Spoken insults about what happens in the video.",
-        MediaFunction.Captions => "Burn in subtitles of what is said.",
         _ => "",
     };
 
