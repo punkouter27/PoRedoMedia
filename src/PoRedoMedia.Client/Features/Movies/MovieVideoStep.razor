@@ -24,7 +24,7 @@ var publish = movie.Publish;
                 <RadzenButton Text="@(kept == 1 ? "Render 1 teaser" : $"Render {kept} teasers")" Disabled="@(Store.IsWorking || kept == 0)" Click="@(() => Store.DoAsync("teasers/render", job: true))"
                               title="Builds each kept teaser as a 1080 by 1920 video, from the clips already made. Nothing new is paid for." />
                 <span title="Send each rendered teaser to your channel as a YouTube Short, titled with its hook and #Shorts, as private, unlisted or public as chosen for the finished video. Free.">
-                    <RadzenButton Text="Upload as Shorts" Variant="Variant.Outlined" Disabled="@(Store.IsWorking || !config.YouTube || publish.TeaserUrls.Length == 0)" Click="@(() => UploadAsync(shorts: true))" />
+                    <RadzenButton Text="Upload as Shorts" Variant="Variant.Outlined" Disabled="@(_uploading || Store.IsWorking || !config.YouTube || publish.TeaserUrls.Length == 0)" Click="@(() => UploadAsync(shorts: true))" />
                 </span>
             }
         </div>
@@ -160,6 +160,7 @@ var publish = movie.Publish;
                     <RadzenTextBox Name="mv-up-title" @bind-Value="_title" MaxLength="100" class="mv-grow" title="The video's title on YouTube, up to 100 characters. Filled in from the titles written with the finished video." />
                     <RadzenButton Icon="content_copy" Variant="Variant.Text" Click="@(() => CopyAsync("Title", _title))" aria-label="Copy the title" title="Copy the title, to paste into YouTube's own upload page. Free." />
                 </div>
+                <FieldErrors Errors="_errors" For="Title" />
             </div>
             <div class="mv-field">
                 <RadzenLabel Text="Description" Component="mv-up-description" />
@@ -167,6 +168,7 @@ var publish = movie.Publish;
                     <RadzenTextArea Name="mv-up-description" @bind-Value="_description" Rows="6" class="mv-grow" title="The video's description on YouTube, with the chapter list in it so the video shows chapters. Change it as you like." />
                     <RadzenButton Icon="content_copy" Variant="Variant.Text" Click="@(() => CopyAsync("Description", _description))" aria-label="Copy the description" title="Copy the whole description, chapters and hashtags included, to paste into YouTube's own upload page. Free." />
                 </div>
+                <FieldErrors Errors="_errors" For="Description" />
             </div>
             <div class="mv-field">
                 <RadzenLabel Text="Tags" Component="mv-up-tags" />
@@ -179,6 +181,7 @@ var publish = movie.Publish;
                 <RadzenLabel Text="Who can watch" Component="mv-up-privacy" />
                 <RadzenDropDown Name="mv-up-privacy" TValue="string" Data="@Privacies" @bind-Value="_privacy"
                                 title="Private: only you. Unlisted: anyone with the link. Public: everyone. Private is safest; change it on YouTube once you have watched it there." />
+                <FieldErrors Errors="_errors" For="Privacy" />
             </div>
             @if (movie.Show == "Kids")
             {
@@ -190,12 +193,13 @@ var publish = movie.Publish;
                     <RadzenLabel Text="Goes public on (optional)" Component="mv-up-when" />
                     <RadzenDatePicker Name="mv-up-when" TValue="DateTime?" @bind-Value="_publishAt" ShowTime="true" HourFormat="24" DateFormat="d MMM yyyy, HH:mm" Placeholder="Not scheduled" AllowClear="true"
                                       title="The day and time the video goes public by itself. It is uploaded private until then, whatever is chosen above. Leave it empty for no schedule." />
+                    <FieldErrors Errors="_errors" For="PublishAt" />
                 </div>
             }
             <span title="@(config.YouTube
                 ? "Send the finished video to your YouTube channel with this title, description, tags and privacy, and the chosen thumbnail. A new tab opens to sign in to Google each time; nothing is kept. Free."
                 : "Uploading needs this server's Google sign-in: a Google Cloud OAuth client of the Web application kind, with the YouTube Data API on, set as YouTube:ClientId and YouTube:ClientSecret.")">
-                <RadzenButton Text="Upload to YouTube" Icon="upload" Disabled="@(Store.IsWorking || !config.YouTube)" Click="@(() => UploadAsync(shorts: false))" class="mv-wide" />
+                <RadzenButton Text="Upload to YouTube" Icon="upload" Disabled="@(_uploading || Store.IsWorking || !config.YouTube)" IsBusy="_uploading" Click="@(() => UploadAsync(shorts: false))" class="mv-wide" />
             </span>
             @if (!config.YouTube)
             {
@@ -218,7 +222,16 @@ var publish = movie.Publish;
 }
 
 @code {
-    private static readonly string[] Privacies = ["Private", "Unlisted", "Public"];
+    private static readonly string[] Privacies = MovieUploadRequestValidator.Privacies;
+
+    /// <summary>The same rules POST /api/movies/{id}/youtube runs.</summary>
+    private static readonly MovieUploadRequestValidator UploadRules = new();
+
+    /// <summary>The upload form's messages from the last check, or null.</summary>
+    private IDictionary<string, string[]>? _errors;
+
+    /// <summary>True from the press until Google's sign-in link is back, so one press is one upload.</summary>
+    private bool _uploading;
 
     private string _title = "", _description = "", _tags = "", _privacy = "Private";
     private string? _seeded;
@@ -313,14 +326,31 @@ var publish = movie.Publish;
     /// <summary>Asks, then opens Google's sign-in in a new tab; the upload starts when Google sends that tab back.</summary>
     private async Task UploadAsync(bool shorts)
     {
-        if (Store.Movie is not { } movie) return;
+        if (_uploading || Store.Movie is not { } movie) return;
         var when = Store.Advanced && _publishAt is { } at ? new DateTimeOffset(at) : (DateTimeOffset?)null;
+        var upload = new MovieUploadRequest(_title, _description, _tags, _privacy, when, shorts);
+        var checkedUpload = UploadRules.Validate(upload);
+        _errors = checkedUpload.IsValid ? null : checkedUpload.ToDictionary();
+        if (!checkedUpload.IsValid) return;
+        _uploading = true;
+        try
+        {
+            await ConfirmAndUploadAsync(movie, upload, when, shorts);
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task ConfirmAndUploadAsync(MovieDto movie, MovieUploadRequest upload, DateTimeOffset? when, bool shorts)
+    {
         var seen = when is { } then ? $"private until {then:d MMM yyyy, HH:mm}, then public" : _privacy.ToLowerInvariant();
         var (title, message) = shorts
             ? ($"Upload {movie.Publish.TeaserUrls.Length} teasers as YouTube Shorts?", $"Each goes to your channel as a Short, {seen}, titled with its hook and #Shorts. A new tab opens to sign in to Google first; that sign-in is used for these uploads only. It costs nothing.")
             : ("Upload to YouTube?", $"Uploads {movie.Publish.MasterName} to your channel as “{_title}”, {seen}{(movie.Publish.ThumbnailUrl is null ? "" : ", with the chosen thumbnail")}. A new tab opens to sign in to Google first; that sign-in is used for this upload only. It costs nothing.");
         if (!await MovieDialogs.ConfirmAsync(Dialogs, title, message, "Upload")) return;
-        var reply = await Api.UploadAsync(movie.Id, new MovieUploadRequest(_title, _description, _tags, _privacy, when, shorts));
+        var reply = await Api.UploadAsync(movie.Id, upload);
         if (reply.Url is null)
         {
             Store.Say(null, reply.Error);

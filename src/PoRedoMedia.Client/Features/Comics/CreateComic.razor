@@ -28,9 +28,14 @@
         }
 
         <RadzenCard class="comic-compose po-glass">
+        @* The form checks with ComicRequestValidator, the rules POST /api/comics runs too, and shows the message under the field. *@
+        <EditForm EditContext="_edit" OnValidSubmit="MakeAsync" class="comic-form">
+            <FluentValidationValidator TModel="ComicRequest" Validator="Rules" Request="Request" />
             <label for="comic-text" class="comic-label">The conversation</label>
             <textarea id="comic-text" class="comic-text rz-textbox" rows="12" maxlength="@ComicRequest.MaxLength"
-                      placeholder="@Example" @bind="_text" @bind:event="oninput" disabled="@Busy"></textarea>
+                      placeholder="@Example" @bind="_form.Conversation" @bind:event="oninput" @onchange="Changed" disabled="@Busy"
+                      aria-describedby="comic-text-error" aria-invalid="@(_edit.GetValidationMessages(Field).Any() ? "true" : null)"></textarea>
+            <div id="comic-text-error"><ValidationMessage For="@(() => _form.Conversation)" class="po-field-error" /></div>
             <div class="comic-settings">
                 <div class="comic-row" title="An offscreen heckler wisecracks in the pause after some panels, in a red box at the bottom. Its meanness, swearing and how often it speaks are the Roast settings below.">
                     <RadzenSwitch Name="comic-heckler" @bind-Value="_heckler" Disabled="@Busy" />
@@ -41,7 +46,7 @@
                                 Narrator="_narrator" NarratorChanged="@(n => _narrator = n)" Disabled="@Busy" IdPrefix="comic-mix" />
             </div>
             <div class="comic-row">
-                <span class="comic-count @(_text.Length > ComicRequest.MaxLength * 0.9 ? "comic-count-high" : null)">@_text.Length.ToString("N0") / @ComicRequest.MaxLength.ToString("N0")</span>
+                <span class="comic-count @(_form.Conversation.Length > ComicRequest.MaxLength * 0.9 ? "comic-count-high" : null)">@_form.Conversation.Length.ToString("N0") / @ComicRequest.MaxLength.ToString("N0")</span>
                 <span class="comic-grow"></span>
                 @if (Estimate is { } cost)
                 {
@@ -49,15 +54,17 @@
                         About @cost.About.ToString("C2") · at most @cost.AtMost.ToString("C2")
                     </span>
                 }
-                @if (_text.Length == 0)
+                @if (_form.Conversation.Length == 0)
                 {
-                    <RadzenButton Text="Try the example" Variant="Variant.Text" Click="@(() => _text = Example)" disabled="@Busy" />
+                    <RadzenButton Text="Try the example" Variant="Variant.Text" Click="UseExample" disabled="@Busy" />
                 }
-                <RadzenButton Text="Make comic" Icon="auto_stories" ButtonStyle="ButtonStyle.Primary" Click="MakeAsync"
-                              Disabled="@(Busy || !_config.Available || _text.Trim().Length < ComicRequest.MinLength)"
+                @* Disabled while it is being sent and while a comic is made, so one press is one comic. *@
+                <RadzenButton Text="@(_starting ? "Starting…" : "Make comic")" Icon="auto_stories" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit"
+                              Disabled="@(Busy || !_config.Available)" IsBusy="_starting"
                               title="Uses one of today's runs. A comic takes a minute or two." />
             </div>
             <span class="comic-hint">No need to tidy it up: timestamps, headers, signatures and quoted replies are fine. The story keeps what happened, sums up runs of messages in a line or two, and plays it for laughs. It uses one of today's runs.</span>
+        </EditForm>
         </RadzenCard>
 
         @if (_error is { } error)
@@ -107,8 +114,17 @@
     private MemeMix _mix = ComicRequest.DefaultMix;
     private NarratorChoice _narrator = NarratorChoice.Default;
     private bool _heckler = true;
+    private static readonly ComicRequestValidator Rules = new();
+
+    /// <summary>The form's one typed field; the rest of the request comes from the switches and sliders.</summary>
+    private sealed class ComicForm
+    {
+        public string Conversation { get; set; } = "";
+    }
+
+    private readonly ComicForm _form = new();
+    private EditContext _edit = null!;
     private ComicJobDto? _job;
-    private string _text = "";
     private string? _error;
     private bool _starting;
     private CancellationTokenSource? _polling;
@@ -116,10 +132,24 @@
     private bool Busy => _starting || _job is { Working: true };
 
     private (decimal About, decimal AtMost)? Estimate =>
-        _pricing is { } prices && _text.Trim().Length >= ComicRequest.MinLength ? ComicRequest.Estimate(_text, _heckler, prices) : null;
+        _pricing is { } prices && _form.Conversation.Trim().Length >= ComicRequest.MinLength ? ComicRequest.Estimate(_form.Conversation, _heckler, prices) : null;
+
+    private FieldIdentifier Field => FieldIdentifier.Create(() => _form.Conversation);
+
+    private ComicRequest Request() => new(_form.Conversation, _mix.Encode(), _narrator.Encode(), _heckler);
+
+    // Checked when the field is left, not on every key, so a half-typed paste is not told off.
+    private void Changed() => _edit.NotifyFieldChanged(Field);
+
+    private void UseExample()
+    {
+        _form.Conversation = Example;
+        _edit.NotifyFieldChanged(Field);
+    }
 
     protected override async Task OnInitializedAsync()
     {
+        _edit = new EditContext(_form);
         _config = await Api.ConfigAsync();
         _pricing = (await AppConfig.GetAsync())?.Pricing;
         _job = await Api.JobAsync();
@@ -129,16 +159,18 @@
 
     private async Task MakeAsync()
     {
-        // Anything priced asks first, as in Create Movie.
-        if (Estimate is { } cost && await Dialogs.Confirm(
-                $"This comic should cost about {cost.About:C2} in AI services (at most {cost.AtMost:C2}), and uses one of today's runs.",
-                "Make the comic?", new ConfirmOptions { OkButtonText = "Make comic", CancelButtonText = "Not now" }) != true)
+        if (Busy)
             return;
         _starting = true;
         _error = null;
         try
         {
-            var (job, error) = await Api.StartAsync(new ComicRequest(_text, _mix.Encode(), _narrator.Encode(), _heckler));
+            // Anything priced asks first, as in Create Movie.
+            if (Estimate is { } cost && await Dialogs.Confirm(
+                    $"This comic should cost about {cost.About:C2} in AI services (at most {cost.AtMost:C2}), and uses one of today's runs.",
+                    "Make the comic?", new ConfirmOptions { OkButtonText = "Make comic", CancelButtonText = "Not now" }) != true)
+                return;
+            var (job, error) = await Api.StartAsync(Request());
             _job = job ?? _job;
             _error = error;
             if (job is not null)

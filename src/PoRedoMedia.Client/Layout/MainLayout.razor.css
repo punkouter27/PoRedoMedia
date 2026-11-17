@@ -68,6 +68,7 @@
 
 /* The header's own buttons: plain, light on the brand gradient, 44px targets. */
 .shell-bar ::deep .runs-button,
+.shell-bar ::deep .shell-settings,
 .shell-bar ::deep .shell-account {
     position: relative;
     min-width: 44px;
@@ -87,11 +88,13 @@
 }
 
 .shell-bar ::deep .runs-button:hover,
+.shell-bar ::deep .shell-settings:hover,
 .shell-bar ::deep .shell-account:hover {
     background: rgb(255 255 255 / 12%);
 }
 
 .shell-bar ::deep .runs-button:focus-visible,
+.shell-bar ::deep .shell-settings:focus-visible,
 .shell-bar ::deep .shell-account:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 2px;

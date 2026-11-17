@@ -134,6 +134,13 @@ html.po-fx-fluid #po-backdrop {
 .po-fill { width: 100%; }
 .po-inherit { color: inherit; }
 .po-narrow { max-width: 420px; width: 100%; }
+/* A form field's own message, under it (FluentValidationValidator, Layout/FieldErrors). */
+.po-field-error, .validation-message {
+    color: var(--rz-danger, #c62828);
+    font-size: 0.82rem;
+    line-height: 1.3;
+    margin-top: 0.15rem;
+}
 .po-muted { opacity: 0.8; }
 .po-sr-only {
     display: inline-block;

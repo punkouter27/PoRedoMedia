@@ -1,0 +1,24 @@
+@* One field's messages from a Shared FluentValidation validator, shown under that field. For forms bound to a store
+   rather than an EditForm model (Create Movie). "Films" also shows each film's own messages ("Films[2]"). *@
+
+@if (Errors is not null)
+{
+    foreach (var (field, messages) in Errors)
+    {
+        if (field == For || field.StartsWith(For + "[", StringComparison.Ordinal))
+        {
+            foreach (var message in messages)
+            {
+                <div class="po-field-error" role="alert">@message</div>
+            }
+        }
+    }
+}
+
+@code {
+    /// <summary>Messages by field, as <c>ValidationResult.ToDictionary()</c> gives them. Null: nothing to show.</summary>
+    [Parameter] public IDictionary<string, string[]>? Errors { get; set; }
+
+    /// <summary>The request property this field fills.</summary>
+    [Parameter, EditorRequired] public string For { get; set; } = "";
+}

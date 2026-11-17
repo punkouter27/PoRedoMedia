@@ -26,9 +26,11 @@ public sealed class CreateMovieUiTests : UiTestBase
         await Assertions.Expect(page.GetByAltText("The intro as it will look")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await ShotAsync(page, "1-channel");
 
-        // Title, episode and one film; Make stays off until there is a film.
+        // Title, episode and one film; Make with no film says so under the films, and costs nothing.
         await page.GetByLabel("Title", new() { Exact = true }).FillAsync("Treehouse Day");
-        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Make the video from my films" })).ToBeDisabledAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Make the video from my films" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".po-field-error")).ToHaveTextAsync("Add a film first.");
+        await Assertions.Expect(page.GetByRole(AriaRole.Alertdialog)).ToHaveCountAsync(0);
         await page.GetByRole(AriaRole.Button, new() { Name = "Add films" }).ClickAsync();
         await page.SetInputFilesAsync(".mv-add-films input[type=file]", new FilePayload { Name = "treehouse.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(8) });
         await Assertions.Expect(page.Locator(".mv-film")).ToHaveCountAsync(1, new() { Timeout = 60_000 });

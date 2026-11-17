@@ -11,7 +11,7 @@
 .comic-notice { background: color-mix(in srgb, #f59e0b 14%, transparent); }
 .comic-error { background: color-mix(in srgb, #ef4444 14%, transparent); }
 
-::deep .comic-compose, ::deep .comic-progress { display: flex; flex-direction: column; gap: 0.6rem; }
+::deep .comic-compose, ::deep .comic-progress, ::deep .comic-form { display: flex; flex-direction: column; gap: 0.6rem; }
 .comic-label { font-weight: 600; }
 .comic-text {
     width: 100%; min-height: 14rem; resize: vertical; box-sizing: border-box;

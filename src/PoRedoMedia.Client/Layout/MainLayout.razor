@@ -18,13 +18,14 @@
                     <ShellNav Label="Main" Class="shell-nav" />
                     <div class="shell-tools">
                         <RunsButton Class="shell-runs" />
+                        <SettingsButton />
                         <AccountButton Name="@context.User.Identity?.Name" />
                     </div>
                     <RunNotifier />
                 </Authorized>
                 <NotAuthorized>
                     <div class="shell-tools">
-                        <AccountButton />
+                        <SettingsButton />
                     </div>
                 </NotAuthorized>
             </AuthorizeView>

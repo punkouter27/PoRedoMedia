@@ -1,0 +1,162 @@
+@page "/diag"
+@attribute [AllowAnonymous]
+@* How the server and what it depends on are doing, in plain words, for anyone (no sign-in). Everything comes from
+   GET /api/diag, which runs the server's health checks and says nothing identifying (DiagReportDto). *@
+@inject HttpClient Http
+
+<PageTitle>Diagnostics · PoRedoMedia</PageTitle>
+
+<PageBoundary>
+<div class="diag-page">
+    <div class="diag-head">
+        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">Diagnostics</RadzenText>
+        <RadzenButton Text="@(_loading ? "Checking…" : "Refresh")" Icon="refresh" Variant="Variant.Outlined" Disabled="_loading" IsBusy="_loading" Click="LoadAsync" />
+    </div>
+
+    @if (_report is null && _loading)
+    {
+        <RadzenCard class="diag-card" role="status" aria-label="Checking the server">
+            <RadzenStack Gap="0.6rem">
+                <div class="po-skeleton diag-skeleton"></div>
+                <div class="po-skeleton diag-skeleton"></div>
+                <div class="po-skeleton diag-skeleton"></div>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (_error is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" class="rz-m-0" Title="The server did not answer">
+            @_error Try Refresh in a moment.
+        </RadzenAlert>
+    }
+
+    @if (_report is { } report)
+    {
+        <RadzenAlert AlertStyle="@Style(report.Status)" AllowClose="false" Shade="Shade.Lighter" class="rz-m-0 diag-banner" Title="@Headline(report.Status)">
+            @Summary(report)
+        </RadzenAlert>
+
+        <RadzenCard class="diag-card">
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">API</RadzenText>
+            <div class="diag-row">
+                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Reachable" />
+                <span class="diag-what">The app's server answered.</span>
+                <span class="diag-meta">@Ms(_roundTripMs) round trip · checks took @Ms(report.CheckedMs)</span>
+            </div>
+        </RadzenCard>
+
+        <RadzenCard class="diag-card">
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Database / storage</RadzenText>
+            @Rows(report.Checks.Where(c => c.Group == "storage"))
+        </RadzenCard>
+
+        <RadzenCard class="diag-card">
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Services</RadzenText>
+            @Rows(report.Checks.Where(c => c.Group != "storage"))
+        </RadzenCard>
+
+        <p class="diag-meta">
+            Version @report.Version · @report.Environment · last checked @report.CheckedAt.ToLocalTime().ToString("HH:mm:ss")
+        </p>
+    }
+</div>
+</PageBoundary>
+
+@code {
+    private DiagReportDto? _report;
+    private string? _error;
+    private bool _loading;
+    private double _roundTripMs;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (_loading) return;
+        _loading = true;
+        _error = null;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            _report = await Http.GetFromJsonAsync("api/diag", WireJson.Default.DiagReportDto);
+            _roundTripMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            if (_report is null) _error = "The server sent nothing back.";
+        }
+        catch (HttpRequestException)
+        {
+            _report = null;
+            _error = "The server could not be reached.";
+        }
+        catch (TaskCanceledException)
+        {
+            _report = null;
+            _error = "The server took too long to answer.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            _report = null;
+            _error = "The server's answer could not be read.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private RenderFragment Rows(IEnumerable<DiagCheckDto> checks) => __builder =>
+    {
+        var any = false;
+        foreach (var check in checks)
+        {
+            any = true;
+            <div class="diag-row">
+                <RadzenBadge BadgeStyle="@Badge(check.Status)" Text="@check.Status" />
+                <div class="diag-what">
+                    <strong>@check.Label</strong>
+                    <span class="diag-meta">@check.Purpose</span>
+                    <span>@check.Detail@(check.Problem is { } problem ? $" ({problem})" : "")</span>
+                </div>
+                <span class="diag-meta">@Ms(check.LatencyMs)</span>
+            </div>
+        }
+        if (!any)
+        {
+            <p class="diag-meta">Nothing to check here.</p>
+        }
+    };
+
+    private static string Ms(double ms) => ms < 1 ? "under 1 ms" : $"{ms:N0} ms";
+
+    private static BadgeStyle Badge(string status) => status switch
+    {
+        "Healthy" => BadgeStyle.Success,
+        "Degraded" => BadgeStyle.Warning,
+        _ => BadgeStyle.Danger,
+    };
+
+    private static AlertStyle Style(string status) => status switch
+    {
+        "Healthy" => AlertStyle.Success,
+        "Degraded" => AlertStyle.Warning,
+        _ => AlertStyle.Danger,
+    };
+
+    private static string Headline(string status) => status switch
+    {
+        "Healthy" => "Everything is working",
+        "Degraded" => "Working, with some parts missing",
+        _ => "Something the app needs is down",
+    };
+
+    private static string Summary(DiagReportDto report)
+    {
+        var down = report.Checks.Count(c => c.Status == "Unhealthy");
+        var degraded = report.Checks.Count(c => c.Status == "Degraded");
+        return (down, degraded) switch
+        {
+            (0, 0) => $"All {report.Checks.Length} checks passed.",
+            (0, _) => $"{degraded} of {report.Checks.Length} checks found something missing; the app runs and offers less.",
+            _ => $"{down} of {report.Checks.Length} checks failed; sign-in, the Library or making things may not work.",
+        };
+    }
+}

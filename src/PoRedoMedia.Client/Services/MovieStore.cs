@@ -332,12 +332,14 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     // ---- The long job ----
 
     /// <summary>Starts a new movie's script, or the whole video from the films.</summary>
+    /// <summary>What a new movie is made from: the form's fields as they are now (checked by <c>MovieLessonRequestValidator</c>).</summary>
+    public MovieLessonRequest LessonRequest() => new(Show, Kit?.Structure ?? "", Topic, Second, Number,
+        [.. FilmList.Select(f => new MovieFilmDto(f.Media.Id, f.Note, f.OwnSound))], Prefs.ExportPreset,
+        string.IsNullOrWhiteSpace(RoastVoice) ? null : RoastVoice, Mix.Crude, string.IsNullOrWhiteSpace(Title) ? null : Title.Trim(), Mix.Encode(), Narrator.Encode());
+
     public async Task StartMovieAsync(bool whole)
     {
-        var request = new MovieLessonRequest(Show, Kit?.Structure ?? "", Topic, Second, Number,
-            [.. FilmList.Select(f => new MovieFilmDto(f.Media.Id, f.Note, f.OwnSound))], Prefs.ExportPreset,
-            string.IsNullOrWhiteSpace(RoastVoice) ? null : RoastVoice, Mix.Crude, string.IsNullOrWhiteSpace(Title) ? null : Title.Trim(), Mix.Encode(), Narrator.Encode());
-        var reply = await api.StartAsync(request, whole);
+        var reply = await api.StartAsync(LessonRequest(), whole);
         if (reply.Error is not null)
         {
             Say(null, reply.Error);

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings gear, /diag, 404 page, form messages</title>
+<style>
+  :root { --brand: linear-gradient(90deg, #4340d2, #7c3aed); --ink: #1f2330; --muted: #5d6475; --bad: #c62828; --ok: #2e7d32; --warn: #b26a00; }
+  body { margin: 0; padding: 24px 16px; font: 15px/1.45 system-ui, sans-serif; color: var(--ink); background: #f4f5fb; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 28px 0 8px; }
+  p.note { color: var(--muted); margin: 4px 0 12px; max-width: 70ch; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .panel { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgb(0 0 0 / 0.08); overflow: hidden; }
+  .panel > b { display: block; padding: 6px 12px; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; }
+  .before > b { background: #8a8f9c; } .after > b { background: #2e7d32; }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; color: #fff; background: var(--brand); }
+  .bar .brand { font-weight: 800; } .bar .nav { flex: 1; opacity: 0.85; font-size: 0.9rem; }
+  .bar .btn { min-width: 36px; height: 36px; display: inline-grid; place-items: center; border-radius: 999px; }
+  .bar .hl { outline: 2px dashed #ffd400; outline-offset: 2px; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #fff; color: #4340d2; display: grid; place-items: center; font-weight: 800; }
+  .body { padding: 14px; }
+  .field-error { color: var(--bad); font-size: 0.82rem; }
+  textarea { width: 100%; box-sizing: border-box; height: 70px; }
+  .row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; padding: 6px 0; border-top: 1px solid #e3e5ee; }
+  .badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; color: #fff; justify-self: start; }
+  .ok { background: var(--ok); } .warn { background: var(--warn); } .bad { background: var(--bad); }
+  .chrome { background: #eceff1; padding: 30px 14px; text-align: center; color: #555; font-family: monospace; }
+</style>
+</head>
+<body>
+<h1>Settings in the header, /diag, the app's own 404, and form messages</h1>
+<p class="note">2026-11-17. Before and after for the four visible changes. Real captures of the running app are in
+<code>261117-settings-diag-forms.png</code>.</p>
+
+<h2>1. Settings has its own control, top-right, at both widths</h2>
+<div class="pair">
+  <div class="panel before"><b>Before</b>
+    <div class="bar"><span class="brand">PoRedoMedia</span><span class="nav">Create · Library · Create Movie</span><span class="btn">⟳</span><span class="btn"><span class="avatar">D</span></span>&nbsp;dev@localhost</div>
+    <div class="body">Settings only by clicking your name ("account and settings"). Nothing says Settings.</div>
+  </div>
+  <div class="panel after"><b>After</b>
+    <div class="bar"><span class="brand">PoRedoMedia</span><span class="nav">Create · Library · Create Movie</span><span class="btn">⟳</span><span class="btn hl" title="Settings">⚙</span><span class="btn"><span class="avatar">D</span></span>&nbsp;dev@localhost</div>
+    <div class="body">A Settings gear beside the account, signed in or out, phone and laptop. The name button is now just "account".</div>
+  </div>
+</div>
+
+<h2>2. /diag</h2>
+<div class="pair">
+  <div class="panel before"><b>Before</b><div class="chrome">This page isn't working<br>ERR_INVALID_RESPONSE</div></div>
+  <div class="panel after"><b>After</b>
+    <div class="body"><strong>Diagnostics</strong> <button>Refresh</button>
+      <p style="background:#fff4e0;padding:6px">Working, with some parts missing</p>
+      <div class="row"><span class="badge ok">Healthy</span><span>Storage account<br><small>Holds every Library item…</small></span><small>12 ms</small></div>
+      <div class="row"><span class="badge ok">Healthy</span><span>FFmpeg<br><small>Renders every video…</small></span><small>40 ms</small></div>
+      <div class="row"><span class="badge warn">Degraded</span><span>Microsoft sign-in<br><small>Not configured: only developer sign-in</small></span><small>0 ms</small></div>
+      <small>Version 261117 · Development</small></div>
+  </div>
+</div>
+
+<h2>3. An unknown address</h2>
+<div class="pair">
+  <div class="panel before"><b>Before</b><div class="chrome">/zz-missing<br>ERR_INVALID_RESPONSE (empty 404)</div></div>
+  <div class="panel after"><b>After</b>
+    <div class="bar"><span class="brand">PoRedoMedia</span><span class="nav">Create · Library</span><span class="btn">⚙</span></div>
+    <div class="body"><strong>Page not found</strong><br>That page does not exist or may have moved.<br><button>Back to Create</button><br><small>Still a real 404; /api/zz-missing stays a JSON 404.</small></div>
+  </div>
+</div>
+
+<h2>4. Forms say what is wrong under the field</h2>
+<div class="pair">
+  <div class="panel before"><b>Before</b><div class="body">Comic-ify: <textarea>hi</textarea><button disabled>Make comic</button><br><small>Greyed out with no reason given.</small></div></div>
+  <div class="panel after"><b>After</b><div class="body">Comic-ify: <textarea>hi</textarea><div class="field-error">Paste a conversation of at least a couple of lines.</div><button>Make comic</button><br><small>Same rules on the server (validation problem); the button is off while it sends.</small></div></div>
+</div>
+</body>
+</html>

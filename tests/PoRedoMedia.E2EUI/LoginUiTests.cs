@@ -17,7 +17,7 @@ public sealed class LoginUiTests : UiTestBase
         await Assertions.Expect(page.GetByText("dev@localhost")).ToBeVisibleAsync();
 
         // Sign out lives on the settings page, with the look and sound and the advanced switches.
-        await page.GetByRole(AriaRole.Link, new() { Name = "dev@localhost: account and settings" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "dev@localhost: account" }).ClickAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Advanced" })).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Sign out" }).ClickAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Sign in" })).ToBeVisibleAsync(new() { Timeout = 30_000 });

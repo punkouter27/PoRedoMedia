@@ -82,7 +82,7 @@ Modes: fake auth via `X-Fake-User` (Dev/Test), cookie-only (throws in Production
 `RequireAntiforgeryValidation()` on route groups with the `X-CSRF-TOKEN` header; the client's
 `AntiforgeryTokenHandler` retry on 400 is load-bearing.
 
-**Settings.** `/settings` (anonymous-capable; the header's account button links to it) holds look and sound plus the
+**Settings.** `/settings` (anonymous-capable; since 2026-11-17 the header has its own Settings gear, `Layout/SettingsButton`, top-right beside the account button at every width, signed in or out; the account button opens it too) holds look and sound plus the
 Advanced switches in `Client/Services/AppSettings` (On-device AI, Recipes, Cost estimates, Visual
 effects). Every switch starts **off**, so the default app is the simple one; a switch
 only hides UI, never access. Switches live in `localStorage` (`poredomedia:adv:*`, `poredomedia:fx`) and are read synchronously
@@ -90,6 +90,20 @@ through in-process JS. Signed in, `Services/PreferenceSync` pulls `/api/preferen
 wins) and PUTs the whole synced set (`poredomedia:adv:*`, `poredomedia:fx`, `poredomedia:sfx:*`, `poredomedia:recipes`) a second after any change; recipes
 are read through `RecipeBook`, which skips functions that no longer exist. Every function the server can run is always offered. E2E tests turn switches on with
 `SignedInPageAsync(path, "poredomedia:adv:device-ai", ...)`.
+
+**Host plumbing** (2026-11-17). Serilog is the logger (`Configuration/TelemetryExtensions.AddPoSerilog`, levels in the
+`Serilog` section of appsettings; Application Insights still gets every event). Errors are problem details
+(`AddProblemDetails` + `UseExceptionHandler`); a request whose fields are wrong is a `ValidationProblem` (`Common/Invalid`:
+`errors` by field, the first message also as `detail`, which the client shows). Health is `AddHealthChecks` with one
+check per dependency (`Common/Health`): `/health/live` runs none (process up), `/health` runs all; only storage can make
+it 503, the rest (movie folder, ffmpeg, Google AI, Azure OpenAI, AI Foundry, Key Vault, Microsoft sign-in) say Degraded,
+still 200. `GET /api/diag` (anonymous) reports the same checks in plain words for the `/diag` page (`Features/Diag`),
+never anything identifying. An unknown page is re-executed to `/not-found` (`UseStatusCodePagesWithReExecute`), so the
+browser gets the app's own "Page not found" with a real 404; only HTML GETs outside `/api`, `/hubs`, `/health` and files
+get that, and any other `/api` path is a JSON 404. **Forms:** every form that sends (Comic-ify, Create Movie's make,
+the YouTube upload) is checked by a FluentValidation validator in `Shared/Validation` that the endpoint runs too; the
+page shows each message under its field (`Layout/FluentValidationValidator` in an `EditForm`, or `Layout/FieldErrors`
+for store-bound forms) and its submit button is disabled while it sends.
 
 **Client pages.** Each page wraps its body in `Shared/PageBoundary` (retry without a reload, then a reload); the
 layout's own `ErrorBoundary` is the last resort. Create is split into `CreateSteps`, `RecipeBar` and `RunView`; the

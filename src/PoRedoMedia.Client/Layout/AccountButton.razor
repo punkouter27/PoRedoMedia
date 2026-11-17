@@ -1,18 +1,12 @@
-@* One button for everything about the user: name, look and sound, the advanced switches, sign out. *@
+@* The signed-in user's button: their initial and name (the name hides on phones). It opens Settings, whose top card
+   is the account and sign out. Settings itself has its own gear beside it (SettingsButton). *@
 
 @* The accessible name starts with the visible name, so speech input can say what is shown. *@
-<a href="settings" class="shell-account" aria-label="@(Name is null ? "Settings" : $"{Name}: account and settings")" title="@(Name is null ? "Settings" : "Account and settings")">
-    @if (Name is null)
-    {
-        <RadzenIcon Icon="tune" aria-hidden="true" />
-    }
-    else
-    {
-        <span class="shell-avatar" aria-hidden="true" data-initial="@AccountMenu.Initial(Name)"></span>
-        <span class="shell-account-name">@Name</span>
-    }
+<a href="settings" class="shell-account" aria-label="@($"{Name}: account")" title="Account and sign out">
+    <span class="shell-avatar" aria-hidden="true" data-initial="@AccountMenu.Initial(Name)"></span>
+    <span class="shell-account-name">@Name</span>
 </a>
 
 @code {
-    [Parameter] public string? Name { get; set; }
+    [Parameter, EditorRequired] public string? Name { get; set; }
 }

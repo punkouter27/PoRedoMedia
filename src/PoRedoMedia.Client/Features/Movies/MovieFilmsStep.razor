@@ -31,11 +31,13 @@ var info = Store.ShowInfo;
                 <RadzenLabel Text="Title" Component="mv-new-title" />
                 <RadzenTextBox Name="mv-new-title" @bind-Value="Store.Title" MaxLength="120" Placeholder="Leave empty to let the AI name it" class="mv-wide"
                                title="The movie's title, shown in the intro and used for the upload. Leave it empty and one is written from your films." />
+                <FieldErrors Errors="_errors" For="Title" />
             </div>
             <div class="mv-field">
                 <RadzenLabel Text="Episode" Component="mv-new-number" />
                 <RadzenNumeric Name="mv-new-number" TValue="int" Value="@Store.Number" Min="1" Max="999" class="mv-narrow" Change="@(n => { Store.Number = n; Store.Notify(); })"
                                title="The episode number the intro shows (#3 · its title). The next in the series is filled in; type your own to redo or skip one." />
+                <FieldErrors Errors="_errors" For="Number" />
             </div>
         </div>
 
@@ -68,6 +70,7 @@ var info = Store.ShowInfo;
         {
             <p class="mv-quiet">No films yet. A movie is your own videos, between the series' intro and outro: add at least one.</p>
         }
+        <FieldErrors Errors="_errors" For="Films" />
         @foreach (var film in Store.FilmList)
         {
             var row = film;
@@ -114,11 +117,13 @@ var info = Store.ShowInfo;
                 <RadzenLabel Text="@($"{info?.TopicLabel ?? "What it is about"} (optional)")" Component="mv-topic" />
                 <RadzenTextArea Name="mv-topic" @bind-Value="Store.Topic" MaxLength="@config.MaxTopicLength" Placeholder="@info?.TopicPlaceholder" Rows="2" @oninput="@(e => { Store.Topic = e.Value?.ToString() ?? ""; Store.Notify(); })"
                                 title="A sentence on what this movie is about, for the narrator. Leave it empty and the films speak for themselves." />
+                <FieldErrors Errors="_errors" For="Topic" />
             </div>
             <div class="mv-field">
                 <RadzenLabel Text="@(info?.SecondLabel ?? "Anything else (optional)")" Component="mv-second" />
                 <RadzenTextArea Name="mv-second" @bind-Value="Store.Second" MaxLength="2000" Placeholder="@info?.SecondPlaceholder" Rows="2"
                                 title="A sentence or two more for the script writer, so the movie can make the most of it. Leave it empty if you like." />
+                <FieldErrors Errors="_errors" For="Second" />
             </div>
         }
 
@@ -131,7 +136,7 @@ var info = Store.ShowInfo;
 
         <div class="mv-pinned">
             <RadzenButton Text="Make the video from my films" Icon="movie" ButtonStyle="ButtonStyle.Primary"
-                          Disabled="@(Store.IsWorking || !config.Ffmpeg || Store.FilmList.Count == 0 || TimeSpan.FromTicks(Store.FilmList.Sum(f => f.Length.Ticks)) > MaxMovie)" Click="MakeAsync" class="mv-wide"
+                          Disabled="@(_making || Store.IsWorking || !config.Ffmpeg || TimeSpan.FromTicks(Store.FilmList.Sum(f => f.Length.Ticks)) > MaxMovie)" IsBusy="_making" Click="MakeAsync" class="mv-wide"
                           title="Make the whole video from the films above in one go: each film is watched, given a voice-over that fits its length, put through Meme-ify, and the films are joined between the series' intro and outro, rendered and put in your Library. You are told what it does and costs first." />
         </div>
     </div>
@@ -189,7 +194,12 @@ var info = Store.ShowInfo;
 
     protected override void OnInitialized() => Store.Changed += OnChanged;
 
-    private void OnChanged() => InvokeAsync(StateHasChanged);
+    private void OnChanged()
+    {
+        // Once a message is showing, it follows the fields: fixing one takes it away.
+        if (_errors is not null && Store.Config is not null) Check();
+        InvokeAsync(StateHasChanged);
+    }
 
     private static string Length(double? seconds) => seconds is { } s ? TimeSpan.FromSeconds(s).ToString(@"m\:ss") : "";
 
@@ -256,7 +266,36 @@ var info = Store.ShowInfo;
         Store.Say(seen.Timeline is null ? null : $"Seen in “{film.Media.Title}”: {seen.Timeline}", seen.Error);
     }
 
+    /// <summary>The form's messages from the last check (MovieLessonRequestValidator, which POST /api/movies/make runs too), or null.</summary>
+    private IDictionary<string, string[]>? _errors;
+
+    /// <summary>True from the press until the job has started (or was not), so one press makes one movie.</summary>
+    private bool _making;
+
+    /// <summary>Checks the form as it would be sent; true when it may go.</summary>
+    private bool Check()
+    {
+        var config = Store.Config!;
+        var result = new MovieLessonRequestValidator(config.MaxFilms, config.MaxTopicLength).Validate(Store.LessonRequest());
+        _errors = result.IsValid ? null : result.ToDictionary();
+        return result.IsValid;
+    }
+
     private async Task MakeAsync()
+    {
+        if (_making || !Check()) return;
+        _making = true;
+        try
+        {
+            await ConfirmAndMakeAsync();
+        }
+        finally
+        {
+            _making = false;
+        }
+    }
+
+    private async Task ConfirmAndMakeAsync()
     {
         var n = Store.FilmList.Count;
         var config = Store.Config!;
