@@ -29,7 +29,7 @@ public sealed class ComicTests
         Assert.InRange(script.Panels.Count, ComicScript.MinPanels, ComicScript.MaxPanels);
         Assert.Single(script.Panels, p => p.Laugh && p.Applause); // the stand-in laughs and claps once, at the end
         var laughsEverywhere = ComicScript.Normalize(ComicScript.Fallback(Thread) with
-            { Panels = [.. Enumerable.Range(0, 8).Select(i => new ComicPanelDraft("s", "", [new("Maya", "joke", "")], "", true))] }, Thread);
+        { Panels = [.. Enumerable.Range(0, 8).Select(i => new ComicPanelDraft("s", "", [new("Maya", "joke", "")], "", true))] }, Thread);
         Assert.Equal(ComicOptions.Default.MaxLaughs, laughsEverywhere.Panels.Count(p => p.Laugh));
         // Each speaker has a voice of their own, never the narrator's.
         Assert.Equal(2, script.Characters.Select(c => c.Voice).Distinct().Count());

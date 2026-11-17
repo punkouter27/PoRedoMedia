@@ -202,9 +202,18 @@ public sealed partial class ComicStudio(
         var transcript = script.Transcript();
         var stripItem = new MediaItem
         {
-            Owner = user, Id = MediaId.New(), Kind = MediaKind.Image, Status = MediaStatus.Ready, Origin = "Comic",
-            Title = script.Title, ContentType = "image/png", Extension = ".png", SizeBytes = stripPng.Length,
-            Text = transcript, Summary = $"A {script.Panels.Count}-panel comic strip made from a conversation.", CreatedAt = DateTimeOffset.UtcNow,
+            Owner = user,
+            Id = MediaId.New(),
+            Kind = MediaKind.Image,
+            Status = MediaStatus.Ready,
+            Origin = "Comic",
+            Title = script.Title,
+            ContentType = "image/png",
+            Extension = ".png",
+            SizeBytes = stripPng.Length,
+            Text = transcript,
+            Summary = $"A {script.Panels.Count}-panel comic strip made from a conversation.",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         await blobs.UploadAsync(stripItem.SourcePath, stripPng, stripItem.ContentType, ct);
         await thumbnails.CreateAsync(stripItem, ct);
@@ -212,9 +221,15 @@ public sealed partial class ComicStudio(
 
         var videoItem = stripItem with
         {
-            Id = MediaId.New(), Kind = MediaKind.Video, ParentId = stripItem.Id, ContentType = "video/mp4", Extension = ".mp4",
-            SizeBytes = new FileInfo(mp4).Length, DurationSeconds = total,
-            Summary = $"The comic \"{script.Title}\" as a narrated video.", CreatedAt = DateTimeOffset.UtcNow,
+            Id = MediaId.New(),
+            Kind = MediaKind.Video,
+            ParentId = stripItem.Id,
+            ContentType = "video/mp4",
+            Extension = ".mp4",
+            SizeBytes = new FileInfo(mp4).Length,
+            DurationSeconds = total,
+            Summary = $"The comic \"{script.Title}\" as a narrated video.",
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         await blobs.UploadFileAsync(videoItem.SourcePath, mp4, videoItem.ContentType, ct);
         await thumbnails.CreateAsync(videoItem, ct);
