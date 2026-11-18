@@ -5,6 +5,7 @@
 @inject MediaApi Api
 @inject BlobUploadService Uploader
 @inject AppConfigService Config
+@inject DialogService Dialogs
 @inject IJSRuntime JS
 
 @* Leaving mid-upload dropped the file without a word: now the browser asks first (reload, close), and so does the app (its own links). *@
@@ -135,7 +136,7 @@
 
     private async Task ConfirmLeaveAsync(LocationChangingContext context)
     {
-        if (Busy && !await JS.InvokeAsync<bool>("confirm", "Your upload has not finished. Leave anyway? It will be lost."))
+        if (Busy && await Dialogs.Confirm("Your upload has not finished. Leave anyway? It will be lost.", "Upload in progress") != true)
             context.PreventNavigation();
     }
 
