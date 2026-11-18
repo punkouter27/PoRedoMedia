@@ -70,6 +70,10 @@ internal sealed class AntiforgeryValidationFilter : IEndpointFilter
         if (!isWrite)
             return await next(context);
 
+        // Bearer-authenticated mobile clients are immune to browser CSRF and carry no antiforgery cookie.
+        if (http.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return await next(context);
+
         try
         {
             await http.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(http);

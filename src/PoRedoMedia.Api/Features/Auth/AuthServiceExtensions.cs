@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -45,7 +46,22 @@ public static class AuthServiceExtensions
 
         // The cookie is the default challenge too, so a signed-out page hit lands on /login rather
         // than jumping straight to Microsoft. /challenge-microsoft invokes OIDC explicitly.
-        var auth = services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        const string selectorScheme = "PoRedoMedia.Auth";
+        var auth = services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = selectorScheme;
+                options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            })
+            .AddPolicyScheme(selectorScheme, "Cookie or Bearer", options =>
+            {
+                options.ForwardDefaultSelector = ctx =>
+                    hasOidc
+                    && (ctx.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                        || (ctx.Request.Path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase)
+                            && !string.IsNullOrEmpty(ctx.Request.Query["access_token"])))
+                        ? JwtBearerDefaults.AuthenticationScheme
+                        : CookieAuthenticationDefaults.AuthenticationScheme;
+            })
             .AddCookie(options =>
             {
                 options.LoginPath = "/login";
@@ -78,6 +94,9 @@ public static class AuthServiceExtensions
             return services;
 
         var tenantId = configuration[ConfigKeys.AzureAdTenantId] ?? "common";
+        var allowedEmails = AllowedEmails(configuration);
+        var allowedTenants = configuration[ConfigKeys.AzureAdAllowedTenantIds]?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         auth.AddOpenIdConnect(options =>
         {
             options.Authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
@@ -95,7 +114,6 @@ public static class AuthServiceExtensions
             options.TokenValidationParameters.NameClaimType = "name";
 
             // Without a list, any Microsoft account can sign in and spend the daily AI allowance.
-            var allowedEmails = AllowedEmails(configuration);
             options.Events.OnTicketReceived = context =>
             {
                 if (!IsAllowed(allowedEmails, context.Principal))
@@ -112,8 +130,6 @@ public static class AuthServiceExtensions
 
             // Restrict to listed tenants when configured; otherwise accept any well-formed Entra
             // v2 issuer (multi-tenant and personal accounts) and nothing else.
-            var allowedTenants = configuration[ConfigKeys.AzureAdAllowedTenantIds]?
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (allowedTenants?.Length > 0)
             {
                 options.TokenValidationParameters.ValidIssuers =
@@ -128,6 +144,45 @@ public static class AuthServiceExtensions
                         ? i
                         : throw new SecurityTokenInvalidIssuerException($"Untrusted issuer: {issuer}");
             }
+        });
+
+        auth.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+        {
+            options.Authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                NameClaimType = "name",
+                ValidateAudience = true,
+                ValidAudiences = [clientId!, $"api://{clientId}"],
+                ValidateIssuer = true,
+                ValidIssuers = allowedTenants?.Length > 0
+                    ? allowedTenants.Select(t => $"https://login.microsoftonline.com/{t}/v2.0").ToArray()
+                    : null,
+                IssuerValidator = allowedTenants?.Length > 0
+                    ? null
+                    : (issuer, _, _) =>
+                        issuer is { } i
+                        && i.StartsWith("https://login.microsoftonline.com/", StringComparison.OrdinalIgnoreCase)
+                        && i.EndsWith("/v2.0", StringComparison.OrdinalIgnoreCase)
+                            ? i
+                            : throw new SecurityTokenInvalidIssuerException($"Untrusted issuer: {issuer}")
+            };
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = ctx =>
+                {
+                    var token = ctx.Request.Query["access_token"];
+                    if (!string.IsNullOrEmpty(token) && ctx.HttpContext.Request.Path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
+                        ctx.Token = token;
+                    return Task.CompletedTask;
+                },
+                OnTokenValidated = ctx =>
+                {
+                    if (!IsAllowed(allowedEmails, ctx.Principal))
+                        ctx.Fail("This account is not on the allowed list.");
+                    return Task.CompletedTask;
+                }
+            };
         });
 
         return services;
