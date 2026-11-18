@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="PoRedoMedia.Mobile.Pages.CreatePage"
+             Title="Create">
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="12">
+            <Label Text="PoRedoMedia Mobile Studio" FontSize="24" FontAttributes="Bold" />
+            <Label x:Name="StatusLabel" Text="Capture or pick a photo/video to upload to Blob SAS or queue offline." FontSize="13" />
+
+            <Border Padding="14" StrokeThickness="1" StrokeShape="RoundRectangle 10">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Function" FontAttributes="Bold" />
+                    <Picker x:Name="FunctionPicker">
+                        <Picker.ItemsSource>
+                            <x:Array Type="{x:Type x:String}">
+                                <x:String>Restyle</x:String>
+                                <x:String>MemeCaption</x:String>
+                                <x:String>RapRoast</x:String>
+                                <x:String>Memeify</x:String>
+                                <x:String>VideoRoast</x:String>
+                            </x:Array>
+                        </Picker.ItemsSource>
+                    </Picker>
+                    <HorizontalStackLayout Spacing="10">
+                        <Button Text="Capture Photo" Clicked="OnCapturePhotoClicked" />
+                        <Button Text="Pick Photo" Clicked="OnPickPhotoClicked" />
+                        <Button Text="Pick Video" Clicked="OnPickVideoClicked" />
+                    </HorizontalStackLayout>
+                    <Button Text="Flush Offline Queue" Clicked="OnFlushClicked" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Image x:Name="PreviewImage" HeightRequest="200" Aspect="AspectFit" IsVisible="False" />
+            <Label x:Name="QueueLabel" Text="Queued uploads: 0" FontSize="12" />
+            <Label x:Name="RunStatusLabel" Text="No active run." FontSize="13" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

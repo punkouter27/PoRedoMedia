@@ -45,5 +45,8 @@
     <PackageVersion Include="Testcontainers.Azurite" Version="4.16.0" />
     <PackageVersion Include="bunit" Version="2.15.2" />
     <PackageVersion Include="Deque.AxeCore.Playwright" Version="4.14.0" />
+    <!-- MAUI Mobile -->
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.110" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.15" />
   </ItemGroup>
 </Project>
