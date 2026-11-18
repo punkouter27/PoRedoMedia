@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Po web standard: header, email, gear, stamp, /diag, Tab window</title>
+<style>
+  body { margin: 0; padding: 24px 16px; font: 15px/1.45 system-ui, sans-serif; color: #1f2330; background: #f4f5fb; }
+  h1 { font-size: 1.4rem; margin: 0 0 8px; }
+  ul { max-width: 80ch; }
+  img { max-width: 100%; border-radius: 10px; box-shadow: 0 1px 6px rgb(0 0 0 / 0.08); }
+</style>
+</head>
+<body>
+<h1>Po web standard (2026-11-18): before and after</h1>
+<ul>
+  <li><b>Header on every page</b>, signed in and out (the sign-in page had none): PoRedoMedia top-left; top-right the
+    account's <b>email</b> (phones showed only an initial) or Sign in, then the Settings gear. The sign-in card sits in the body under it.</li>
+  <li><b>Look</b>: Inter body text (the sign-in page fell back to Times New Roman), Space Grotesk headings, one indigo
+    accent, light/dark from the device only (the Dark theme switch is gone).</li>
+  <li><b>Build stamp</b>: one <code>v261118</code> bottom-right, the UTC date of the commit, above the phone tab bar.</li>
+  <li><b>/diag</b>: API / Data / Services, one card per dependency with a status badge.</li>
+  <li><b>Tab</b> on a fresh page opens <code>/po-dev.html</code>: live /health/live, commit, build and the dependency checks.</li>
+</ul>
+<p>Screenshots, before on the left and after on the right:</p>
+<img src="261118-po-standard.png" alt="PoRedoMedia before and after: phone signed out, phone signed in, desktop signed in, desktop /diag">
+</body>
+</html>

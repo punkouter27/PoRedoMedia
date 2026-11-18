@@ -16,8 +16,8 @@ public sealed class LoginUiTests : UiTestBase
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Create", Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Assertions.Expect(page.GetByText("dev@localhost")).ToBeVisibleAsync();
 
-        // Sign out lives on the settings page, with the look and sound and the advanced switches.
-        await page.GetByRole(AriaRole.Link, new() { Name = "dev@localhost: account" }).ClickAsync();
+        // The header shows the email; sign out lives on the settings page behind the gear.
+        await page.GetByRole(AriaRole.Link, new() { Name = "Settings", Exact = true }).ClickAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Advanced" })).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Sign out" }).ClickAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Sign in" })).ToBeVisibleAsync(new() { Timeout = 30_000 });

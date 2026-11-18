@@ -1,0 +1,63 @@
+/* The Po header's own layout is in po-tokens.css (.po-header). This adds what only this app has: the places to go
+   between the title and the actions on wide screens, and the Runs button. Phones (up to 720px) use the tab bar. */
+
+.po-header ::deep .shell-nav {
+    display: flex;
+    gap: 0.25rem;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.po-header ::deep .shell-nav a {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0.75rem;
+    border-radius: var(--po-radius-pill);
+    color: var(--po-text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.po-header ::deep .shell-nav a:hover {
+    background: var(--po-surface-2);
+    color: var(--po-text);
+}
+
+.po-header ::deep .shell-nav a.active {
+    background: var(--po-accent-soft);
+    color: var(--po-accent);
+    font-weight: 600;
+}
+
+.po-header ::deep .shell-nav .rzi {
+    font-size: 1.15rem;
+}
+
+.po-header ::deep .runs-button {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--po-border);
+    border-radius: 50%;
+    background: var(--po-surface-2);
+    color: var(--po-text);
+    cursor: pointer;
+}
+
+.po-header ::deep .runs-button:hover {
+    border-color: var(--po-accent);
+    color: var(--po-accent);
+}
+
+@media (max-width: 720px) {
+    .po-header ::deep .shell-nav,
+    .po-header ::deep .shell-runs {
+        display: none;
+    }
+}

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PoRedoMedia.Shared.Models;
 
@@ -27,20 +28,24 @@ public static class HealthEndpoints
         app.MapHealthChecks("/health").AllowAnonymous();
 
         // The same checks in plain words for /diag, which anyone may open: nothing identifying goes out (DiagReportDto).
-        app.MapGet("/api/diag", async (HealthCheckService health, IHostEnvironment environment, CancellationToken ct) =>
-        {
-            var started = Stopwatch.GetTimestamp();
-            var report = await health.CheckHealthAsync(ct);
-            var checks = report.Entries.Select(e =>
-            {
-                var about = HealthChecks.About.TryGetValue(e.Key, out var known) ? known : (Group: "service", Label: e.Key, Purpose: "");
-                return new DiagCheckDto(e.Key, about.Group, about.Label, e.Value.Status.ToString(), about.Purpose,
-                    e.Value.Description ?? e.Value.Status.ToString(), Math.Round(e.Value.Duration.TotalMilliseconds, 1),
-                    e.Value.Exception?.GetType().Name);
-            }).ToArray();
-            return TypedResults.Ok(new DiagReportDto(report.Status.ToString(), environment.EnvironmentName, Version,
-                DateTimeOffset.UtcNow, Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1), checks));
-        }).AllowAnonymous();
+        // /api/diag/status is the same report under the name the Tab developer window (po-dev.html) asks for first.
+        app.MapGet("/api/diag", DiagAsync).AllowAnonymous();
+        app.MapGet("/api/diag/status", DiagAsync).AllowAnonymous();
         return app;
+    }
+
+    private static async Task<Ok<DiagReportDto>> DiagAsync(HealthCheckService health, IHostEnvironment environment, CancellationToken ct)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var report = await health.CheckHealthAsync(ct);
+        var checks = report.Entries.Select(e =>
+        {
+            var about = HealthChecks.About.TryGetValue(e.Key, out var known) ? known : (Group: "service", Label: e.Key, Purpose: "");
+            return new DiagCheckDto(e.Key, about.Group, about.Label, e.Value.Status.ToString(), about.Purpose,
+                e.Value.Description ?? e.Value.Status.ToString(), Math.Round(e.Value.Duration.TotalMilliseconds, 1),
+                e.Value.Exception?.GetType().Name);
+        }).ToArray();
+        return TypedResults.Ok(new DiagReportDto(report.Status.ToString(), environment.EnvironmentName, Version,
+            DateTimeOffset.UtcNow, Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1), checks));
     }
 }

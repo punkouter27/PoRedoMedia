@@ -1,19 +1,10 @@
-.diag-page { display: flex; flex-direction: column; gap: 0.9rem; max-width: 820px; margin: 0 auto; }
+/* Layout and cards come from po-tokens.css (.po-diag, .po-diag__group, .po-diag__card, .po-badge). */
+.diag-page { padding-top: var(--po-space-3); }
 .diag-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
-::deep .diag-card { display: flex; flex-direction: column; gap: 0.6rem; }
-.diag-row {
-    display: grid;
-    grid-template-columns: 6.5rem minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 0.4rem 0.75rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--rz-base-300);
-}
+.diag-group { margin: 0; font-size: var(--po-text-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--po-text-muted); }
 .diag-what { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; overflow-wrap: anywhere; }
-.diag-meta { color: var(--rz-text-secondary-color); font-size: 0.85rem; }
+.diag-span { grid-column: 1 / -1; font-size: var(--po-text-sm); overflow-wrap: anywhere; }
+.diag-meta { color: var(--po-text-muted); font-size: 0.85rem; }
+.po-badge { align-self: start; white-space: nowrap; }
+::deep .diag-card { display: flex; flex-direction: column; gap: 0.6rem; }
 .diag-skeleton { height: 2.5rem; border-radius: var(--po-radius-sm); }
-
-@media (max-width: 720px) {
-    .diag-row { grid-template-columns: minmax(0, 1fr) auto; }
-    .diag-row ::deep .rz-badge { grid-column: 1 / -1; justify-self: start; }
-}

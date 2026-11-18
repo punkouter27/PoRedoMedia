@@ -27,9 +27,9 @@ Overall summary of the project: [DOCS/README.md](DOCS/README.md).
   Vault (`kv-poshared2`, secrets prefixed `PoRedoMedia--`).
 - **Shared components:** Look for chances to consolidate functionality and UI into shared components
   (`PoRedoMedia.Shared`, `Client/Shared`, `Common/`) instead of duplicating it across slices or pages.
-- **Build version:** The app shows its deployment build version as `YYMMDD` in the bottom-right
-  corner. `Directory.Build.targets` derives it from the Git commit date (today's date when there is
-  no commit); never type it by hand.
+- **Build version:** The app shows its deployment build version as `vYYMMDD` in the bottom-right
+  corner. `Directory.Build.targets` derives it from the Git commit's UTC date (today's UTC date when
+  there is no commit); never type it by hand.
 
 ## 4. UI & output rules
 
@@ -54,13 +54,14 @@ Overall summary of the project: [DOCS/README.md](DOCS/README.md).
 
 - App: `dotnet run --project src/PoRedoMedia.Api` (http://localhost:4100; needs `docker compose up -d` for Azurite).
 - Browser tests: `scripts/run-e2e.ps1`. Test budgets: `scripts/check-test-budgets.ps1`.
-- Package for App Service: `bash scripts/package.sh package.zip` (Linux or WSL; the same script `deploy.yml` runs).
+- Package for App Service: `bash scripts/package.sh package.zip` (Linux or WSL; it runs `scripts/ci-package.ps1`, as `deploy.yml` does).
 
 ## CI/CD and Azure (same section in every Po repo)
 
-- A push to `master` builds, tests, deploys and health-gates (`.github/workflows/deploy.yml`). Nothing is deployed by hand.
+- A push to `master` builds and deploys (`.github/workflows/deploy.yml`), then waits until `/health/live` answers with the pushed commit. It runs no tests, no infra and no rollback, and pull requests get no run: tests run locally. Nothing is deployed by hand.
+- `deploy.yml` is identical in every Po repo; each repo owns its own copy (there is no shared reference copy or sync script).
 - Azure sign-in is GitHub OIDC (the `gh-<repo>-deploy` app). Its IDs are repo **variables** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`, and the App Service name is `AZURE_WEBAPP_NAME`. Never move them to secrets or write resource names into workflows.
 - Every permission the app and CI need lives in `scripts/ensure-azure-access.ps1`. A role granted by hand and not added there is a bug: the next re-provision loses it.
-- The app answers `/health/live` (process up, no dependencies) and `/health` (dependencies reachable). The deploy's health gate checks both.
+- The app answers `/health/live` (process up, no dependencies, `X-Commit` header) and `/health` (dependencies reachable). The deploy checks `/health/live`'s `X-Commit`.
 - Tests pass on any machine: no drive-letter, temp-folder or working-directory assumptions, and no live config value hard-coded as an expected result (read it from the same config the app reads).
 - A red run on the default branch gets an ntfy push from the CI watcher in PoPunkouterSoftware. Fix it, or say why it is red.

@@ -7,7 +7,7 @@
 <PageTitle>Diagnostics · PoRedoMedia</PageTitle>
 
 <PageBoundary>
-<div class="diag-page">
+<div class="po-diag diag-page">
     <div class="diag-head">
         <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">Diagnostics</RadzenText>
         <RadzenButton Text="@(_loading ? "Checking…" : "Refresh")" Icon="refresh" Variant="Variant.Outlined" Disabled="_loading" IsBusy="_loading" Click="LoadAsync" />
@@ -36,24 +36,27 @@
             @Summary(report)
         </RadzenAlert>
 
-        <RadzenCard class="diag-card">
-            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">API</RadzenText>
-            <div class="diag-row">
-                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Reachable" />
-                <span class="diag-what">The app's server answered.</span>
-                <span class="diag-meta">@Ms(_roundTripMs) round trip · checks took @Ms(report.CheckedMs)</span>
+        <section class="po-diag__group" aria-labelledby="diag-api">
+            <h2 id="diag-api" class="diag-group">API</h2>
+            <div class="po-diag__card">
+                <div class="diag-what">
+                    <strong>Server</strong>
+                    <span class="diag-meta">The app's server answered.</span>
+                </div>
+                <span class="po-badge po-badge--ok">Reachable</span>
+                <span class="diag-meta diag-span">@Ms(_roundTripMs) round trip · checks took @Ms(report.CheckedMs)</span>
             </div>
-        </RadzenCard>
+        </section>
 
-        <RadzenCard class="diag-card">
-            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Database / storage</RadzenText>
-            @Rows(report.Checks.Where(c => c.Group == "storage"))
-        </RadzenCard>
+        <section class="po-diag__group" aria-labelledby="diag-data">
+            <h2 id="diag-data" class="diag-group">Data</h2>
+            @Cards(report.Checks.Where(c => c.Group == "storage"))
+        </section>
 
-        <RadzenCard class="diag-card">
-            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Services</RadzenText>
-            @Rows(report.Checks.Where(c => c.Group != "storage"))
-        </RadzenCard>
+        <section class="po-diag__group" aria-labelledby="diag-services">
+            <h2 id="diag-services" class="diag-group">Services</h2>
+            @Cards(report.Checks.Where(c => c.Group != "storage"))
+        </section>
 
         <p class="diag-meta">
             Version @report.Version · @report.Environment · last checked @report.CheckedAt.ToLocalTime().ToString("HH:mm:ss")
@@ -103,20 +106,20 @@
         }
     }
 
-    private RenderFragment Rows(IEnumerable<DiagCheckDto> checks) => __builder =>
+    // One card per dependency, with its status as a Po badge.
+    private RenderFragment Cards(IEnumerable<DiagCheckDto> checks) => __builder =>
     {
         var any = false;
         foreach (var check in checks)
         {
             any = true;
-            <div class="diag-row">
-                <RadzenBadge BadgeStyle="@Badge(check.Status)" Text="@check.Status" />
+            <div class="po-diag__card">
                 <div class="diag-what">
                     <strong>@check.Label</strong>
                     <span class="diag-meta">@check.Purpose</span>
-                    <span>@check.Detail@(check.Problem is { } problem ? $" ({problem})" : "")</span>
                 </div>
-                <span class="diag-meta">@Ms(check.LatencyMs)</span>
+                <span class="po-badge po-badge--@Badge(check.Status)">@check.Status</span>
+                <span class="diag-span">@check.Detail <span class="diag-meta">· @Ms(check.LatencyMs)</span></span>
             </div>
         }
         if (!any)
@@ -127,11 +130,11 @@
 
     private static string Ms(double ms) => ms < 1 ? "under 1 ms" : $"{ms:N0} ms";
 
-    private static BadgeStyle Badge(string status) => status switch
+    private static string Badge(string status) => status switch
     {
-        "Healthy" => BadgeStyle.Success,
-        "Degraded" => BadgeStyle.Warning,
-        _ => BadgeStyle.Danger,
+        "Healthy" => "ok",
+        "Degraded" => "warn",
+        _ => "bad",
     };
 
     private static AlertStyle Style(string status) => status switch

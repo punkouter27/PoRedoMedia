@@ -12,8 +12,7 @@
 }
 
 .mv-quiet { color: var(--rz-text-secondary-color); font-size: 0.82rem; }
-.mv-caution { color: #b45309; font-size: 0.82rem; }
-[data-theme="dark"] .mv-caution { color: #fbbf24; }
+.mv-caution { color: var(--po-warning); font-size: 0.82rem; }
 .mv-grow { flex: 1 1 auto; min-width: 0; }
 .mv-wide { width: 100%; }
 .mv-narrow { max-width: 7rem; }
@@ -44,7 +43,7 @@
 .mv-fold-body { padding: 0 0.9rem 0.9rem; }
 .mv-result { display: flex; flex-direction: column; gap: 0.4rem; padding-top: 0.8rem; border-top: 1px solid var(--po-line); }
 .mv-result-title { margin: 0; font-size: 1.15rem; }
-.mv-notice { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; border-radius: var(--po-radius-sm); background: color-mix(in srgb, #f59e0b 14%, transparent); font-size: 0.82rem; }
+.mv-notice { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; border-radius: var(--po-radius-sm); background: color-mix(in srgb, var(--po-warning) 14%, transparent); font-size: 0.82rem; }
 .mv-notice .rzi { font-size: 1rem; }
 
 /* ── A step: a form column and the main area beside it ── */
@@ -121,7 +120,7 @@
 .mv-flag .rzi { font-size: 0.95rem; }
 .mv-flag.warn { background: #e84855; color: #fff; }
 .mv-flag.caution { background: #f59e0b; color: #16181d; }
-.mv-flag.meme { align-items: center; gap: 2px; background: #7c3aed; color: #fff; font-size: 0.7rem; font-weight: 700; }
+.mv-flag.meme { align-items: center; gap: 2px; background: var(--po-accent); color: var(--po-on-accent); font-size: 0.7rem; font-weight: 700; }
 .mv-card-summary { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 52px); padding: 2px 6px; border-radius: 4px; background: var(--rz-base-background-color); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mv-card-play { position: absolute; right: 6px; bottom: 6px; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--rz-primary); color: var(--rz-on-primary, #fff); cursor: pointer; opacity: 0; transition: opacity 0.15s; }
 .mv-card:hover .mv-card-play, .mv-card-play:focus-visible, .mv-card-play.shown { opacity: 1; }

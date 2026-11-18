@@ -105,11 +105,11 @@ window.poBackdrop = (() => {
 
     function retint() {
         if (!gl) return;
-        // Let the swapped theme stylesheet apply before reading its colours.
+        // Let the device's light or dark theme apply before reading its colours.
         setTimeout(() => {
             // The page's own background, so the shader rests exactly on it in either theme.
             const page = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g) || [];
-            const dark = document.documentElement.dataset.theme === 'dark';
+            const dark = matchMedia('(prefers-color-scheme: dark)').matches;
             gl.uniform3fv(uniforms.base, page.length >= 3 && page[3] !== '0'
                 ? page.slice(0, 3).map((v) => parseFloat(v) / 255)
                 : (dark ? [0.07, 0.07, 0.09] : [0.96, 0.96, 0.97]));
@@ -198,6 +198,8 @@ window.poBackdrop = (() => {
         window.addEventListener('pointermove', (e) => { pointer = [e.clientX, e.clientY]; }, { passive: true });
 
         retint();
+        // The device switching between light and dark re-tints both backdrops.
+        matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => window.poBackdrop?.retint());
         refresh();
         document.addEventListener('visibilitychange', () => { if (!document.hidden && !frame) frame = requestAnimationFrame(loop); });
         still.addEventListener('change', () => { if (!still.matches && !frame) frame = requestAnimationFrame(loop); });

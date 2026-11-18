@@ -60,7 +60,8 @@ try
     builder.Services.AddPoHealthChecks();
     builder.Services.AddRazorComponents()
         .AddInteractiveWebAssemblyComponents()
-        .AddAuthenticationStateSerialization();
+        // Every claim goes to the client, so the header can show the account's email (Microsoft's name claim is the display name).
+        .AddAuthenticationStateSerialization(o => o.SerializeAllClaims = true);
     builder.Services.AddSingleton<StorageClients>();
     builder.Services.AddSingleton<BlobStorageService>();
     builder.Services.AddSingleton<BlobDelivery>();

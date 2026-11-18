@@ -21,8 +21,8 @@
     <AuthorizeView>
         <RadzenCard class="settings-card">
             <div class="settings-who">
-                <span class="settings-avatar" aria-hidden="true">@Initial(context.User.Identity?.Name ?? "")</span>
-                <span class="settings-name">@context.User.Identity?.Name</span>
+                <span class="settings-avatar" aria-hidden="true">@Initial(AccountMenu.Email(context.User))</span>
+                <span class="settings-name">@AccountMenu.Email(context.User)</span>
                 <RadzenButton Text="Sign out" Icon="logout" Variant="Variant.Outlined" IsBusy="_leaving" Click="SignOutAsync" class="settings-signout" />
             </div>
         </RadzenCard>
@@ -31,10 +31,7 @@
     <RadzenCard class="settings-card">
         <section aria-labelledby="settings-look">
             <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0 rz-mb-1" id="settings-look">Look and sound</RadzenText>
-            <div class="settings-row">
-                <RadzenSwitch Name="settings-dark" Value="_dark" Change="SetDarkAsync" />
-                <RadzenLabel Component="settings-dark" Text="Dark theme" />
-            </div>
+            <p class="settings-hint rz-m-0">Light or dark follows this device's own setting.</p>
             <div class="settings-row">
                 <RadzenSwitch Name="settings-sounds" Value="_sounds" Change="SetSoundsAsync" />
                 <RadzenLabel Component="settings-sounds" Text="Interface sounds" />
@@ -98,7 +95,6 @@
 </PageBoundary>
 
 @code {
-    private bool _dark;
     private bool _sounds;
     private int _volume = 50;
     private string _theme = "studio";
@@ -121,19 +117,12 @@
 
     private async Task ReadAsync()
     {
-        _dark = await JS.InvokeAsync<string>("poMedia.theme") == "dark";
         _sounds = !await JS.InvokeAsync<bool>("poSfx.muted");
         _volume = (int)Math.Round(await JS.InvokeAsync<double>("poSfx.volume") * 100);
         _theme = await JS.InvokeAsync<string?>("poSfx.theme") ?? "studio";
         if (Switches[AppSettings.OnDeviceAi])
             _deviceReady = await LocalAi.IsVisionReadyAsync();
         StateHasChanged();
-    }
-
-    private async Task SetDarkAsync(bool on)
-    {
-        _dark = on;
-        await JS.InvokeVoidAsync("poMedia.setTheme", on ? "dark" : "light");
     }
 
     private async Task SetSoundsAsync(bool on)

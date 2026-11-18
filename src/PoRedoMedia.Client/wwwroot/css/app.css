@@ -1,7 +1,44 @@
-/* App-wide design tokens and the few rules every page shares. Component layout lives in the
-   component's own .razor.css. Colours come from the Radzen theme variables, so the light and
-   dark themes both work without a second set of rules.
+/* App-wide tokens and the few rules every page shares. Component layout lives in the component's own .razor.css.
+   The look is the Po standard (css/po-tokens.css, the same file in every Po app, loaded first): light and dark
+   follow the device, one indigo accent, Inter for text and Space Grotesk for titles. This app's own variables
+   are aliases of those tokens, and Radzen's variables are bridged to them in po-tokens.css.
    Breakpoints, the same in every stylesheet: phones up to 720px, one column up to 1024px. */
+
+/* Material Symbols is Radzen's icon font (rzi), served from its own static web assets. */
+@font-face {
+    font-family: "Material Symbols Outlined";
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: block;
+    src: url("/_content/Radzen.Blazor/fonts/MaterialSymbolsOutlined.woff2") format("woff2");
+}
+
+:root {
+    --po-font-sans: var(--po-font);
+    --po-shell-max: 1600px;
+    --po-brand-a: var(--po-accent);
+    --po-brand-b: var(--po-accent-hover);
+    --po-ink-on-brand: var(--po-on-accent);
+    --po-ink-on-bright: #141826;
+    --po-glass: color-mix(in srgb, var(--po-surface) 82%, transparent);
+    --po-line: var(--po-border);
+    --po-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --po-safe-top: env(safe-area-inset-top, 0px);
+    --po-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --po-safe-left: env(safe-area-inset-left, 0px);
+    --po-safe-right: env(safe-area-inset-right, 0px);
+
+    --rz-font-family: var(--po-font);
+    --rz-secondary: var(--po-accent-hover);
+    --rz-card-border-radius: var(--po-radius);
+    --rz-border-radius: var(--po-radius-sm);
+}
+
+/* Radzen's headings take the Po display face, like plain h1-h3. */
+.rz-text-h1, .rz-text-h2, .rz-text-h3, .rz-text-h4, .rz-text-h5, .rz-text-h6 {
+    font-family: var(--po-font-display);
+}
 
 html, body {
     min-height: 100%;
@@ -39,12 +76,37 @@ h2.rz-text-h6, h2.rz-text-subtitle1 {
 }
 
 /* ── Shell ──────────────────────────────────────────────────────────────────────────── */
+/* RadzenHeader only holds the Po header (Layout/PoHeader), which draws itself. */
 .rz-layout .rz-header {
-    background: linear-gradient(100deg, var(--po-brand-a), var(--po-brand-b));
-    color: var(--po-ink-on-brand);
+    background: var(--po-surface);
+    color: var(--po-text);
+    border: 0;
+    box-shadow: none;
     padding-top: var(--po-safe-top);
-    padding-left: var(--po-safe-left);
-    padding-right: var(--po-safe-right);
+}
+
+/* Radzen colours every link in its header for its old brand bar; the Po header's own links keep the Po colours. */
+.rz-header a.po-header__title,
+.rz-header a.po-header__settings {
+    color: var(--po-text);
+}
+
+.rz-header a.po-header__settings:hover {
+    color: var(--po-accent);
+}
+
+/* The sign-in page (Layout/BareLayout): its card sits in the body under the header, clear of the screen's edges. */
+.po-bare-shell .shell-main {
+    max-width: var(--po-shell-max);
+    margin: 0 auto;
+    padding: 0.75rem 1rem 3rem;
+}
+
+/* Phones with the tab bar: the build stamp sits above it (po-tokens.css reads --po-stamp-lift). */
+@media (max-width: 720px) {
+    body:has(.shell-footer) {
+        --po-stamp-lift: 57px;
+    }
 }
 
 .rz-layout .rz-body {

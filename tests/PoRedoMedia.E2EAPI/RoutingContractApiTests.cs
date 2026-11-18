@@ -14,6 +14,7 @@ public sealed class RoutingContractApiTests(ApiFactory factory) : IClassFixture<
         "/api/antiforgery/token",
         "/api/config",
         "/api/diag",
+        "/api/diag/status",
         "/challenge-microsoft",
         "/dev-login",
         "/health",

@@ -9,27 +9,7 @@
    command bar and the phone tab bar stay where they are. *@
 <RadzenLayout>
     <RadzenHeader>
-        <div class="shell-bar">
-            <a href="" class="shell-home" title="Home">
-                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.Span" class="rz-m-0 po-inherit shell-brand">PoRedoMedia</RadzenText>
-            </a>
-            <AuthorizeView>
-                <Authorized>
-                    <ShellNav Label="Main" Class="shell-nav" />
-                    <div class="shell-tools">
-                        <RunsButton Class="shell-runs" />
-                        <SettingsButton />
-                        <AccountButton Name="@context.User.Identity?.Name" />
-                    </div>
-                    <RunNotifier />
-                </Authorized>
-                <NotAuthorized>
-                    <div class="shell-tools">
-                        <SettingsButton />
-                    </div>
-                </NotAuthorized>
-            </AuthorizeView>
-        </div>
+        <PoHeader />
     </RadzenHeader>
     <RadzenBody>
         <MockDataBanner />

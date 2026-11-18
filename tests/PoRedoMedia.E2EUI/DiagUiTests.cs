@@ -14,7 +14,7 @@ public sealed class DiagUiTests : UiTestBase
             await page.SetViewportSizeAsync(width, height);
             await page.GotoAsync(BaseUrl + "/diag");
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Diagnostics", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
-            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Database / storage" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Data", Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Services" })).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByText("Storage account")).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Refresh" })).ToBeEnabledAsync();

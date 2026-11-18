@@ -91,7 +91,8 @@ window.poFx = (() => {
         return parts;
     }
 
-    const dark = () => document.documentElement.dataset.theme === 'dark';
+    // The theme follows the device (prefers-color-scheme); there is no switch.
+    const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 
     /** A picture fetched as a bitmap. Through fetch, so a picture in storage does not taint a canvas. */
     async function bitmap(url) {

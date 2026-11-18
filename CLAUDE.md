@@ -20,7 +20,10 @@ dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound libr
   `scripts/run-e2e.ps1 [-Filter x]`, which starts Azurite and the app; `HEADED=1` shows the browser.
 - Test budgets (Unit ≤ 100, Integration ≤ 50, E2E API ≤ 25, E2E UI ≤ 25) are enforced by
   `scripts/check-test-budgets.ps1`, which counts cases via `--list-tests` and needs a Release build first.
-- CI (`.github/workflows/ci.yml`) runs only the Release build and unit tests; `deploy.yml` ships each green master build.
+- CI is one workflow, `.github/workflows/deploy.yml`: a push to master builds, publishes, packages (`scripts/ci-package.ps1`),
+  deploys and waits for `/health/live` to answer with the pushed commit in `X-Commit`. No tests, no PR runs, no infra job,
+  no rollback: run tests, `scripts/ci-checks.ps1` (test budgets) and `dotnet format` locally before pushing. The file is
+  identical in every Po repo and each repo owns its copy.
 
 ## Architecture
 
@@ -82,7 +85,19 @@ Modes: fake auth via `X-Fake-User` (Dev/Test), cookie-only (throws in Production
 `RequireAntiforgeryValidation()` on route groups with the `X-CSRF-TOKEN` header; the client's
 `AntiforgeryTokenHandler` retry on 400 is load-bearing.
 
-**Settings.** `/settings` (anonymous-capable; since 2026-11-17 the header has its own Settings gear, `Layout/SettingsButton`, top-right beside the account button at every width, signed in or out; the account button opens it too) holds look and sound plus the
+**Shell (Po web standard, 2026-11-18).** Every page, signed in or out, has one header, `Layout/PoHeader` (`.po-header`, in
+`MainLayout` and in `BareLayout` above the sign-in card): the app name top-left (`.po-header__title`), the places to go
+(`ShellNav`) on wide screens, and top-right the signed-in account's **email** (`.po-header__email`, from the email or
+preferred_username claim, `AccountMenu.Email`; the server serializes every claim to the client for this), or a Sign in
+link when signed out, then the Settings gear (`Layout/SettingsButton`, `.po-header__settings`). `css/po-tokens.css`,
+`fonts/`, `js/po-devwindow.js`, `js/po-dev.js` and `po-dev.html` are the Po kit, byte-identical in every Po app: never
+edit them here. Light and dark follow the device only (`prefers-color-scheme` picks Radzen's material or material-dark
+sheet in `App.razor`; no theme switch); this app's own CSS variables in `app.css` are aliases of the `--po-*` tokens
+(indigo accent, Inter text, Space Grotesk headings). `/diag` shows API / Data / Services as `.po-diag__card`s with
+`.po-badge` statuses. Pressing Tab while nothing has focus opens `/po-dev.html`, a developer window that reads
+`/health/live` (its `X-Commit` header) and `/api/diag/status` (the same report as `/api/diag`).
+
+**Settings.** `/settings` (anonymous-capable; the header's gear opens it at every width, signed in or out) holds sound plus the
 Advanced switches in `Client/Services/AppSettings` (On-device AI, Recipes, Cost estimates, Visual
 effects). Every switch starts **off**, so the default app is the simple one; a switch
 only hides UI, never access. Switches live in `localStorage` (`poredomedia:adv:*`, `poredomedia:fx`) and are read synchronously
@@ -228,10 +243,11 @@ them and its tail points at them; anyone not found falls back to speaking order.
 
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,
-so `scripts/package.sh` (run by `deploy.yml`) bundles a static ffmpeg and `fonts/DejaVuSans-Bold.ttf`. Linux uses SkiaSharp's NoDependencies
+so `scripts/ci-package.ps1` (run by `deploy.yml`, and by `scripts/package.sh` for a hand-made zip) bundles a static ffmpeg and `fonts/DejaVuSans-Bold.ttf`. Linux uses SkiaSharp's NoDependencies
 native build (no fontconfig), so the meme renderer falls back to that font file.
 
-**Build version.** `Directory.Build.targets` stamps the client assembly (opt-in `StampBuildVersion`) with a `BuildStamp` (`YYMMDD` from the commit
-date), `BuildCommit` (short hash) and `BuildTime` (UTC, to the minute); `MainLayout.razor` shows the stamp bottom-right
-with the other two in its tooltip. MinVer separately sets the semantic version from Git tags, which is
+**Build version.** `Directory.Build.targets` stamps the client assembly (opt-in `StampBuildVersion`) with a `BuildStamp`, the
+**UTC** date of the commit (`YYMMDD`, `TZ=UTC` + `format-local`; today's UTC date outside Git). `Layout/BuildVersion` shows
+it as `<span class="po-version">vYYMMDD</span>` bottom-right on every page (above the phone tab bar via `--po-stamp-lift`),
+and `/api/diag` reports the same value. MinVer separately sets the semantic version from Git tags, which is
 why CI checks out with `fetch-depth: 0`.

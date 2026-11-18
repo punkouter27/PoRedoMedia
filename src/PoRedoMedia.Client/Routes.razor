@@ -1,3 +1,6 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
 <Router AppAssembly="typeof(Routes).Assembly" NotFoundPage="typeof(NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
@@ -5,6 +8,23 @@
                 <RedirectToLogin />
             </NotAuthorized>
         </AuthorizeRouteView>
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        @* The page's heading takes the focus once the user has followed a link, so a screen reader starts there. Not on
+           the page the browser loaded (nor its sign-in redirect): there nothing has focus, so Tab opens the developer
+           window (js/po-devwindow.js) and the next Tab moves into the page as usual. *@
+        @if (_followedLink)
+        {
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        }
     </Found>
 </Router>
+
+@code {
+    private bool _followedLink;
+
+    // Subscribed before the Router's own handler, so the page a link opens is drawn with the focus already wired.
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _followedLink |= e.IsNavigationIntercepted;
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

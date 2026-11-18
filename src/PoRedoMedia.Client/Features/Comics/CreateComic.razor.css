@@ -8,8 +8,8 @@
     display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem;
     border-radius: var(--po-radius-sm); font-size: 0.85rem;
 }
-.comic-notice { background: color-mix(in srgb, #f59e0b 14%, transparent); }
-.comic-error { background: color-mix(in srgb, #ef4444 14%, transparent); }
+.comic-notice { background: color-mix(in srgb, var(--po-warning) 14%, transparent); }
+.comic-error { background: color-mix(in srgb, var(--po-danger) 14%, transparent); }
 
 ::deep .comic-compose, ::deep .comic-progress, ::deep .comic-form { display: flex; flex-direction: column; gap: 0.6rem; }
 .comic-label { font-weight: 600; }
@@ -20,7 +20,7 @@
 .comic-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .comic-grow { flex: 1; }
 .comic-count { font-size: 0.8rem; color: var(--rz-text-secondary-color); font-variant-numeric: tabular-nums; }
-.comic-count-high { color: #d97706; }
+.comic-count-high { color: var(--po-warning); }
 
 .comic-result { display: flex; flex-direction: column; gap: 0.75rem; }
 .comic-title { margin: 0; font-size: 1.25rem; }

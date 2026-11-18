@@ -368,7 +368,7 @@ window.poMedia = {
         audio.play().catch(() => { });
     },
 
-    // Small things remembered in this browser: theme, sound, last options, recipes.
+    // Small things remembered in this browser: sound, last options, recipes.
     read(key) {
         try { return localStorage.getItem(key); } catch { return null; }
     },
@@ -390,18 +390,6 @@ window.poMedia = {
             }
         } catch { /* private mode: nothing is remembered */ }
         return JSON.stringify(all);
-    },
-
-    theme() {
-        return document.documentElement.dataset.theme || 'light';
-    },
-
-    setTheme(theme) {
-        document.documentElement.dataset.theme = theme;
-        const link = document.getElementById('po-theme');
-        if (link) link.href = `_content/Radzen.Blazor/css/${theme === 'dark' ? 'material-dark-base' : 'material-base'}.css`;
-        window.poMedia.write('poredomedia:theme', theme);
-        window.poBackdrop?.retint();
     },
 
     // The app's one keyboard listener (Shared/ShortcutKeys.razor attaches it once, from the layout).
