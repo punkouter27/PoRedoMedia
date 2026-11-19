@@ -241,6 +241,23 @@ named "applause"/"clap", else synthesized by `FFmpegArgs.ComicApplauseArgs`. Pan
 `ComicSpeakerLocator` (one vision call a panel, through `IChatClient`) finds each speaker's head so the bubble sits over
 them and its tail points at them; anyone not found falls back to speaking order.
 
+**Phone app** (`src/PoRedoMedia.Mobile`, .NET MAUI for Android/iOS; not in the `.slnx`, not built by CI, no packages
+beyond MAUI and the SignalR client already pinned; wire JSON is Shared's `WireJson`). Create takes a photo or video
+from the camera or the gallery (`MediaPicker`; HEIC and pictures over 10 MB become JPEG on the phone) or a Library item,
+offers the functions `FunctionStack.For(kind)` allows with their `RunOptions`, and hands the job to `Services/Transfers`:
+a queue kept in the app's files that uploads to the `/sas` link in 4 MB **Put Block** pieces (saved after each block,
+so a dropped connection or a restart resumes; a lapsed 15-minute link starts over on a fresh one), commits the block
+list, `/confirm`s, `POST /api/runs`, then follows the run on `/hubs/run` (`JoinRun`, `RunProgress`) with a polling
+fallback. Android shows that progress on an ongoing notification from a data-sync foreground service and notifies
+when a remix is ready (`poredomedia://media/{id}` opens it); iOS can't host a Live Activity from MAUI (it needs an
+ActivityKit widget extension), so it notifies on completion. Downloads resolve `/content`'s redirect with the app's
+credentials and give only the blob link to the system (Android `DownloadManager`), Save to Photos goes through
+MediaStore / PhotoKit (add-only), and videos play in a native player with picture-in-picture (Android `VideoView`
+activity that shrinks on leave, iOS `AVPlayerViewController`). Sign-in: Entra bearer (the API skips antiforgery for it)
+or, in Debug, `/dev-login`'s cookie with `X-CSRF-TOKEN` from `/api/antiforgery/token`. Dev loop:
+`pwsh scripts/mobile-dev.ps1 -ApiPort 4100 -Run`, which also `adb reverse`s Azurite's blob port 10000 so the upload and
+download links (`127.0.0.1:10000`) work from the phone. Create Movie and Comic-ify stay web-only for now.
+
 **ffmpeg and fonts.** `Common/FFmpegProcess` finds ffmpeg via `FFmpegBinPath`, then `./ffmpeg/` beside the app, then
 PATH; `Features/Render/FFmpegArgs` builds every command line as pure, unit-tested functions. App Service has no fonts,
 so `scripts/ci-package.ps1` (run by `deploy.yml`, and by `scripts/package.sh` for a hand-made zip) bundles a static ffmpeg and `fonts/DejaVuSans-Bold.ttf`. Linux uses SkiaSharp's NoDependencies

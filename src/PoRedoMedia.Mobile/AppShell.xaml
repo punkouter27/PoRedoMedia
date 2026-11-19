@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:pages="clr-namespace:PoRedoMedia.Mobile.Pages"
+       x:Class="PoRedoMedia.Mobile.AppShell"
+       Title="PoRedoMedia">
+
+    <TabBar>
+        <ShellContent Title="Create" Route="create" ContentTemplate="{DataTemplate pages:CreatePage}" />
+        <ShellContent Title="Activity" Route="activity" ContentTemplate="{DataTemplate pages:ActivityPage}" />
+        <ShellContent Title="Library" Route="library" ContentTemplate="{DataTemplate pages:LibraryPage}" />
+        <ShellContent Title="Settings" Route="settings" ContentTemplate="{DataTemplate pages:SettingsPage}" />
+    </TabBar>
+
+</Shell>
