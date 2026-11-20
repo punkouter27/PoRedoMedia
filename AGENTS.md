@@ -1,13 +1,20 @@
 # PoRedoMedia — agent guide
 
-## Po Web App Standard
+## 1. Standard
+
+This repo owns every file in it. Nothing here is generated from, synced with, or required to stay identical to
+another repository. Headers like "SAME FILE IN EVERY PO …", "Generated from po-shared … DO NOT EDIT", and scripts
+that copy files into or check other repos are forbidden. Only Azure resources in the `PoShared` resource group
+may be shared.
+
+### Po Web App Standard
 
 This repo is one of several independent Po apps. It follows the conventions below, but it owns every file:
 nothing is generated from, synced with, or required to stay identical to another repository. Change anything
 here freely; only the *conventions* are common, never the code. Azure resources may be shared through the
 `PoShared` resource group; code may not.
 
-### Repo skeleton
+#### Repo skeleton
 ```
 README.md          what the app is, live URL, how to run locally, how it deploys
 AGENTS.md          this standard + repo-specific notes (CLAUDE.md just points here)
@@ -23,7 +30,7 @@ docs/              lowercase; everything else that is prose
 No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (fold useful content into docs/).
 `SCREENSHOTS/` is allowed only if README references it.
 
-### Page shell (every page, signed in or out, including the sign-in page)
+#### Page shell (every page, signed in or out, including the sign-in page)
 - Header `.po-header`, height 56px, sticky: app name top-left (`.po-header__title`, links to `/`).
 - Top-right `.po-header__actions`: signed-in user's **email** (`.po-header__email`, full email, ellipsis at 16ch on
   phones) — or, signed out, one **Sign in** button `class="po-link-btn filled small"` (same style on every page) —
@@ -36,11 +43,11 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
 - Login-only data must not be requested for signed-out visitors (no 401s in the console on public pages), and
   actions a signed-out visitor cannot perform are hidden.
 
-### Version
+#### Version
 - `Directory.Build.props` stamps ONE assembly metadata key: `BuildVersion` = UTC `yyMMdd`. No `BuildStamp`/`BuildDate`
   aliases. Every reader (header badge component, `/api/diag`, `/health` headers) reads `BuildVersion`.
 
-### Health + /diag contract
+#### Health + /diag contract
 - `GET /health/live` (liveness, returns header `X-Commit: <sha>`), `GET /health` (readiness), `GET /api/diag` →
   ```
   DiagReportDto(string Status, string Environment, string Version, DateTimeOffset CheckedAt, double CheckedMs,
@@ -54,13 +61,13 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
   **Services**; each row = label, purpose, status pill, latency ms, problem/detail text. Every external dependency
   the app really calls appears as a check. Anonymous, nothing secret in the payload.
 
-### Workflow (`.github/workflows/deploy.yml`, the only one)
+#### Workflow (`.github/workflows/deploy.yml`, the only one)
 push to master → format check → build (Release, warnings as errors) → Unit tests → Integration tests (Testcontainers /
 Azurite; Docker is available on ubuntu-latest) → publish → deploy → confirm `/health/live` X-Commit = this SHA.
 If the repo has a MAUI `src/<App>.Mobile`, a second job in the SAME file (`mobile`, `needs: []`, not blocking deploy)
 installs the `maui-android` workload and builds the Android target, so the client is always compiled.
 
-### Tests
+#### Tests
 - Unit tier: fast, no I/O, runs in CI.
 - Integration tier: runs in CI; locally it SKIPS with a clear message when Docker is not running (never a wall of
   `DockerUnavailableException` failures).
@@ -68,8 +75,36 @@ installs the `maui-android` workload and builds the Android target, so the clien
   message. They are not part of CI.
 - Docs must state real counts, not caps that are out of date.
 
-### Azure naming
+#### Azure naming
 App Service `app-<repo lowercase>`; per-app resources named `<type>-<repo lowercase>`; shared things only in `PoShared`.
+
+## 2. Concurrent work
+
+Several sessions (people and agents) commit to this repo, sometimes at the same time.
+- Before every commit and every push: `git fetch origin && git rebase --autostash origin/master`.
+- Stage only the files you changed (`git add <paths>`); never `git add -A` / `git add .`; check `git diff --cached`.
+- Never revert, reformat or overwrite changes you didn't make; keep the owner's recent decisions (e.g. features
+  removed on purpose stay removed, such as the Settings page and gear).
+- Don't commit or sync from the IDE while an agent is working in this folder.
+- Pushing `master` deploys production; changes to `.github/workflows/*` need a token with the `workflow` scope.
+
+## 3. Verification
+
+All run from the repo root and checked on 2026-11-20 (.NET SDK 10.0.403 via `global.json` 10.0.400 + latestFeature).
+
+| What | Command | Needs / without it |
+|---|---|---|
+| Format | `dotnet format PoRedoMedia.slnx --verify-no-changes` | — |
+| Build | `dotnet build PoRedoMedia.slnx -c Release` | warnings are errors |
+| Unit (97) | `dotnet test tests/PoRedoMedia.Unit -c Release --no-build` | nothing |
+| Integration (50) | `dotnet test tests/PoRedoMedia.Integration -c Release --no-build` | Docker (Testcontainers Azurite) and ffmpeg on PATH for 9 video tests; each skips with a "Skipped: …" message when missing |
+| E2E API (8) | `dotnet test tests/PoRedoMedia.E2EAPI -c Release --no-build` | nothing (in-process host, mock AI) |
+| E2E UI (15) | `pwsh scripts/run-e2e.ps1 [-Filter <name>]` | Docker; starts Azurite + the app (Test env, mock AI) on :4100 and runs Playwright. Plain `dotnet test tests/PoRedoMedia.E2EUI` skips every test with a message when no app answers at `E2E_BASE_URL` or Chromium is missing; 5 video tests also skip without ffmpeg |
+| Run locally | `docker compose up -d` then `dotnet run --project src/PoRedoMedia.Api` | → http://localhost:4100 (Development: Azurite + Key Vault keys via `az login`) |
+| Deploy | push to `master` → `.github/workflows/deploy.yml` (job `deploy`; job `mobile` builds Android, non-blocking) | `*.md` and `SCREENSHOTS/**` pushes do not deploy |
+| Deploy check | `curl -sI https://app-poredomedia2.azurewebsites.net/health/live` shows `X-Commit: <pushed sha>` | the workflow waits for this |
+| Live | https://app-poredomedia2.azurewebsites.net · https://app-poredomedia2.azurewebsites.net/diag | |
+| Infra preview | `az deployment group what-if -g PoRedoMedia -f infra/main.bicep -p infra/main.bicepparam` | read-only; never deployed by CI |
 
 ## Repo-specific notes
 
