@@ -10,8 +10,6 @@
     <!-- IL2111: the Razor compiler's generated code for <Router> sets the framework's
          reflection-annotated NotFoundPage property. Not user code, nothing to fix here. -->
     <NoWarn>$(NoWarn);IL2111</NoWarn>
-    <!-- Shown bottom-right by MainLayout; see Directory.Build.targets. -->
-    <StampBuildVersion>true</StampBuildVersion>
     <!-- The [JSImport] source generator (LocalAi/LocalAiBytes.cs) emits pointer code; nothing
          hand-written here is unsafe. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

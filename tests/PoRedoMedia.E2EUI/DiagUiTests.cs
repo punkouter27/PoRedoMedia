@@ -7,13 +7,14 @@ public sealed class DiagUiTests : UiTestBase
     [LiveServerFact]
     public async Task Diag_opens_signed_out_on_a_phone_and_a_laptop_and_an_unknown_page_is_the_apps_own()
     {
-        // Diagnostics need no sign-in, and fit both widths with no sideways scroll. Any console error fails the test.
+        // System status needs no sign-in, and fit both widths with no sideways scroll. Any console error fails the test.
         var page = await NewTrackedPageAsync();
         foreach (var (width, height) in new[] { (1366, 900), (390, 844) })
         {
             await page.SetViewportSizeAsync(width, height);
             await page.GotoAsync(BaseUrl + "/diag");
-            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Diagnostics", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "System status", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "API", Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Data", Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Services" })).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByText("Storage account")).ToBeVisibleAsync();

@@ -47,12 +47,15 @@ public sealed class FFmpegProcessTests
 /// <summary>A fact that needs ffmpeg on PATH. Without it the test is reported as skipped.</summary>
 public sealed class FFmpegFactAttribute : FactAttribute
 {
-    private static readonly bool Available = Probe();
+    public static bool Available { get; } = Probe();
+
+    /// <summary>The skip message (CI installs ffmpeg, so these run there).</summary>
+    public const string NoFFmpeg = "Skipped: ffmpeg is not on PATH. Install ffmpeg to run the video tests locally.";
 
     public FFmpegFactAttribute()
     {
         if (!Available)
-            Skip = "ffmpeg is not on PATH.";
+            Skip = NoFFmpeg;
     }
 
     private static bool Probe()

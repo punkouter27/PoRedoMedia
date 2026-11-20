@@ -8,15 +8,15 @@ using PoRedoMedia.Shared.Models;
 namespace PoRedoMedia.Api.Common.Health;
 
 /// <summary>
-/// The same pair of probe routes as every Po app, which the deploy's health gate checks, plus <c>/api/diag</c> for the
-/// <c>/diag</c> page.
+/// The probe routes the deploy's health gate checks (<c>/health/live</c>, with the <c>X-Commit</c> header set in
+/// Program.cs) and <c>/health</c>, plus <c>/api/diag</c> for the <c>/diag</c> page.
 /// </summary>
 public static class HealthEndpoints
 {
-    /// <summary>The build's YYMMDD stamp (Directory.Build.targets stamps the client assembly the server hosts).</summary>
-    private static readonly string Version = typeof(PoRedoMedia.Client.Routes).Assembly
+    /// <summary>The build's YYMMDD version (the BuildVersion metadata Directory.Build.props stamps on every assembly).</summary>
+    private static readonly string Version = typeof(HealthEndpoints).Assembly
         .GetCustomAttributes<AssemblyMetadataAttribute>()
-        .FirstOrDefault(a => a.Key == "BuildStamp")?.Value ?? "unknown";
+        .FirstOrDefault(a => a.Key == "BuildVersion")?.Value ?? "unknown";
 
     public static IEndpointRouteBuilder MapHealth(this IEndpointRouteBuilder app)
     {
@@ -28,9 +28,7 @@ public static class HealthEndpoints
         app.MapHealthChecks("/health").AllowAnonymous();
 
         // The same checks in plain words for /diag, which anyone may open: nothing identifying goes out (DiagReportDto).
-        // /api/diag/status is the same report under the name the Tab developer window (po-dev.html) asks for first.
         app.MapGet("/api/diag", DiagAsync).AllowAnonymous();
-        app.MapGet("/api/diag/status", DiagAsync).AllowAnonymous();
         return app;
     }
 
@@ -41,9 +39,11 @@ public static class HealthEndpoints
         var checks = report.Entries.Select(e =>
         {
             var about = HealthChecks.About.TryGetValue(e.Key, out var known) ? known : (Group: "service", Label: e.Key, Purpose: "");
+            var detail = e.Value.Description ?? e.Value.Status.ToString();
+            // Problem is set only when the check is not Healthy: the same plain words, never an exception message.
             return new DiagCheckDto(e.Key, about.Group, about.Label, e.Value.Status.ToString(), about.Purpose,
-                e.Value.Description ?? e.Value.Status.ToString(), Math.Round(e.Value.Duration.TotalMilliseconds, 1),
-                e.Value.Exception?.GetType().Name);
+                detail, Math.Round(e.Value.Duration.TotalMilliseconds, 1),
+                e.Value.Status == HealthStatus.Healthy ? null : detail);
         }).ToArray();
         return TypedResults.Ok(new DiagReportDto(report.Status.ToString(), environment.EnvironmentName, Version,
             DateTimeOffset.UtcNow, Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1), checks));

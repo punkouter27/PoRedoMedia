@@ -11,12 +11,16 @@ namespace PoRedoMedia.Api.Common.Health;
 /// </summary>
 public static class HealthChecks
 {
-    /// <summary>What each check is, for people: its section on <c>/diag</c>, its name there and what it is for.</summary>
+    /// <summary>
+    /// What each check is, for people: its section on <c>/diag</c> (<c>api</c>, <c>data</c> or <c>service</c>), its
+    /// name there and what it is for.
+    /// </summary>
     public static readonly IReadOnlyDictionary<string, (string Group, string Label, string Purpose)> About =
         new Dictionary<string, (string, string, string)>
         {
-            ["storage"] = ("storage", "Storage account", "Holds every Library item, run, share link and setting."),
-            ["movie-files"] = ("storage", "Movie folder", "Holds Create Movie's films and renders on this server while a movie is being made."),
+            ["server"] = ("api", "App server", "Answers every page and API call."),
+            ["storage"] = ("data", "Storage account", "Holds every Library item, run, share link and setting."),
+            ["movie-files"] = ("data", "Movie folder", "Holds Create Movie's films and renders on this server while a movie is being made."),
             ["ffmpeg"] = ("service", "FFmpeg", "Renders every video, GIF, comic and movie."),
             ["google-ai"] = ("service", "Google AI (Gemini)", "Looks at pictures, draws images, makes AI video and music."),
             ["azure-openai"] = ("service", "Azure OpenAI", "Writes captions, roasts and movie scripts; a second opinion for pictures."),
@@ -31,6 +35,7 @@ public static class HealthChecks
     {
         var quick = TimeSpan.FromSeconds(10);
         services.AddHealthChecks()
+            .AddCheck("server", () => HealthCheckResult.Healthy("Answering."))
             .AddCheck<StorageHealthCheck>("storage", HealthStatus.Unhealthy, timeout: quick)
             .AddCheck<MovieFilesHealthCheck>("movie-files", HealthStatus.Degraded, timeout: quick)
             .AddCheck<FfmpegHealthCheck>("ffmpeg", HealthStatus.Degraded, timeout: quick)

@@ -1,5 +1,5 @@
 /* App-wide tokens and the few rules every page shares. Component layout lives in the component's own .razor.css.
-   The look is the Po standard (css/po-tokens.css, the same file in every Po app, loaded first): light and dark
+   The look is the Po standard (css/po-tokens.css, this repo's token sheet, loaded first): light and dark
    follow the device, one indigo accent, Inter for text and Space Grotesk for titles. This app's own variables
    are aliases of those tokens, and Radzen's variables are bridged to them in po-tokens.css.
    Breakpoints, the same in every stylesheet: phones up to 720px, one column up to 1024px. */
@@ -99,7 +99,7 @@ h2.rz-text-h6, h2.rz-text-subtitle1 {
 .po-bare-shell .shell-main {
     max-width: var(--po-shell-max);
     margin: 0 auto;
-    padding: 0.75rem 1rem 3rem;
+    padding: 0.75rem 1rem calc(var(--po-space-6) + env(safe-area-inset-bottom));
 }
 
 /* Phones with the tab bar: the build stamp sits above it (po-tokens.css reads --po-stamp-lift). */
@@ -504,8 +504,10 @@ html.po-fx-fluid #po-backdrop {
     justify-content: center;
     gap: 0.4rem;
     padding: 0.2rem 1rem;
-    background: var(--rz-warning);
-    color: var(--po-ink-on-bright);
+    /* Po standard: --po-text on a soft status background (>= 4.5:1 in light and dark). */
+    background: var(--po-warning-soft);
+    border-bottom: 1px solid var(--po-warning);
+    color: var(--po-text);
     font-size: 0.8rem;
     font-weight: 600;
 }

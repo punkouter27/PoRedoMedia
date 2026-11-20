@@ -116,7 +116,7 @@ public sealed class VideoFunctionTests(AzuriteFixture azurite) : IDisposable
         }
     }
 
-    [DockerFact]
+    [DockerFFmpegFact]
     public async Task Both_video_functions_in_one_run_make_one_video_with_its_roast_text_and_no_captions()
     {
         var user = $"dev|{Guid.NewGuid()}";
@@ -143,7 +143,7 @@ public sealed class VideoFunctionTests(AzuriteFixture azurite) : IDisposable
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/media/{video.Id}/export/srt")).StatusCode);
     }
 
-    [DockerFact]
+    [DockerFFmpegFact]
     public async Task Frames_are_described_once_and_kept_with_the_video()
     {
         var user = $"dev|{Guid.NewGuid()}";
@@ -181,7 +181,7 @@ public sealed class VideoFunctionTests(AzuriteFixture azurite) : IDisposable
         Assert.Contains(" -t 6.5 ", args, StringComparison.Ordinal);
     }
 
-    [DockerFact]
+    [DockerFFmpegFact]
     public async Task A_trimmed_roasted_video_is_shorter_exports_and_shares()
     {
         var user = $"dev|{Guid.NewGuid()}";

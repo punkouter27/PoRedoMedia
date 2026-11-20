@@ -14,7 +14,7 @@ public sealed class CreateMovieUiTests : UiTestBase
         await page.ScreenshotAsync(new() { Path = Path.Combine(Shots, name + ".png") });
     }
 
-    [LiveServerFact]
+    [LiveServerFact(NeedsFFmpeg = true)]
     public async Task A_titled_movie_is_made_from_one_film_on_one_page()
     {
         var page = await SignedInPageAsync("/movie");
@@ -60,7 +60,7 @@ public sealed class CreateMovieUiTests : UiTestBase
         await Assertions.Expect(page.GetByText("No movies yet.")).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 
-    [LiveServerFact]
+    [LiveServerFact(NeedsFFmpeg = true)]
     public async Task Publish_connects_youtube_checks_the_dialog_and_sends_the_movie_then_removes_it()
     {
         // The Test server's YouTube and TikTok are stand-ins (Features/Publishing/FakePublishers): nothing leaves it.
@@ -94,7 +94,7 @@ public sealed class CreateMovieUiTests : UiTestBase
         await Assertions.Expect(page.GetByText("No movies yet.")).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 
-    [LiveServerFact]
+    [LiveServerFact(NeedsFFmpeg = true)]
     public async Task Films_with_notes_become_a_whole_video_that_can_be_cut_into_teasers()
     {
         var page = await SignedInPageAsync("/movie");

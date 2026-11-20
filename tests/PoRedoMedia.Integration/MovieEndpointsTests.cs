@@ -7,7 +7,7 @@ namespace PoRedoMedia.IntegrationTests;
 [Collection(AzuriteCollection.Name)]
 public sealed class MovieEndpointsTests(AzuriteFixture azurite)
 {
-    [DockerFact]
+    [DockerFFmpegFact]
     public async Task A_movie_is_written_edited_and_undone_and_is_private_to_the_user_who_made_it()
     {
         var root = Path.Combine(Path.GetTempPath(), $"poredomedia-movies-{Guid.NewGuid():N}");

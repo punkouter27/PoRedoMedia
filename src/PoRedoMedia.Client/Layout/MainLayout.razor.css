@@ -1,15 +1,15 @@
 /* Breakpoints, the same everywhere: phones up to 720px, a single column up to 1024px.
    The header is Layout/PoHeader (styles in PoHeader.razor.css and po-tokens.css). */
 
-/* The bottom padding keeps the last row clear of the build stamp in the corner. */
+/* The bottom padding keeps the last row clear of the build stamp in the corner (Po standard). */
 .shell-main {
     max-width: var(--po-shell-max);
     margin: 0 auto;
-    padding: 0.75rem 1rem 2.5rem;
+    padding: 0.75rem 1rem calc(var(--po-space-6) + env(safe-area-inset-bottom));
 }
 
 @media (max-width: 720px) {
     .shell-main {
-        padding: 0.5rem 0.75rem 3rem;
+        padding: 0.5rem 0.75rem calc(var(--po-space-6) + env(safe-area-inset-bottom));
     }
 }

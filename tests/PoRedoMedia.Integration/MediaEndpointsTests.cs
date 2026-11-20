@@ -136,7 +136,7 @@ public sealed class MediaEndpointsTests(AzuriteFixture azurite) : IDisposable
         Assert.Empty(await ListAsync(client));
     }
 
-    [DockerFact]
+    [DockerFFmpegFact]
     public async Task A_video_gets_its_measured_duration_and_a_thumbnail()
     {
         var client = await _factory.Value.SignedInAsync($"dev|{Guid.NewGuid()}");
@@ -149,7 +149,7 @@ public sealed class MediaEndpointsTests(AzuriteFixture azurite) : IDisposable
         Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync(media.ThumbUrl)).StatusCode);
     }
 
-    [DockerFact]
+    [DockerFFmpegFact]
     public async Task A_video_longer_than_a_minute_is_refused()
     {
         var client = await _factory.Value.SignedInAsync($"dev|{Guid.NewGuid()}");

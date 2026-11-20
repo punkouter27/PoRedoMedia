@@ -27,7 +27,7 @@ public sealed class CreateVideoUiTests : UiTestBase
         }
     }
 
-    [LiveServerFact]
+    [LiveServerFact(NeedsFFmpeg = true)]
     public async Task Picking_a_video_ticking_the_roast_and_running_shows_one_video_with_its_extras()
     {
         var page = await SignedInPageAsync("/");

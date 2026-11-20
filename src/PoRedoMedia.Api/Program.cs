@@ -35,7 +35,7 @@ if (args.Length > 0 && args[0] == "seed-sounds")
     return await SeedSoundsCommand.RunAsync(args[1..], seedConfiguration);
 }
 
-// Serilog, as in every Po app: this console logger covers startup until the host's own (AddPoSerilog) takes over,
+// Serilog: this console logger covers startup until the host's own (AddPoSerilog) takes over,
 // and records why the host could not start.
 Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()

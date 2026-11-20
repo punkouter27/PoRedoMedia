@@ -8,7 +8,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
 {
     private static readonly string Shots = Path.Combine(Path.GetTempPath(), "poredomedia-shots");
 
-    [LiveServerFact]
+    [LiveServerFact(NeedsFFmpeg = true)]
     public async Task A_video_recorded_with_the_camera_becomes_the_picked_media_and_can_be_roasted()
     {
         var page = await SignedInPageAsync("/");

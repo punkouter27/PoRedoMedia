@@ -23,7 +23,7 @@
     <PackageVersion Include="Radzen.Blazor" Version="12.2.0" />
     <!-- Validation: one validator per form in Shared, run by the client form and the API endpoint alike. -->
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
-    <!-- Logging: Serilog is the host's logger, as in every Po app. -->
+    <!-- Logging: Serilog is the host's logger. -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <!-- AI -->
     <PackageVersion Include="OpenAI" Version="2.15.0" />

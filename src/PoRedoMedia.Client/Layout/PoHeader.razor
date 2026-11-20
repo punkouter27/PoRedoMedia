@@ -1,6 +1,7 @@
-@* The Po shell header, on every page signed in or out (MainLayout and BareLayout): the app's name top-left, then on
-   wide screens the places to go, and top-right the signed-in email (or Sign in). There is no Settings gear (the owner's
-   call, 2026-11-20: the switches are fixed in Services/AppSettings); Sign out is in a small menu under the email. *@
+@* The Po shell header, on every page signed in or out (MainLayout and BareLayout, so the sign-in page too): the app's
+   name top-left, then on wide screens the places to go, and top-right the signed-in email (or one Sign in button, the
+   same on every page). There is no Settings gear (the owner's call, 2026-11-20: the switches are fixed in
+   Services/AppSettings); Sign out is in a small menu under the email. *@
 @inject NavigationManager Navigation
 @inject MediaApi Media
 
@@ -22,10 +23,7 @@
         </Authorized>
         <NotAuthorized>
             <div class="po-header__actions">
-                @if (!OnLogin)
-                {
-                    <a class="po-link-btn filled small" href="login">Sign in</a>
-                }
+                <a class="po-link-btn filled small" href="login">Sign in</a>
             </div>
         </NotAuthorized>
     </AuthorizeView>
@@ -33,8 +31,6 @@
 
 @code {
     private bool _leaving;
-
-    private bool OnLogin => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("login", StringComparison.OrdinalIgnoreCase);
 
     private async Task SignOutAsync()
     {

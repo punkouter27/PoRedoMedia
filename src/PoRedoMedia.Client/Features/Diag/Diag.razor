@@ -4,12 +4,12 @@
    GET /api/diag, which runs the server's health checks and says nothing identifying (DiagReportDto). *@
 @inject HttpClient Http
 
-<PageTitle>Diagnostics · PoRedoMedia</PageTitle>
+<PageTitle>System status</PageTitle>
 
 <PageBoundary>
 <div class="po-diag diag-page">
     <div class="diag-head">
-        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">Diagnostics</RadzenText>
+        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">System status</RadzenText>
         <RadzenButton Text="@(_loading ? "Checking…" : "Refresh")" Icon="refresh" Variant="Variant.Outlined" Disabled="_loading" IsBusy="_loading" Click="LoadAsync" />
     </div>
 
@@ -25,41 +25,37 @@
     }
     else if (_error is not null)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" class="rz-m-0" Title="The server did not answer">
-            @_error Try Refresh in a moment.
-        </RadzenAlert>
+        <div class="po-diag__banner po-diag__banner--bad" role="alert">
+            <strong>Not working: the server did not answer</strong>
+            <span>@_error Try Refresh in a moment.</span>
+        </div>
     }
 
     @if (_report is { } report)
     {
-        <RadzenAlert AlertStyle="@Style(report.Status)" AllowClose="false" Shade="Shade.Lighter" class="rz-m-0 diag-banner" Title="@Headline(report.Status)">
-            @Summary(report)
-        </RadzenAlert>
+        <div class="po-diag__banner po-diag__banner--@Banner(report.Checks)" role="status">
+            <strong>@Headline(report.Checks)</strong>
+            <span>@Summary(report.Checks)</span>
+        </div>
 
         <section class="po-diag__group" aria-labelledby="diag-api">
             <h2 id="diag-api" class="diag-group">API</h2>
-            <div class="po-diag__card">
-                <div class="diag-what">
-                    <strong>Server</strong>
-                    <span class="diag-meta">The app's server answered.</span>
-                </div>
-                <span class="po-badge po-badge--ok">Reachable</span>
-                <span class="diag-meta diag-span">@Ms(_roundTripMs) round trip · checks took @Ms(report.CheckedMs)</span>
-            </div>
+            @Rows(report.Checks.Where(c => c.Group == "api"))
         </section>
 
         <section class="po-diag__group" aria-labelledby="diag-data">
             <h2 id="diag-data" class="diag-group">Data</h2>
-            @Cards(report.Checks.Where(c => c.Group == "storage"))
+            @Rows(report.Checks.Where(c => c.Group == "data"))
         </section>
 
         <section class="po-diag__group" aria-labelledby="diag-services">
             <h2 id="diag-services" class="diag-group">Services</h2>
-            @Cards(report.Checks.Where(c => c.Group != "storage"))
+            @Rows(report.Checks.Where(c => c.Group != "api" && c.Group != "data"))
         </section>
 
         <p class="diag-meta">
-            Version @report.Version · @report.Environment · last checked @report.CheckedAt.ToLocalTime().ToString("HH:mm:ss")
+            Version @report.Version · @report.Environment · checks took @Ms(report.CheckedMs) (@Ms(_roundTripMs) round trip)
+            · last checked @report.CheckedAt.ToLocalTime().ToString("HH:mm:ss")
         </p>
     }
 </div>
@@ -106,8 +102,8 @@
         }
     }
 
-    // One card per dependency, with its status as a Po badge.
-    private RenderFragment Cards(IEnumerable<DiagCheckDto> checks) => __builder =>
+    // One row per check: label, purpose, status pill, latency, and the problem (or what was found).
+    private RenderFragment Rows(IEnumerable<DiagCheckDto> checks) => __builder =>
     {
         var any = false;
         foreach (var check in checks)
@@ -119,7 +115,7 @@
                     <span class="diag-meta">@check.Purpose</span>
                 </div>
                 <span class="po-badge po-badge--@Badge(check.Status)">@check.Status</span>
-                <span class="diag-span">@check.Detail <span class="diag-meta">· @Ms(check.LatencyMs)</span></span>
+                <span class="diag-span">@(check.Problem ?? check.Detail) <span class="diag-meta">· @Ms(check.LatencyMs)</span></span>
             </div>
         }
         if (!any)
@@ -137,29 +133,25 @@
         _ => "bad",
     };
 
-    private static AlertStyle Style(string status) => status switch
-    {
-        "Healthy" => AlertStyle.Success,
-        "Degraded" => AlertStyle.Warning,
-        _ => AlertStyle.Danger,
-    };
+    private static string Banner(DiagCheckDto[] checks) =>
+        checks.Any(c => c.Status == "Unhealthy") ? "bad" : checks.Any(c => c.Status == "Degraded") ? "warn" : "ok";
 
-    private static string Headline(string status) => status switch
+    // The standard's three plain-words headlines.
+    private static string Headline(DiagCheckDto[] checks)
     {
-        "Healthy" => "Everything is working",
-        "Degraded" => "Working, with some parts missing",
-        _ => "Something the app needs is down",
-    };
+        var down = checks.Where(c => c.Status == "Unhealthy").Select(c => c.Label).ToList();
+        if (down.Count > 0) return $"Not working: {string.Join(", ", down)}";
+        var degraded = checks.Count(c => c.Status == "Degraded");
+        return degraded == 0 ? "Everything is working" : $"Working, with {degraded} {(degraded == 1 ? "thing" : "things")} degraded";
+    }
 
-    private static string Summary(DiagReportDto report)
+    private static string Summary(DiagCheckDto[] checks)
     {
-        var down = report.Checks.Count(c => c.Status == "Unhealthy");
-        var degraded = report.Checks.Count(c => c.Status == "Degraded");
-        return (down, degraded) switch
-        {
-            (0, 0) => $"All {report.Checks.Length} checks passed.",
-            (0, _) => $"{degraded} of {report.Checks.Length} checks found something missing; the app runs and offers less.",
-            _ => $"{down} of {report.Checks.Length} checks failed; sign-in, the Library or making things may not work.",
-        };
+        var degraded = checks.Where(c => c.Status == "Degraded").Select(c => c.Label).ToList();
+        if (checks.Any(c => c.Status == "Unhealthy"))
+            return "Sign-in, the Library or making things may not work until this is fixed.";
+        return degraded.Count == 0
+            ? $"All {checks.Length} checks passed."
+            : $"Degraded: {string.Join(", ", degraded)}. The app runs and offers less.";
     }
 }

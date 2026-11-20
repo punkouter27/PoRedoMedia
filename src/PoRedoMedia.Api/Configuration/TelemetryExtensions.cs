@@ -9,7 +9,7 @@ namespace PoRedoMedia.Api.Configuration;
 public static class TelemetryExtensions
 {
     /// <summary>
-    /// Serilog is the host's logger, as in every Po app: levels come from the <c>Serilog</c> section of appsettings,
+    /// Serilog is the host's logger: levels come from the <c>Serilog</c> section of appsettings,
     /// every event carries the app's name, and it writes to the console. Call it before <see cref="AddPoTelemetry"/>:
     /// the default providers are cleared here, and Application Insights' own log provider, added after, still gets
     /// every event (<c>writeToProviders</c>). The static <see cref="Log.Logger"/> is left alone (it is Program's

@@ -234,7 +234,7 @@ public sealed class ImageFunctionTests(AzuriteFixture azurite) : IDisposable
         Assert.NotEmpty(run.Notes);
     }
 
-    [DockerFact]
+    [DockerFFmpegFact]
     public async Task All_stackable_functions_in_one_run_chain_their_pictures_and_the_roast_and_clip_use_the_final_one()
     {
         var user = $"dev|{Guid.NewGuid()}";

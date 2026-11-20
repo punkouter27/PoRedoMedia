@@ -218,7 +218,7 @@ window.poMedia = {
     // picker's input like any other chosen file. Resolves to whether there was one.
     async takeShared(input) {
         try {
-            const cache = await caches.open('po-shared');
+            const cache = await caches.open('po-share-target');
             const response = await cache.match('/shared-file');
             if (!response) return false;
             await cache.delete('/shared-file');

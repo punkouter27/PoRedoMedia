@@ -24,7 +24,11 @@ public sealed class DiagAndRoutingTests(AzuriteFixture azurite)
         var report = (await response.Content.ReadFromJsonAsync(WireJson.Default.DiagReportDto))!;
 
         Assert.Equal("Healthy", report.Checks.Single(c => c.Name == "storage").Status);
+        Assert.Equal("data", report.Checks.Single(c => c.Name == "storage").Group);
+        Assert.Equal("api", report.Checks.Single(c => c.Name == "server").Group);
         Assert.Contains(report.Checks, c => c.Group == "service");
+        Assert.All(report.Checks, c => Assert.True(c.Group is "api" or "data" or "service", c.Group));
+        Assert.All(report.Checks, c => Assert.Equal(c.Status == "Healthy", c.Problem is null));
         Assert.All(report.Checks, c => Assert.False(string.IsNullOrWhiteSpace(c.Purpose)));
         Assert.Matches("^\\d{6}$|^unknown$", report.Version);
 

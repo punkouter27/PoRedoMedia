@@ -5,7 +5,7 @@
 // The network is always tried first, so an online user never sees an old copy of anything.
 const SHELL = 'po-shell-v1';
 const THUMBS = 'po-thumbs-v1';
-const SHARED = 'po-shared';
+const SHARED = 'po-share-target';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
