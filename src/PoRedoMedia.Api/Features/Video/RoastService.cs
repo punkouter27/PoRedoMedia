@@ -83,6 +83,7 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         Target: what people DO in the clip — their choices, their skill, their timing, their taste, the situation they got themselves into.
         Never: slurs; jokes about race, ethnicity, religion, gender, sexuality, disability or body size; sexual remarks about a person; threats or wishing harm. If a moment shows a child, roast the situation or the adults, not the child.
 
+        {{InsultRule(mix)}}
         Each joke: one or two sentences, at most 14 words, written to be said aloud. No emoji, no hashtags, no stage directions, no quotation marks.
         Spread the jokes across the clip, in time order, at most one per moment. Skip moments with nothing to mock.
         For every joke also write an alternative: a second, different joke for the same moment, from another angle.
@@ -91,12 +92,31 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
 
     internal static string PromptFor(bool crude) => PromptFor(MemeMix.FromCrude(crude));
 
-    internal static string RubricFor(MemeMix mix) => mix.Swearing switch
+    internal static string RubricFor(MemeMix mix) => (mix.Swearing switch
     {
         0 => CleanJokeRubric,
         >= 3 => JokeRubric,
         _ => SomeSwearingRubric,
-    };
+    }) + (mix.Meanness >= InsultFrom ? " " + InsultRubric : "");
+
+    /// <summary>From "Sarcastic" up the roast is an insult roast; below it, teasing is the point.</summary>
+    private const int InsultFrom = 2;
+
+    /// <summary>
+    /// What makes a line an insult, said to the writer. Without it a savage roast came back as "He leans in
+    /// close like he's about to interrogate my sanity, not my ears": an observation with a simile, nobody
+    /// put down, and the judge and the critic both passed it because neither was asked to look.
+    /// </summary>
+    internal static string InsultRule(MemeMix mix) => mix.Meanness >= InsultFrom
+        ? "Every joke is an INSULT: a put-down of someone in the clip for what they are doing, said about them (he, she, they) or to them (you). Say what is bad, sad or embarrassing about it. A line that only describes or compares, with nobody put down, is a failure. Never speak about yourself (no I, me, my)."
+        : "Every joke teases someone in the clip for what they are doing, said about them (he, she, they) or to them (you). Never speak about yourself (no I, me, my).";
+
+    internal const string InsultRubric =
+        "An insult roast: a line that puts nobody down (a description, a comparison, a remark about the speaker) scores lowest, however clever.";
+
+    /// <summary>What the critic is told it is reading, so a set with no insults in it is sent back.</summary>
+    internal static string CriticTask(MemeMix mix) => "Roast jokes, each spoken over one moment of a video clip"
+        + (mix.Meanness >= InsultFrom ? ". This is an insult roast: a line that insults nobody is a weak line, and a set with any such line scores 5 or less" : "");
 
     internal static string RubricFor(bool crude) => RubricFor(MemeMix.FromCrude(crude));
 
@@ -256,8 +276,9 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         MediaId mediaId, List<(double AtSeconds, string What)> moments, double durationSeconds, bool narrated, MemeMix mix, bool childIsIt, CancellationToken ct)
     {
         var inv = CultureInfo.InvariantCulture;
-        // A spoken joke runs about seven seconds; more than one per seven would not fit.
-        var max = Math.Clamp((int)(durationSeconds / 7), 1, MaxJokes);
+        // By the roast-lines level. This used to be one per seven seconds whatever the level said, so
+        // the slider changed nothing and a 15 s clip was asked for two lines at most.
+        var max = MaxJokesFor(mix, durationSeconds);
         var prompt = new StringBuilder()
             .Append(inv, $"The clip is {durationSeconds:0.#} seconds long. Write {max} joke(s), fewer only when there are fewer moments.\n")
             .Append(narrated ? NarratorBrief : "")
@@ -276,7 +297,7 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         var draft = string.Join('\n', picked.Select(j => j.Text));
         List<(long AtMs, string Text)> rewritten = [];
         var (_, critique, better) = await RoastQuality.ImproveOnceAsync(
-            _critic, "Roast jokes, each spoken over one moment of a video clip", draft,
+            _critic, CriticTask(mix), draft,
             async (verdict, token) =>
             {
                 rewritten = [.. ReadJokes(await AskAsync($"{prompt}\n{RoastQuality.RewriteBrief(verdict, draft)}", token), moments, max)

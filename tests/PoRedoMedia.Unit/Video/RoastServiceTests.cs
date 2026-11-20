@@ -43,6 +43,12 @@ public sealed class RoastServiceTests
         Assert.Contains("fake praise", RoastService.PromptFor(MemeMix.Kids));
         Assert.Contains("mild words only", RoastService.PromptFor(MemeMix.Default with { Swearing = 1 }));
         Assert.Contains("Some swearing is fine", RoastService.RubricFor(MemeMix.Default with { Swearing = 2 }));
+        // From Sarcastic up it is an insult roast: the writer, the judge and the critic are all told a line that puts nobody down fails.
+        Assert.Contains("Every joke is an INSULT", RoastService.PromptFor(crude: true));
+        Assert.Contains("puts nobody down", RoastService.RubricFor(crude: true));
+        Assert.Contains("insult roast", RoastService.CriticTask(MemeMix.FromCrude(true)));
+        Assert.DoesNotContain("INSULT", RoastService.PromptFor(MemeMix.Default with { Meanness = 0 }));
+        Assert.DoesNotContain("insult", RoastService.CriticTask(MemeMix.Default with { Meanness = 1 }));
         Assert.Equal(0, RoastService.MaxJokesFor(MemeMix.Default with { Jokes = 0 }, 60));
         Assert.Equal(3, RoastService.MaxJokesFor(MemeMix.Default with { Jokes = 1 }, 60));
         Assert.Equal(5, RoastService.MaxJokesFor(MemeMix.Default, 60));
