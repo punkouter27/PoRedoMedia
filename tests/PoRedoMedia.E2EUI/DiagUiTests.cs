@@ -26,6 +26,7 @@ public sealed class DiagUiTests : UiTestBase
         AllowError(e => e.Contains("zz-missing", StringComparison.Ordinal) && e.Contains("404", StringComparison.Ordinal));
         var signedIn = await SignedInPageAsync("/zz-missing");
         await Assertions.Expect(signedIn.GetByRole(AriaRole.Heading, new() { Name = "Page not found" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        await Assertions.Expect(signedIn.GetByText("dev@localhost")).ToBeVisibleAsync();
+        // The signed-in shell: the header shows the account's email (SignedInPageAsync signs in as e2e-<guid>@localhost).
+        await Assertions.Expect(signedIn.Locator(".po-header__email")).ToContainTextAsync("@localhost");
     }
 }

@@ -77,6 +77,11 @@ PoRedoMedia turns photos and videos into memes, roasts, comics and short movies 
 ASP.NET Core API, FFmpeg, several AI providers). What it is and how to run it: [README.md](README.md). How the code is
 laid out: [docs/architecture.md](docs/architecture.md). Publishing keys: [docs/publishing-setup.md](docs/publishing-setup.md).
 
+### Exceptions to the standard
+- **No Settings gear** in the header (owner's call, 2026-11-20): the app has no settings page; its switches are fixed
+  defaults in `Client/Services/AppSettings`. Signed in, the email opens a small menu with Sign out.
+- **Azure names** keep their pre-standard form (see CI/CD and Azure below).
+
 ### Working rules
 - **Stay on `master`:** commit directly to `master`; create branches only when asked. Short, natural commit messages.
 - **Startup verification:** after a code change, restart the app and check it starts.
@@ -107,10 +112,10 @@ pwsh scripts/mobile-dev.ps1 -ApiPort 4100 -Run         # the MAUI phone app agai
 ### Tests (real counts, 2026-11-20)
 | Tier | Project | Cases | Where it runs |
 |---|---|---|---|
-| Unit | `tests/PoRedoMedia.Unit` | 100 | CI + locally; no I/O |
+| Unit | `tests/PoRedoMedia.Unit` | 97 | CI + locally; no I/O |
 | Integration | `tests/PoRedoMedia.Integration` | 50 | CI (Docker + ffmpeg installed) + locally. `[DockerFact]` skips with "Docker is not running…" without Docker; `[FFmpegFact]`/`[DockerFFmpegFact]` skip with "ffmpeg is not on PATH…" without ffmpeg |
 | E2E API | `tests/PoRedoMedia.E2EAPI` | 8 | locally; in-process host, mock AI, no Docker |
-| E2E UI | `tests/PoRedoMedia.E2EUI` | 16 | locally against a running app (`scripts/run-e2e.ps1`); `[LiveServerFact]` skips with a message when no app answers at `E2E_BASE_URL` or Playwright's Chromium is missing |
+| E2E UI | `tests/PoRedoMedia.E2EUI` | 15 | locally against a running app (`scripts/run-e2e.ps1`); `[LiveServerFact]` skips with a message when no app answers at `E2E_BASE_URL` or Playwright's Chromium is missing |
 
 There are no test caps; keep the counts above current.
 

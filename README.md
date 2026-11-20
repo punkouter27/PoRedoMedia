@@ -16,7 +16,6 @@ status page.
 | `/gallery` Library | Everything you made: download, GIF and social-size exports, share links, delete; shows storage used. |
 | `/comic` Comic-ify | Paste a chat or email thread; get a lettered comic strip and a narrated video of it. |
 | `/movie` Create Movie | Your clips become a narrated movie with intro, outro and Meme-ify on every clip; download as a YouTube/TikTok package or publish directly. |
-| `/settings` | Sound, visual effects and advanced switches (all off by default). |
 | `/diag` System status | Plain-words health of the server, storage and every AI or publishing service it uses. |
 
 A .NET MAUI phone app (`src/PoRedoMedia.Mobile`, Android/iOS) uploads from the camera roll with resumable uploads and
@@ -30,10 +29,10 @@ src/PoRedoMedia.Client   Blazor WebAssembly UI (Radzen), served by the Api
 src/PoRedoMedia.Shared   wire DTOs, enums, config keys, validators (shared by Api, Client and Mobile)
 src/PoRedoMedia.Movie    Create Movie's engine (script, pictures, FFmpeg render)
 src/PoRedoMedia.Mobile   MAUI phone client (not in the .slnx; CI builds the Android target)
-tests/PoRedoMedia.Unit   100 fast tests, no I/O
+tests/PoRedoMedia.Unit   97 fast tests, no I/O
 tests/PoRedoMedia.Integration   50 tests against a throwaway Azurite (Docker) and real ffmpeg
 tests/PoRedoMedia.E2EAPI 8 in-process API contract tests
-tests/PoRedoMedia.E2EUI  16 Playwright tests against a running app
+tests/PoRedoMedia.E2EUI  15 Playwright tests against a running app
 infra/                   Bicep for the Azure resources the app runs on
 docs/                    architecture.md, publishing-setup.md
 SCREENSHOTS/             before/after mockups of UI changes
