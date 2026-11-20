@@ -76,17 +76,11 @@
     }
 
     <div class="run-results">
-        @foreach (var output in Run.Outputs)
+        @* A roast's own audio and lyrics stay in the Library (its panel plays them); here only what can be looked at. *@
+        @foreach (var output in Run.Outputs.Where(o => o.Kind != MediaKind.Audio || o.Text is null))
         {
             <figure class="run-result po-pop" data-origin="@output.Origin" data-id="@output.Id" @key="output.Id">
-                @if (output.Kind == MediaKind.Audio && output.Text is not null)
-                {
-                    <RoastStage Media="output" />
-                }
-                else
-                {
-                    <MediaView Media="output" />
-                }
+                <MediaView Media="output" />
                 <figcaption>@output.Title</figcaption>
                 @if (output.Kind == MediaKind.Video && output.Text is not null)
                 {

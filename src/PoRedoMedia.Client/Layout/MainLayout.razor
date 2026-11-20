@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
-@inject PreferenceSync Preferences
 
 <RadzenComponents />
 <ShortcutKeys />
@@ -41,13 +40,6 @@
     [CascadingParameter] private Task<AuthenticationState>? Auth { get; set; }
 
     private ErrorBoundary? _boundary;
-
-    // Signed in: the account's settings and recipes replace this browser's (Services/PreferenceSync).
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && Auth is not null && (await Auth).User.Identity?.IsAuthenticated == true)
-            await Preferences.PullAsync();
-    }
 
     // A page that failed must not keep the next page from showing.
     protected override void OnParametersSet() => _boundary?.Recover();

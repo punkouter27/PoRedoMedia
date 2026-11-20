@@ -100,7 +100,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     {
         if (_started) return;
         _started = true;
-        settings.Changed += OnSettings;
         Config = await api.ConfigAsync();
         Prefs = await api.PrefsAsync() ?? Prefs;
         await RefreshLibraryAsync();
@@ -111,8 +110,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
             await OpenAsync(last, quiet: true);
         Notify();
     }
-
-    private void OnSettings() => Notify();
 
     private CancellationTokenSource? _fading;
 
@@ -463,7 +460,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     public void Dispose()
     {
-        settings.Changed -= OnSettings;
         _polling?.Cancel();
         _polling?.Dispose();
         _fading?.Cancel();

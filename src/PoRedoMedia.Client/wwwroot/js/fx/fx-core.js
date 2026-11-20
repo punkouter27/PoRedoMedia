@@ -2,8 +2,8 @@
 // device when there is one, page-wide overlay canvases for effects that leave their element, and
 // the small helpers the effects share (shader programs, colours, palettes, audio analysis).
 //
-// Effects are off until switched on in Settings ('poredomedia:fx' = 'on' in this browser's storage, which
-// is also how screenshots of them are taken), and always off for a request for reduced motion.
+// Effects are on (the owner's default; there is no Settings page), unless this browser's storage says
+// 'poredomedia:fx' = 'off', and always off for a request for reduced motion.
 window.poFx = (() => {
     const still = matchMedia('(prefers-reduced-motion: reduce)');
     const setting = () => window.poMedia.read('poredomedia:fx');
@@ -14,7 +14,7 @@ window.poFx = (() => {
 
     /** Moving effects: particles, shaders that animate. */
     function enabled() {
-        return setting() === 'on' && !still.matches;
+        return setting() !== 'off' && !still.matches;
     }
 
     // Classes on <html> let stylesheets show an effect's element only when the effect will run.
@@ -213,12 +213,6 @@ window.poFx = (() => {
         palette,
         haptic,
         bands,
-
-        /** The settings switch. */
-        setEnabled(on) {
-            window.poMedia.write('poredomedia:fx', on ? 'on' : null);
-            refresh();
-        },
 
         /** Runs going on in the background: the backdrop brightens and a soft pad follows progress. */
         busy(level, percent) {

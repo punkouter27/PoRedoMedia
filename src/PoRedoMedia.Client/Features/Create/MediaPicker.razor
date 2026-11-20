@@ -1,8 +1,7 @@
-@* Choosing the media for a run: drop, paste, pick a file, use the camera, take a file another
-   app shared, or reuse something already in the gallery. *@
+@* Choosing the media for a run: drop, paste, pick a file, use the camera, or take a file another
+   app shared. Something already in the Library is reused from there ("Use as source"). *@
 @using Microsoft.AspNetCore.Components.Forms
 @implements IAsyncDisposable
-@inject MediaApi Api
 @inject BlobUploadService Uploader
 @inject AppConfigService Config
 @inject IJSRuntime JS
@@ -23,7 +22,7 @@
         {
             <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-m-0">Choose a photo or a video</RadzenText>
             <RadzenText class="rz-m-0">Drop it here, paste it, pick a file, or use the camera for a photo or a video.</RadzenText>
-            <RadzenText class="rz-m-0">JPG, PNG, WEBP or GIF up to 10 MB. MP4, MOV or WEBM up to 200 MB and 1 minute.</RadzenText>
+            <RadzenText class="rz-m-0">JPG, PNG or WEBP (big photos are shrunk to fit), GIF up to 10 MB. MP4, MOV or WEBM up to 200 MB and 1 minute.</RadzenText>
             <FilePick @ref="_file" Text="Choose file" Disabled="Busy" Accept="@Accept" OnChange="UploadAsync" />
         }
         @if (_hasCamera && !_cameraOn)
@@ -61,43 +60,10 @@
             <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" class="rz-m-0">@_error</RadzenAlert>
         }
     </div>
-
-    @if (ShowRecent && _recentLoaded && _recent.Count == 0)
-    {
-        @* No media yet: say where things go, and how to get going without a file to hand. *@
-        <div class="picker-first">
-            <RadzenIcon Icon="tips_and_updates" aria-hidden="true" />
-            <span>
-                <strong>Your library is empty.</strong>
-                Choose a photo or a video above to start. Everything you add, and everything a run makes, is kept in the Library.
-                @if (_hasCamera)
-                {
-                    <span> No file to hand? Use the camera.</span>
-                }
-            </span>
-        </div>
-    }
-    else if (ShowRecent && _recent.Count > 0)
-    {
-        <RadzenText TextStyle="TextStyle.Subtitle1" TagName="TagName.H2" class="rz-m-0">Or use something from your gallery</RadzenText>
-        <div class="picker-recent">
-            @foreach (var item in _recent)
-            {
-                var media = item;
-                <button type="button" class="picker-card" disabled="@Busy" @onclick="@(() => ValueChanged.InvokeAsync(media))">
-                    <img src="@media.ThumbUrl" alt="" loading="lazy" />
-                    <span>@media.Title</span>
-                </button>
-            }
-        </div>
-    }
 </RadzenStack>
 
 @code {
     [Parameter] public EventCallback<MediaDto> ValueChanged { get; set; }
-
-    /// <summary>Offer recent gallery items below the drop zone. Off where the gallery is already on screen.</summary>
-    [Parameter] public bool ShowRecent { get; set; } = true;
 
     /// <summary>Another app shared a file to this one: pick it up as if it had been chosen here.</summary>
     [Parameter] public bool TakeShared { get; set; }
@@ -111,10 +77,12 @@
     /// <summary>Raised once every file of a choice has been uploaded (or refused).</summary>
     [Parameter] public EventCallback BatchDone { get; set; }
 
+    /// <summary>The server's picture limit (Api's <c>UploadValidation.MaxImageBytes</c>); bigger photos are shrunk before sending.</summary>
+    private const long MaxImageBytes = 10L * 1024 * 1024;
+
     /// <summary>The most files one choice takes.</summary>
     private const int MostFiles = 20;
 
-    private List<MediaDto> _recent = [];
     private double? _percent;
     private string? _error;
     private string? _status;
@@ -127,10 +95,6 @@
     private bool _cameraOn;
     private bool _recording;
     private bool _rendered;
-    private bool _recentLoaded;
-
-    /// <summary>How many of the newest pictures and videos the gallery strip offers; the Library has the rest.</summary>
-    private const int RecentCount = 5;
 
     private bool Busy => _percent is not null || _status is not null;
 
@@ -138,15 +102,6 @@
     {
         if (Busy && await Dialogs.Confirm("Your upload has not finished. Leave anyway? It will be lost.", "Upload in progress", new ConfirmOptions { OkButtonText = "Leave", CancelButtonText = "Stay" }) != true)
             context.PreventNavigation();
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (ShowRecent)
-        {
-            _recent = [.. (await Api.ListAsync()).Where(m => m.Kind != MediaKind.Audio).Take(RecentCount)];
-            _recentLoaded = true;
-        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -213,9 +168,21 @@
                 continue;
             }
 
+            // A photo over the limit is shrunk here first, as the phone app does; a GIF would lose its animation.
+            var (name, size) = (file.Name, file.Size);
+            if (size > MaxImageBytes && file.ContentType.StartsWith("image/", StringComparison.Ordinal) && file.ContentType != "image/gif")
+            {
+                _status = $"{which}Making the photo small enough to send…";
+                StateHasChanged();
+                var fitted = await JS.InvokeAsync<long>("poMedia.fitImage", input, i);
+                _status = null;
+                if (fitted > 0)
+                    (name, size) = (Path.ChangeExtension(file.Name, ".jpg"), fitted);
+            }
+
             (_percent, _status) = (0, files.Count > 1 ? $"Uploading {which.TrimEnd(':', ' ')}" : null);
             StateHasChanged();
-            var (media, error) = await Uploader.UploadAsync(input, file.Name, file.Size, percent =>
+            var (media, error) = await Uploader.UploadAsync(input, name, size, percent =>
             {
                 _percent = percent;
                 InvokeAsync(StateHasChanged);

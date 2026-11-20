@@ -28,7 +28,6 @@ builder.Services.AddScoped<BlobUploadService>();
 builder.Services.AddScoped<RunApi>();
 builder.Services.AddScoped<SessionCostService>();
 builder.Services.AddScoped<RunTracker>();
-builder.Services.AddScoped<PreferenceSync>();
 builder.Services.AddScoped<UiStore>();
 builder.Services.AddScoped<Shortcuts>();
 builder.Services.AddScoped<AppSettings>();

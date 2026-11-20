@@ -89,7 +89,21 @@
 .mv-badge { position: absolute; left: 6px; top: 6px; padding: 2px 6px; border-radius: 4px; background: var(--rz-base-background-color); font-size: 0.75rem; }
 
 /* ── Films ── */
-.mv-add-films { padding: 0.5rem; border: 1px solid var(--po-line); border-radius: var(--po-radius-sm); }
+.mv-add-films { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.5rem; border: 1px solid var(--po-line); border-radius: var(--po-radius-sm); }
+/* No clips yet: the upload is the next thing to do, so it is the accent colour, not a quiet box. */
+.mv-add-films.mv-needed { padding: 0.75rem; border: 2px solid var(--rz-primary); background: color-mix(in srgb, var(--rz-primary) 6%, transparent); }
+.mv-add-lead { margin: 0; font-weight: 600; }
+.mv-add-or { font-size: 0.9rem; }
+.mv-required { padding: 0.1rem 0.5rem; border-radius: var(--po-radius-pill); background: var(--rz-primary); color: var(--rz-on-primary); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.mv-ok { color: var(--po-success); font-size: 1.1rem; }
+.mv-need-clips { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.4rem; color: var(--rz-primary); font-size: 0.85rem; font-weight: 600; text-decoration: none; }
+.mv-need-clips .rzi { font-size: 1rem; }
+/* Library videos in one row that scrolls sideways, tapped to add. */
+.mv-pick { display: grid; grid-auto-flow: column; grid-auto-columns: 120px; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.3rem; overscroll-behavior-x: contain; }
+.mv-pick-card { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.35rem; border: 1px solid var(--po-line); border-radius: var(--po-radius-sm); background: var(--rz-base-background-color); font: inherit; font-size: 0.8rem; color: inherit; text-align: left; cursor: pointer; }
+.mv-pick-card:hover { border-color: var(--rz-primary); }
+.mv-pick-card img { width: 100%; height: 66px; object-fit: cover; border-radius: 4px; background: var(--rz-base-200); }
+.mv-pick-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mv-film { display: flex; gap: 0.6rem; padding: 0.6rem; border-radius: 6px; background: color-mix(in srgb, var(--rz-text-color) 5%, transparent); }
 .mv-film img { flex: 0 0 72px; width: 72px; height: 54px; border-radius: 4px; object-fit: cover; }
 .mv-film-body { display: flex; flex-direction: column; flex: 1 1 auto; gap: 0.3rem; min-width: 0; }

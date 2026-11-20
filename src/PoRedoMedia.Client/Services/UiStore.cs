@@ -6,10 +6,9 @@ namespace PoRedoMedia.Client.Services;
 
 /// <summary>
 /// Small things remembered in this browser: the last options used, saved recipes. Nothing here
-/// is needed for the app to work, so a browser that refuses storage just forgets. Recipes follow a
-/// signed-in account through <see cref="PreferenceSync"/>; the last options stay with the browser.
+/// is needed for the app to work, so a browser that refuses storage just forgets.
 /// </summary>
-public sealed class UiStore(IJSRuntime js, PreferenceSync sync)
+public sealed class UiStore(IJSRuntime js)
 {
     public const string LastOptions = "poredomedia:options";
     public const string Recipes = "poredomedia:recipes";
@@ -41,10 +40,6 @@ public sealed class UiStore(IJSRuntime js, PreferenceSync sync)
         }
     }
 
-    public async ValueTask WriteAsync<T>(string key, T value, JsonTypeInfo<T> type)
-    {
+    public async ValueTask WriteAsync<T>(string key, T value, JsonTypeInfo<T> type) =>
         await js.InvokeVoidAsync("poMedia.write", key, JsonSerializer.Serialize(value, type));
-        if (PreferenceSync.IsSynced(key))
-            sync.Schedule();
-    }
 }

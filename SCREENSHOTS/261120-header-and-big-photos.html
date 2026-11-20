@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Header and big photos</title>
+<style>
+  :root { --bg:#f4f5f9; --surface:#fff; --s2:#eef0f6; --border:#d9dce6; --text:#1c1f2a; --muted:#5b6070; --accent:#4f46e5; --soft:#e8e6fd; --danger:#c0262d; }
+  body { margin:0; padding:24px; background:var(--bg); font:14px/1.4 Inter, system-ui, sans-serif; color:var(--text); }
+  h1 { font-size:20px; margin:0 0 16px; }
+  .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .col { width:800px; }
+  .tag { font-weight:700; margin:0 0 6px; }
+  .tag.before { color:var(--danger); } .tag.after { color:#15803d; }
+  .frame { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; height:56px; padding:0 16px; border-bottom:1px solid var(--border); }
+  .title { font:600 18px "Space Grotesk", system-ui; white-space:nowrap; }
+  nav { display:flex; gap:4px; flex-grow:1; min-width:0; }
+  nav a { height:40px; display:inline-flex; align-items:center; gap:6px; padding:0 12px; border-radius:999px; color:var(--muted); white-space:nowrap; text-decoration:none; }
+  nav a.on { background:var(--soft); color:var(--accent); font-weight:600; }
+  .icons nav a { width:40px; padding:0; justify-content:center; }
+  .actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .circle { width:40px; height:40px; border-radius:50%; border:1px solid var(--border); background:var(--s2); display:inline-flex; align-items:center; justify-content:center; }
+  .email { color:var(--muted); font-size:13px; }
+  .before .title { min-width:0; overflow:hidden; max-width:130px; }
+  .body { padding:16px; }
+  .alert { background:var(--danger); color:#fff; padding:12px 16px; border-radius:4px; }
+  .status { color:var(--muted); }
+  .bar { height:6px; background:var(--s2); border-radius:3px; margin-top:8px; } .bar i { display:block; height:100%; width:45%; background:var(--accent); border-radius:3px; }
+  .notes { margin-top:10px; padding-left:18px; color:var(--muted); }
+</style>
+</head>
+<body>
+<h1>Create page at 800 px: header and a 14 MB phone photo</h1>
+<div class="row">
+  <div class="col">
+    <p class="tag before">BEFORE</p>
+    <div class="frame before">
+      <header>
+        <span class="title">PoRedoMedia</span>
+        <nav><a class="on">✦ Create</a><a>▤ Create Movie</a><a>▥ Comic-ify</a><a>▧ Library</a></nav>
+        <div class="actions" style="margin-left:-150px"><span class="circle">⟲</span><span class="email">someone@example.com</span><span class="circle">⚙</span></div>
+      </header>
+      <div class="body"><div class="alert">ⓘ Images can be up to 10 MB.</div></div>
+    </div>
+    <ul class="notes"><li>Labels overflow the nav and run under the email.</li><li>The title is squeezed to "PoRedoMed".</li><li>A photo from the phone camera is refused.</li></ul>
+  </div>
+  <div class="col">
+    <p class="tag after">AFTER</p>
+    <div class="frame icons">
+      <header>
+        <span class="title">PoRedoMedia</span>
+        <nav><a class="on" title="Create">✦</a><a title="Create Movie">▤</a><a title="Comic-ify">▥</a><a title="Library">▧</a></nav>
+        <div class="actions"><span class="circle">⟲</span><span class="email">someone@example.com</span><span class="circle">⚙</span></div>
+      </header>
+      <div class="body"><div class="status">Making the photo small enough to send…</div><div class="bar"><i></i></div></div>
+    </div>
+    <ul class="notes"><li>720–1100 px: links show icons only (labels kept for screen readers); over 1100 px unchanged.</li><li>The title never shrinks.</li><li>Photos over 10 MB become a JPEG ≤ 4096 px in the browser, then upload. GIFs are left alone.</li></ul>
+  </div>
+</div>
+</body>
+</html>

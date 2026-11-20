@@ -1,7 +1,6 @@
 @* Create Movie's settings, in a panel at the right: draft pictures, the monthly budget and what
    has been spent, advanced controls and the video's size. Every change is saved as it is made. *@
 @inject MovieStore Store
-@inject AppSettings Switches
 
 <div class="mv-settings-shade" @onclick="Close"></div>
 <aside class="mv-settings" aria-label="Movie settings">
@@ -46,12 +45,6 @@
         <strong>This month, every movie: @MovieDialogs.Money(Store.Prefs.MonthSpent)</strong>
     </div>
 
-    <h3 class="mv-section">Controls</h3>
-    <div class="mv-row">
-        <RadzenSwitch Name="mv-set-advanced" Value="@Store.Advanced" Change="AdvancedAsync" />
-        <RadzenLabel Text="Advanced controls" Component="mv-set-advanced"
-                     title="Shows the controls most movies never need: the topic and anything-else boxes for the narrator; Remove unused media in the … menu; designing a host and the outro's length under Channel & intro; any accent colour; each teaser's moments and framing; a scheduled publish date; and 4K or 60 fps video, just below. Turned off, the video size goes back to 1080p at 30 fps; anything already set away from the standard keeps its control in view." />
-    </div>
     @if (Store.Advanced && Store.Config is { } config)
     {
         <div class="mv-field">
@@ -70,12 +63,4 @@
     [Parameter] public EventCallback Close { get; set; }
 
     protected override async Task OnInitializedAsync() => await Store.RefreshPrefsAsync();
-
-    // A hidden choice must not change what is made: with advanced controls off, the video is the standard size again.
-    private async Task AdvancedAsync(bool on)
-    {
-        await Switches.SetAsync(AppSettings.MovieAdvanced, on);
-        if (!on && Store.Prefs.ExportPreset != "Hd30")
-            await Store.SavePrefsAsync(Store.Prefs with { ExportPreset = "Hd30" });
-    }
 }

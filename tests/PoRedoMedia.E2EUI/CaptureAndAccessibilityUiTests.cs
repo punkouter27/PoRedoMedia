@@ -80,49 +80,6 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Share", Exact = true })).ToBeVisibleAsync();
         await ScanAsync(page, "gallery");
 
-        await page.GotoAsync(BaseUrl + "/settings");
-        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Advanced" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        await ScanAsync(page, "settings");
-
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
-    }
-
-    /// <summary>
-    /// Runs the real on-device vision model in the browser, which downloads about 230 MB the first
-    /// time. Opt in with E2E_LOCAL_AI=1; otherwise it is reported as skipped.
-    /// </summary>
-    [LocalAiFact]
-    public async Task The_on_device_model_describes_the_picture_and_the_run_completes()
-    {
-        var page = await SignedInPageAsync("/settings", "poredomedia:adv:device-ai", "poredomedia:adv:costs");
-        var log = new List<string>();
-        page.Console += (_, m) => { if (m.Type is "error" or "warning") log.Add($"{m.Type}: {m.Text}"); };
-
-        // Local first: once the model is in the browser, Create uses it without being asked.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Get the model ready" }).ClickAsync(new() { Timeout = 30_000 });
-        await Assertions.Expect(page.GetByText("The on-device model is ready")).ToBeVisibleAsync(new() { Timeout = 600_000 });
-        await page.GotoAsync(BaseUrl + "/");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Use the camera" }).ClickAsync(new() { Timeout = 30_000 });
-        await page.GetByRole(AriaRole.Button, new() { Name = "Take the photo" }).ClickAsync();
-        await page.Locator("[data-fn=MemeCaption] input").CheckAsync(new() { Timeout = 30_000 });
-
-        await Assertions.Expect(page.GetByText("Estimated cost: $0.00")).ToBeVisibleAsync();
-        await page.GetByRole(AriaRole.Button, new() { Name = "Run", Exact = true }).ClickAsync();
-
-        // Either the run finishes or the page shows why it could not; both end the wait.
-        var outcome = page.Locator(".create-page .rz-alert").First;
-        await outcome.WaitForAsync(new() { Timeout = 600_000 });
-        var shown = await outcome.InnerTextAsync();
-        Assert.True(shown.Contains("Done. The results are in your gallery."), $"Shown: {shown}. Console: {string.Join(" | ", log.TakeLast(8))}");
-        await Assertions.Expect(page.GetByText("Picture described: On device")).ToBeVisibleAsync();
-    }
-}
-
-public sealed class LocalAiFactAttribute : FactAttribute
-{
-    public LocalAiFactAttribute()
-    {
-        var live = new LiveServerFactAttribute();
-        Skip = live.Skip ?? (Environment.GetEnvironmentVariable("E2E_LOCAL_AI") == "1" ? null : "Set E2E_LOCAL_AI=1 to run the on-device model (downloads about 230 MB).");
     }
 }

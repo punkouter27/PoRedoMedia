@@ -55,6 +55,70 @@
     color: var(--po-accent);
 }
 
+/* The email opens a small menu holding Sign out. */
+.account-menu {
+    position: relative;
+}
+
+.account-menu > summary {
+    display: block;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--po-radius-pill);
+    cursor: pointer;
+    list-style: none;
+}
+
+.account-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.account-menu > summary::after {
+    content: " ▾";
+}
+
+.account-menu > summary:hover,
+.account-menu[open] > summary {
+    background: var(--po-surface-2);
+    color: var(--po-text);
+}
+
+.account-menu__panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    z-index: calc(var(--po-z-header) + 1);
+    padding: 0.5rem;
+    background: var(--po-surface);
+    border: 1px solid var(--po-border);
+    border-radius: var(--po-radius-sm, 8px);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+    white-space: nowrap;
+}
+
+/* The name never gives way to the links; the links give way instead (below). */
+.po-header__title {
+    flex-shrink: 0;
+}
+
+/* Between phone and wide, the four labels and the email do not both fit: the links keep their icons and drop the
+   words from view (screen readers still read them, and the tab bar takes over on phones). */
+@media (max-width: 1100px) {
+    .po-header ::deep .shell-nav a {
+        padding: 0;
+        width: 40px;
+        justify-content: center;
+    }
+
+    .po-header ::deep .shell-nav a span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
 @media (max-width: 720px) {
     .po-header ::deep .shell-nav,
     .po-header ::deep .shell-runs {

@@ -20,7 +20,6 @@ public sealed class NavigationUiTests : UiTestBase
         ("/", "Create"),
         ("/library", "Library"),
         ("/movie", "Create Movie"),
-        ("/settings", "Settings"),
     ];
 
     [LiveServerFact]
@@ -53,8 +52,6 @@ public sealed class NavigationUiTests : UiTestBase
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = heading, Level = 1, Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         }
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Settings", Exact = true }).ClickAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Settings", Level = 1 })).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Link, new() { Name = "PoRedoMedia" }).ClickAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Create", Level = 1 })).ToBeVisibleAsync();
 

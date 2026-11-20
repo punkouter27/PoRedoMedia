@@ -1,6 +1,8 @@
 @* The Po shell header, on every page signed in or out (MainLayout and BareLayout): the app's name top-left, then on
-   wide screens the places to go, and top-right the signed-in email (or Sign in) and the Settings gear. *@
+   wide screens the places to go, and top-right the signed-in email (or Sign in). There is no Settings gear (the owner's
+   call, 2026-11-20: the switches are fixed in Services/AppSettings); Sign out is in a small menu under the email. *@
 @inject NavigationManager Navigation
+@inject MediaApi Media
 
 <header class="po-header">
     <a class="po-header__title" href="/">PoRedoMedia</a>
@@ -9,8 +11,12 @@
             <ShellNav Label="Main" Class="shell-nav" />
             <div class="po-header__actions">
                 <RunsButton Class="shell-runs" />
-                <span class="po-header__email" title="@AccountMenu.Email(context.User)">@AccountMenu.Email(context.User)</span>
-                <SettingsButton />
+                <details class="account-menu">
+                    <summary class="po-header__email" title="@AccountMenu.Email(context.User)">@AccountMenu.Email(context.User)</summary>
+                    <div class="account-menu__panel">
+                        <button type="button" class="po-link-btn outlined small" disabled="@_leaving" @onclick="SignOutAsync">@(_leaving ? "Signing out…" : "Sign out")</button>
+                    </div>
+                </details>
             </div>
             <RunNotifier />
         </Authorized>
@@ -20,12 +26,28 @@
                 {
                     <a class="po-link-btn filled small" href="login">Sign in</a>
                 }
-                <SettingsButton />
             </div>
         </NotAuthorized>
     </AuthorizeView>
 </header>
 
 @code {
+    private bool _leaving;
+
     private bool OnLogin => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("login", StringComparison.OrdinalIgnoreCase);
+
+    private async Task SignOutAsync()
+    {
+        _leaving = true;
+        try
+        {
+            await Media.SignOutAsync();
+        }
+        catch (HttpRequestException)
+        {
+            // Offline: the cookie stays, and /login will send a signed-in user back in.
+        }
+
+        Navigation.NavigateTo("login", forceLoad: true);
+    }
 }

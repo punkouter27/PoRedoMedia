@@ -173,7 +173,6 @@
     {
         Tracker.Changed += OnRunChanged;
         Tracker.Finished += OnRunFinished;
-        Settings.Changed += OnRunChanged;
         _keys = Keys.Register(OnKeyAsync);
 
         var config = await Config.GetAsync();
@@ -384,7 +383,6 @@
     {
         Tracker.Changed -= OnRunChanged;
         Tracker.Finished -= OnRunFinished;
-        Settings.Changed -= OnRunChanged;
         _keys?.Dispose();
     }
 }

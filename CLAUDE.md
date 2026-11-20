@@ -41,7 +41,7 @@ storage, AI providers (`Common/Ai`, including the video vision and speech client
 decode/encode, on SkiaSharp). Exports of a result live under `/api/media/{id}/export/{gif|social|roast}`
 (`social?aspect=9x16|1x1|16x9` re-frames a video on a blurred fill; gif and social are made once by a POST that
 costs a run, then kept beside the video). `Features/Preferences` serves `GET/PUT /api/preferences` (one per-user
-string map, 16 KB cap, not yet read by the client).
+string map, 16 KB cap; the client stopped calling it when Settings went, 2026-11-20).
 `Configuration/FunctionRegistration.AddFunctions` registers AI providers and run steps.
 
 **Run pipeline** (`Features/Runs/`). `POST /api/runs` validates with `FunctionStack.Validate`, checks each function
@@ -88,8 +88,9 @@ Modes: fake auth via `X-Fake-User` (Dev/Test), cookie-only (throws in Production
 **Shell (Po web standard, 2026-11-18).** Every page, signed in or out, has one header, `Layout/PoHeader` (`.po-header`, in
 `MainLayout` and in `BareLayout` above the sign-in card): the app name top-left (`.po-header__title`), the places to go
 (`ShellNav`) on wide screens, and top-right the signed-in account's **email** (`.po-header__email`, from the email or
-preferred_username claim, `AccountMenu.Email`; the server serializes every claim to the client for this), or a Sign in
-link when signed out, then the Settings gear (`Layout/SettingsButton`, `.po-header__settings`). `css/po-tokens.css`,
+preferred_username claim, `AccountMenu.Email`; the server serializes every claim to the client for this), which opens a
+small menu with Sign out (`.account-menu`), or a Sign in link when signed out. **No Settings gear** (owner's call, 2026-11-20,
+an approved exception to the fleet's gear corner). `css/po-tokens.css`,
 `fonts/`, `js/po-devwindow.js`, `js/po-dev.js` and `po-dev.html` are the Po kit, byte-identical in every Po app: never
 edit them here. Light and dark follow the device only (`prefers-color-scheme` picks Radzen's material or material-dark
 sheet in `App.razor`; no theme switch); this app's own CSS variables in `app.css` are aliases of the `--po-*` tokens
@@ -97,14 +98,13 @@ sheet in `App.razor`; no theme switch); this app's own CSS variables in `app.css
 `.po-badge` statuses. Pressing Tab while nothing has focus opens `/po-dev.html`, a developer window that reads
 `/health/live` (its `X-Commit` header) and `/api/diag/status` (the same report as `/api/diag`).
 
-**Settings.** `/settings` (anonymous-capable; the header's gear opens it at every width, signed in or out) holds sound plus the
-Advanced switches in `Client/Services/AppSettings` (On-device AI, Recipes, Cost estimates, Visual
-effects). Every switch starts **off**, so the default app is the simple one; a switch
-only hides UI, never access. Switches live in `localStorage` (`poredomedia:adv:*`, `poredomedia:fx`) and are read synchronously
-through in-process JS. Signed in, `Services/PreferenceSync` pulls `/api/preferences` once from the layout (the account
-wins) and PUTs the whole synced set (`poredomedia:adv:*`, `poredomedia:fx`, `poredomedia:sfx:*`, `poredomedia:recipes`) a second after any change; recipes
-are read through `RecipeBook`, which skips functions that no longer exist. Every function the server can run is always offered. E2E tests turn switches on with
-`SignedInPageAsync(path, "poredomedia:adv:device-ai", ...)`.
+**Fixed switches** (2026-11-20; there is no `/settings` page). `Client/Services/AppSettings` holds the owner's defaults:
+Cost estimates, Visual effects and Movie advanced controls **on**; On-device AI and Recipes **off**; interface sounds muted
+(js/sfx.js's default). A switch only hides UI, never access. An off switch is still turned on by `on` under its key in
+`localStorage` (`poredomedia:adv:*`), read synchronously through in-process JS; E2E tests use that through
+`SignedInPageAsync(path, "poredomedia:adv:device-ai", ...)`. Effects run unless `poredomedia:fx` is `off`. Nothing syncs to the
+account any more: `/api/preferences` still answers but the client no longer calls it. Recipes are read through `RecipeBook`,
+which skips functions that no longer exist. Every function the server can run is always offered.
 
 **No captions on videos** (2026-11-17, the owner's call). Nothing writes what is said over a video: the Auto-captions
 function (and its SRT export) is gone, a Create Movie render burns in only each beat's strap (`Render/AssStrap`), and
@@ -137,7 +137,7 @@ pages take keys with `Shortcuts.Register` and dispose the handle. Components tha
 the glass one in `js/backdrop.js` when it can run; particles; shader reveal `dissolve.js` with the pixel-flow
 `morph.js` as its fallback; run orb; confetti and download/share sparks; roast concert; track waveform
 `waveform.js`; Library card tilt `tilt.js`); `sfx.js` synthesises every sound, in three themes (`poredomedia:sfx:theme`). Both
-are off until switched on in Settings (`poredomedia:fx = 'on'`, `poredomedia:sfx:muted = '0'`), and effects stay off for reduced
+are fixed by `AppSettings`: effects on (unless `poredomedia:fx = 'off'`), sounds muted (unless `poredomedia:sfx:muted = '0'`), and effects stay off for reduced
 motion. Elements that exist only for an effect carry `.po-fx-only`; effects that need no element listen on the
 document instead of being called from pages. Blazor never awaits an effect: the .NET-facing entry points
 (`poMorph.start`, `poConfetti.burst`, `poSfx.runEnded`) return nothing. On-device models (Florence-2 vision, Whisper

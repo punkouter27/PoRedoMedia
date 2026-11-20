@@ -94,7 +94,7 @@ public abstract class UiTestBase : IAsyncLifetime
     }
 
     /// <summary>A page signed in as a fresh developer user, so tests never see each other's media.</summary>
-    /// <param name="switches">Settings -> Advanced switches to turn on first, by key (Client/Services/AppSettings).</param>
+    /// <param name="switches">Hidden switches to turn on first, by key (Client/Services/AppSettings; storage "on" overrides an off default).</param>
     protected async Task<IPage> SignedInPageAsync(string path, params string[] switches)
     {
         var page = await NewTrackedPageAsync();

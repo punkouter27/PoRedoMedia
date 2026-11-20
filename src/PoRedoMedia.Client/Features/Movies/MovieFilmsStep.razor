@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject MovieStore Store
 @inject MovieApi Api
+@inject MediaApi Media
 @inject DialogService Dialogs
 @inject IJSRuntime JS
 @inject RunApi Runs
@@ -41,22 +42,54 @@ var info = Store.ShowInfo;
             </div>
         </div>
 
-        <div class="mv-row mv-between">
-            <strong>My footage</strong>
+        @* The one thing a movie cannot be made without, so it says so and its upload is open until there is a clip. *@
+        <div class="mv-row mv-between" id="mv-clips">
+            <span class="mv-row">
+                <strong>Your video clips</strong>
+                @if (Store.FilmList.Count == 0)
+                {
+                    <span class="mv-required">Required</span>
+                }
+                else
+                {
+                    <RadzenIcon Icon="check_circle" class="mv-ok" aria-label="Done" />
+                }
+            </span>
             <span class="mv-row">
             @if (Store.FilmList.Count > 1)
             {
                 <RadzenButton Text="Remove all" Icon="clear_all" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="Store.IsWorking" Click="@(() => { Store.FilmList.Clear(); Store.Notify(); })"
-                              title="Take every film off this list. They stay in your Library; add them again with Add films." />
+                              title="Take every clip off this list. They stay in your Library; add them again with Add more clips." />
             }
-            <RadzenButton Text="@(_adding ? "Done" : "Add films")" Icon="@(_adding ? "check" : "add")" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => _adding = !_adding)"
-                          title="Add films (2 seconds to 1 minute each): pick or drop several videos at once to upload them, or click ones already in your Library." />
+            @if (Store.FilmList.Count > 0)
+            {
+                <RadzenButton Text="@(_adding ? "Done" : "Add more clips")" Icon="@(_adding ? "check" : "add")" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => _adding = !_adding)"
+                              title="Upload more videos (2 seconds to 1 minute each), or pick ones already in your Library." />
+            }
             </span>
         </div>
-        @if (_adding)
+        @if (Store.FilmList.Count == 0 || _adding)
         {
-            <div class="mv-add-films">
-                <MediaPicker ValueChanged="AddFilm" Multiple="true" Accept=".mp4,.mov,.webm" BatchDone="@(() => { _adding = Store.FilmList.Count == 0; Store.Notify(); })" />
+            <div class="mv-add-films @(Store.FilmList.Count == 0 ? "mv-needed" : null)">
+                @if (Store.FilmList.Count == 0)
+                {
+                    <p class="mv-add-lead">A movie is made from your own videos. Upload at least one clip (up to a minute each) to continue.</p>
+                }
+                <MediaPicker ValueChanged="AddFilm" Multiple="true" Accept=".mp4,.mov,.webm" BatchDone="@(() => { _adding = false; Store.Notify(); })" />
+                @if (LibraryClips.Count > 0)
+                {
+                    <strong class="mv-add-or">Or pick from your Library</strong>
+                    <div class="mv-pick">
+                        @foreach (var clip in LibraryClips)
+                        {
+                            var media = clip;
+                            <button type="button" class="mv-pick-card" disabled="@Store.IsWorking" @onclick="@(() => AddFilm(media))" title="@($"Add {media.Title}")">
+                                <img src="@media.ThumbUrl" alt="" loading="lazy" />
+                                <span>@media.Title</span>
+                            </button>
+                        }
+                    </div>
+                }
             </div>
         }
         @if (Store.FilmList.Count > 0)
@@ -65,10 +98,6 @@ var info = Store.ShowInfo;
             <span class="@(total > MaxMovie ? "mv-caution" : "mv-quiet")" title="Your films end to end. A movie can be up to 10 minutes, and each film up to a minute.">
                 @($"{(Store.FilmList.Count == 1 ? "1 film" : $"{Store.FilmList.Count} films")} · {total:m\\:ss} of 10:00")@(total > MaxMovie ? ": too long for one movie. Leave some out." : "")
             </span>
-        }
-        @if (Store.FilmList.Count == 0 && !_adding)
-        {
-            <p class="mv-quiet">No films yet. A movie is your own videos, between the series' intro and outro: add at least one.</p>
         }
         <FieldErrors Errors="_errors" For="Films" />
         @foreach (var film in Store.FilmList)
@@ -135,8 +164,14 @@ var info = Store.ShowInfo;
         }
 
         <div class="mv-pinned">
+            @if (Store.FilmList.Count == 0)
+            {
+                <a class="mv-need-clips" href="movie#mv-clips">
+                    <RadzenIcon Icon="arrow_upward" aria-hidden="true" />Add at least one video clip under Your video clips to continue.
+                </a>
+            }
             <RadzenButton Text="Make the video from my films" Icon="movie" ButtonStyle="ButtonStyle.Primary"
-                          Disabled="@(_making || Store.IsWorking || !config.Ffmpeg || TimeSpan.FromTicks(Store.FilmList.Sum(f => f.Length.Ticks)) > MaxMovie)" IsBusy="_making" Click="MakeAsync" class="mv-wide"
+                          Disabled="@(_making || Store.IsWorking || !config.Ffmpeg || Store.FilmList.Count == 0 || TimeSpan.FromTicks(Store.FilmList.Sum(f => f.Length.Ticks)) > MaxMovie)" IsBusy="_making" Click="MakeAsync" class="mv-wide"
                           title="Make the whole video from the films above in one go: each film is watched, given a voice-over that fits its length, put through Meme-ify, and the films are joined between the series' intro and outro, rendered and put in your Library. You are told what it does and costs first." />
         </div>
     </div>
@@ -180,7 +215,7 @@ var info = Store.ShowInfo;
             <div class="mv-empty">
                 <RadzenIcon Icon="movie_filter" aria-hidden="true" />
                 <strong>No movies yet.</strong>
-                <span>Add a few films from your Library on the left and press <em>Make the video from my films</em>. Movies you make are kept here to open again.</span>
+                <span>First upload or pick at least one video clip under <em>Your video clips</em>, then press <em>Make the video from my films</em>. Movies you make are kept here to open again.</span>
             </div>
         }
     </div>
@@ -192,7 +227,19 @@ var info = Store.ShowInfo;
     private bool _adding;
     private readonly HashSet<Guid> _options = [];
 
+    /// <summary>The Library's videos, newest first, that can be added with one tap.</summary>
+    private List<MediaDto> _libraryVideos = [];
+
+    /// <summary>How many Library videos are offered beside the upload; the rest are a scroll of the Library away.</summary>
+    private const int LibraryOffered = 8;
+
+    private List<MediaDto> LibraryClips =>
+        [.. _libraryVideos.Where(m => Store.FilmList.All(f => f.Media.Id != m.Id)).Take(LibraryOffered)];
+
     protected override void OnInitialized() => Store.Changed += OnChanged;
+
+    protected override async Task OnInitializedAsync() =>
+        _libraryVideos = [.. (await Media.ListAsync()).Where(m => m.Kind == MediaKind.Video && m.DurationSeconds is null or <= 62)];
 
     private void OnChanged()
     {

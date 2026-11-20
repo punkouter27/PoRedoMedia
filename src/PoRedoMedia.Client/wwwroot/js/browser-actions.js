@@ -130,6 +130,37 @@ window.poMedia = {
         input.dispatchEvent(new Event('change', { bubbles: true }));
     },
 
+    // A still picture over the upload limit (a 50 MP phone photo) is redrawn as a JPEG no more than
+    // <maxSide> px on its longest edge, as the phone app does, and put back in the input in place of
+    // the original, without raising a change. Resolves to the new size in bytes, or -1 when it could
+    // not be made small enough (the server then says why).
+    async fitImage(input, index = 0, maxBytes = 10 * 1024 * 1024, maxSide = 4096) {
+        const file = input.files && input.files[index];
+        if (!file) return -1;
+        let bitmap;
+        try {
+            bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        } catch {
+            return -1;
+        }
+        const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+        for (const quality of [0.9, 0.8, 0.7]) {
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+            if (!blob || blob.size > maxBytes) continue;
+            const name = file.name.replace(/\.[^.]*$/, '') + '.jpg';
+            const transfer = new DataTransfer();
+            [...input.files].forEach((f, i) => transfer.items.add(i === index ? new File([blob], name, { type: 'image/jpeg' }) : f));
+            input.files = transfer.files;
+            return blob.size;
+        }
+        return -1;
+    },
+
     // Empties a file input, so choosing the same file again raises a change.
     clearFile(input) {
         if (input) input.value = '';

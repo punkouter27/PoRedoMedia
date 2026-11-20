@@ -33,27 +33,14 @@ public sealed class RecipesAndPreferencesTests
     }
 
     [Fact]
-    public void The_account_wins_on_sign_in_and_only_synced_keys_are_touched()
+    public void The_fixed_switches_are_the_owners_defaults()
     {
-        var local = new Dictionary<string, string>
-        {
-            ["poredomedia:adv:costs"] = "on",
-            ["poredomedia:adv:recipes"] = "on",
-            ["poredomedia:fx"] = "on",
-            ["poredomedia:options"] = "{}",
-            ["poredomedia:theme"] = "dark",
-        };
-        var account = new Dictionary<string, string> { ["poredomedia:adv:costs"] = "on", ["poredomedia:sfx:muted"] = "0", ["poredomedia:recipes"] = "{}", ["other"] = "x" };
-
-        var changes = PreferenceSync.Changes(local, account);
-
-        Assert.Equal(new Dictionary<string, string?>
-        {
-            ["poredomedia:sfx:muted"] = "0",
-            ["poredomedia:recipes"] = "{}",
-            ["poredomedia:adv:recipes"] = null,
-            ["poredomedia:fx"] = null,
-        }, changes);
+        // No Settings page (2026-11-20): these are what every user gets.
+        Assert.True(AppSettings.CostEstimates.On);
+        Assert.True(AppSettings.VisualEffects.On);
+        Assert.True(AppSettings.MovieAdvanced.On);
+        Assert.False(AppSettings.OnDeviceAi.On);
+        Assert.False(AppSettings.Recipes.On);
     }
 
     [Fact]

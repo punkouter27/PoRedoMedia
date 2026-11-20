@@ -17,50 +17,6 @@
     transform: scale(1.01);
 }
 
-/* One row that scrolls sideways, so recent media never pushes the page down. */
-.picker-recent {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 132px;
-    gap: 0.6rem;
-    overflow-x: auto;
-    padding-bottom: 0.35rem;
-    scroll-snap-type: x proximity;
-    overscroll-behavior-x: contain;
-}
-
-.picker-recent > * {
-    scroll-snap-align: start;
-}
-
-.picker-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.5rem;
-    background: var(--rz-base-background-color);
-    border: 1px solid var(--po-line);
-    border-radius: var(--po-radius-sm);
-    font: inherit;
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.picker-card img {
-    width: 100%;
-    height: 90px;
-    object-fit: cover;
-    border-radius: 4px;
-    background: var(--rz-base-200);
-}
-
-.picker-card span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .picker-camera {
     max-width: 100%;
     max-height: 320px;
@@ -83,17 +39,3 @@
     }
 }
 
-.picker-first {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-    padding: 0.75rem 1rem;
-    border: 1px dashed var(--po-line);
-    border-radius: var(--po-radius-sm);
-    font-size: 0.9rem;
-    color: var(--rz-text-secondary-color);
-}
-
-.picker-first ::deep .rzi {
-    color: var(--rz-primary);
-}

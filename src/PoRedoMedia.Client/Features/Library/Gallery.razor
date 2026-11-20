@@ -188,7 +188,6 @@
     {
         var added = await Dialogs.OpenAsync<MediaPicker>("Add media", new Dictionary<string, object?>
         {
-            [nameof(MediaPicker.ShowRecent)] = false,
             [nameof(MediaPicker.ValueChanged)] = EventCallback.Factory.Create<MediaDto>(this, media => Dialogs.Close(media)),
         }, new DialogOptions { Width = "min(42rem, calc(100vw - 1rem))" });
         if (added is MediaDto media)
