@@ -25,8 +25,10 @@ public static class HealthChecks
             ["google-ai"] = ("service", "Google AI (Gemini)", "Looks at pictures, draws images, makes AI video and music."),
             ["azure-openai"] = ("service", "Azure OpenAI", "Writes captions, roasts and movie scripts; a second opinion for pictures."),
             ["ai-foundry"] = ("service", "Azure AI Foundry", "Voices, speech-to-text and FLUX pictures."),
-            ["key-vault"] = ("service", "Key Vault", "Where the deployed app's keys are kept; read once at startup."),
+            ["key-vault"] = ("service", "Key Vault", "Where the deployed app's keys are kept; read at startup."),
             ["sign-in"] = ("service", "Microsoft sign-in", "Signs people in with their Microsoft account."),
+            ["app-insights"] = ("service", "Application Insights", "Collects errors and timings from the server, when it is set up."),
+            ["pexels"] = ("service", "Pexels stock photos", "Stock photographs for Create Movie, when it is set up."),
             ["youtube"] = ("service", "YouTube publishing", "Publishes finished movies to a connected YouTube channel."),
             ["tiktok"] = ("service", "TikTok publishing", "Sends finished movies to a connected TikTok account."),
         };
@@ -34,16 +36,19 @@ public static class HealthChecks
     public static IServiceCollection AddPoHealthChecks(this IServiceCollection services)
     {
         var quick = TimeSpan.FromSeconds(10);
+        services.AddServiceProbes();
         services.AddHealthChecks()
             .AddCheck("server", () => HealthCheckResult.Healthy("Answering."))
             .AddCheck<StorageHealthCheck>("storage", HealthStatus.Unhealthy, timeout: quick)
             .AddCheck<MovieFilesHealthCheck>("movie-files", HealthStatus.Degraded, timeout: quick)
             .AddCheck<FfmpegHealthCheck>("ffmpeg", HealthStatus.Degraded, timeout: quick)
-            .AddTypeActivatedCheck<AiProviderHealthCheck>("google-ai", HealthStatus.Degraded, [], quick, args: [new[] { ConfigKeys.GoogleApiKey }])
-            .AddTypeActivatedCheck<AiProviderHealthCheck>("azure-openai", HealthStatus.Degraded, [], quick, args: [new[] { ConfigKeys.OpenAiEndpoint, ConfigKeys.OpenAiKey }])
-            .AddTypeActivatedCheck<AiProviderHealthCheck>("ai-foundry", HealthStatus.Degraded, [], quick, args: [new[] { ConfigKeys.AiFoundryEndpoint, ConfigKeys.AiFoundryKey }])
+            .AddCheck<GoogleAiHealthCheck>("google-ai", HealthStatus.Degraded, timeout: quick)
+            .AddTypeActivatedCheck<AzureAiResourceHealthCheck>("azure-openai", HealthStatus.Degraded, [], quick, args: [ConfigKeys.OpenAiEndpoint, ConfigKeys.OpenAiKey])
+            .AddTypeActivatedCheck<AzureAiResourceHealthCheck>("ai-foundry", HealthStatus.Degraded, [], quick, args: [ConfigKeys.AiFoundryEndpoint, ConfigKeys.AiFoundryKey])
             .AddCheck<KeyVaultHealthCheck>("key-vault", HealthStatus.Degraded, timeout: quick)
             .AddCheck<SignInHealthCheck>("sign-in", HealthStatus.Degraded, timeout: quick)
+            .AddCheck<AppInsightsHealthCheck>("app-insights", HealthStatus.Degraded, timeout: quick)
+            .AddCheck<PexelsHealthCheck>("pexels", HealthStatus.Degraded, timeout: quick)
             .AddTypeActivatedCheck<PublishingHealthCheck>("youtube", HealthStatus.Degraded, [], quick, args: [PoRedoMedia.Api.Features.Publishing.Platform.YouTube])
             .AddTypeActivatedCheck<PublishingHealthCheck>("tiktok", HealthStatus.Degraded, [], quick, args: [PoRedoMedia.Api.Features.Publishing.Platform.TikTok]);
         return services;
@@ -103,46 +108,23 @@ public sealed class FfmpegHealthCheck(FFmpegProcess ffmpeg) : IHealthCheck
 }
 
 /// <summary>
-/// An AI provider has its settings. It is not called: every call costs money, and the functions that need it are
-/// simply not offered without it. The mock providers (Test) count as present.
+/// A publishing site: with its app keys set, its sign-in server is reached (each user connects their own account from
+/// the Publish dialog, so nothing is uploaded here). The stand-in publishers (Test) are not called.
 /// </summary>
-public sealed class AiProviderHealthCheck(IConfiguration configuration, IHostEnvironment environment, string[] keys) : IHealthCheck
-{
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
-        Task.FromResult(MockAi.IsEnabled(configuration, environment)
-            ? HealthCheckResult.Healthy("Stand-in (mock) provider in use.")
-            : keys.All(k => !string.IsNullOrWhiteSpace(configuration[k]))
-                ? HealthCheckResult.Healthy("Configured.")
-                : new HealthCheckResult(context.Registration.FailureStatus, "Not configured, so the functions that need it are not offered."));
-}
-
-/// <summary>Whether the deployed app's secrets were read from Key Vault at startup (see <see cref="KeyVaultExtensions"/>).</summary>
-public sealed class KeyVaultHealthCheck : IHealthCheck
-{
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
-        Task.FromResult(KeyVaultExtensions.Loaded switch
-        {
-            true => HealthCheckResult.Healthy("Secrets were read at startup."),
-            false => new HealthCheckResult(context.Registration.FailureStatus, "Could not be read at startup; running on local settings."),
-            null => HealthCheckResult.Healthy("Not used here: settings come from this server's own configuration."),
-        });
-}
-
-/// <summary>Microsoft (Entra) sign-in has its app registration. Without it only developer sign-in exists (Dev/Test).</summary>
-public sealed class SignInHealthCheck(IConfiguration configuration) : IHealthCheck
-{
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
-        Task.FromResult(!string.IsNullOrWhiteSpace(configuration[ConfigKeys.AzureAdClientId])
-            ? HealthCheckResult.Healthy("Configured.")
-            : new HealthCheckResult(context.Registration.FailureStatus, "Not configured: only developer sign-in is available."));
-}
-
-/// <summary>A publishing site has its app keys (it is not called: connecting is per user, from the Publish dialog).</summary>
 public sealed class PublishingHealthCheck(PoRedoMedia.Api.Features.Publishing.IYouTubePublisher youTube, PoRedoMedia.Api.Features.Publishing.ITikTokPublisher tikTok,
-    PoRedoMedia.Api.Features.Publishing.Platform platform) : IHealthCheck
+    IHttpClientFactory http, PoRedoMedia.Api.Features.Publishing.Platform platform) : IHealthCheck
 {
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
-        Task.FromResult((platform == PoRedoMedia.Api.Features.Publishing.Platform.YouTube ? youTube.Configured : tikTok.Configured)
-            ? HealthCheckResult.Healthy("Configured; each user connects their own account.")
-            : new HealthCheckResult(context.Registration.FailureStatus, "Not configured, so Publish does not offer it (see docs/publishing-setup.md)."));
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        var youTubeSite = platform == PoRedoMedia.Api.Features.Publishing.Platform.YouTube;
+        object publisher = youTubeSite ? youTube : tikTok;
+        if (!(youTubeSite ? youTube.Configured : tikTok.Configured))
+            return new HealthCheckResult(context.Registration.FailureStatus, "Not configured, so Publish does not offer it (see docs/publishing-setup.md).");
+        if (publisher is PoRedoMedia.Api.Features.Publishing.FakeYouTubePublisher or PoRedoMedia.Api.Features.Publishing.FakeTikTokPublisher)
+            return HealthCheckResult.Healthy("Stand-in publisher in use; nothing leaves this server.");
+
+        var url = new Uri(youTubeSite ? "https://oauth2.googleapis.com/" : "https://open.tiktokapis.com/");
+        var result = await ServiceProbe.GetAsync(http, context, url, null, anyAnswerIsHealthy: true, cancellationToken);
+        return result.Status == HealthStatus.Healthy ? HealthCheckResult.Healthy("Configured and reachable; each user connects their own account.") : result;
+    }
 }
