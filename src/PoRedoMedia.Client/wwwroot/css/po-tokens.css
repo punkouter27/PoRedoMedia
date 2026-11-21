@@ -183,12 +183,16 @@ h1, h2, h3, .po-display { font-family: var(--po-font-display); letter-spacing: -
 .po-header__settings:hover { border-color: var(--po-accent); color: var(--po-accent); }
 .po-header__settings svg { width: 20px; height: 20px; }
 
-/* ── Shell: build stamp, vYYMMDD, fixed lower-right on every page ── */
+/* ── Shell: build stamp, vYYMMDD, lower-right on every page ──
+   In the page's flow, never fixed: it is the last thing in the scrolling column, pushed to the bottom-right corner
+   when the page is short (the column is a flex column, see app.css), so it can never sit on top of content or of
+   the phone tab bar. */
 .po-version {
-  position: fixed;
-  right: max(var(--po-space-3), env(safe-area-inset-right, 0px));
-  bottom: max(var(--po-space-3), env(safe-area-inset-bottom, 0px));
-  z-index: var(--po-z-stamp);
+  display: block;
+  width: fit-content;
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin: var(--po-space-2) max(var(--po-space-3), env(safe-area-inset-right, 0px)) max(var(--po-space-3), env(safe-area-inset-bottom, 0px)) auto;
   padding: 2px 8px;
   border-radius: var(--po-radius-pill);
   background: var(--po-surface);
@@ -198,11 +202,6 @@ h1, h2, h3, .po-display { font-family: var(--po-font-display); letter-spacing: -
   font-size: var(--po-text-xs);
   line-height: 1.6;
   pointer-events: none;
-  opacity: 0.9;
-}
-/* Apps with a bottom nav on phones lift the stamp above it by setting --po-stamp-lift. */
-@media (max-width: 768px) {
-  .po-version { bottom: calc(max(var(--po-space-3), env(safe-area-inset-bottom, 0px)) + var(--po-stamp-lift, 0px)); }
 }
 
 /* ── Shell: /diag status cards ── */

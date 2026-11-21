@@ -36,12 +36,12 @@
     else
     {
         <section class="mv-fold">
-            <button type="button" class="mv-fold-head" aria-expanded="@(_branding ? "true" : "false")" @onclick="@(() => _branding = !_branding)"
+            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-fold-head" aria-expanded="@(_branding ? "true" : "false")" Click="@(() => _branding = !_branding)"
                     title="The intro and outro every movie of this series opens and ends with: channel name, look, logo, mascot and music. Set it once; it is optional.">
                 <RadzenIcon Icon="@(_branding ? "expand_less" : "expand_more")" aria-hidden="true" />
                 <strong>Channel &amp; intro</strong>
                 <span class="mv-quiet">@(Store.Kit is { ChannelName.Length: > 0 } kit ? kit.ChannelName : "Not set: movies have no intro or outro")</span>
-            </button>
+            </RadzenButton>
             @if (_branding)
             {
                 <div class="mv-fold-body"><MovieTemplateStep /></div>

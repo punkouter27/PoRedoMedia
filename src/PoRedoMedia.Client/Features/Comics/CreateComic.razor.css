@@ -12,8 +12,8 @@
 .comic-error { background: color-mix(in srgb, var(--po-danger) 14%, transparent); }
 
 ::deep .comic-compose, ::deep .comic-progress, ::deep .comic-form { display: flex; flex-direction: column; gap: 0.6rem; }
-.comic-label { font-weight: 600; }
-.comic-text {
+::deep .comic-label { font-weight: 600; }
+::deep .comic-text {
     width: 100%; min-height: 14rem; resize: vertical; box-sizing: border-box;
     font: inherit; line-height: 1.45; padding: 0.6rem 0.75rem;
 }

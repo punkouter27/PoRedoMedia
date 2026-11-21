@@ -25,6 +25,8 @@
                 </ErrorContent>
             </ErrorBoundary>
         </main>
+        @* Last in the scrolling column, so it never covers the page (po-tokens.css). *@
+        <BuildVersion />
     </RadzenBody>
     <AuthorizeView>
         <Authorized>
@@ -33,8 +35,6 @@
         </Authorized>
     </AuthorizeView>
 </RadzenLayout>
-
-<BuildVersion />
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? Auth { get; set; }

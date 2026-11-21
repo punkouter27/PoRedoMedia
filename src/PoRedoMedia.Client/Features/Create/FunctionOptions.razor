@@ -35,16 +35,16 @@
             {
                 <div class="trim" role="group" aria-label="Trim">
                     <span>Trim · @Seconds(TrimStart) – @Seconds(TrimEnd) (@Seconds(TrimEnd - TrimStart))</span>
-                    <label>
-                        <span>Start</span>
-                        <input type="range" min="0" max="@Invariant(Duration.Value)" step="0.5" value="@Invariant(TrimStart)" aria-label="Trim start"
-                               @oninput="@(e => SetTrim(Parse(e.Value) ?? 0, TrimEnd, movedStart: true))" />
-                    </label>
-                    <label>
-                        <span>End</span>
-                        <input type="range" min="0" max="@Invariant(Duration.Value)" step="0.5" value="@Invariant(TrimEnd)" aria-label="Trim end"
-                               @oninput="@(e => SetTrim(TrimStart, Parse(e.Value) ?? Duration.Value, movedStart: false))" />
-                    </label>
+                    <div class="trim-row">
+                        <RadzenLabel Text="Start" Component="trim-start" />
+                        <RadzenSlider Name="trim-start" TValue="double" Min="0" Max="@((decimal)Duration.Value)" Step="0.5" Value="@TrimStart"
+                                      Change="@(v => SetTrim(v, TrimEnd, movedStart: true))" aria-label="Trim start" aria-valuetext="@Seconds(TrimStart)" />
+                    </div>
+                    <div class="trim-row">
+                        <RadzenLabel Text="End" Component="trim-end" />
+                        <RadzenSlider Name="trim-end" TValue="double" Min="0" Max="@((decimal)Duration.Value)" Step="0.5" Value="@TrimEnd"
+                                      Change="@(v => SetTrim(TrimStart, v, movedStart: false))" aria-label="Trim end" aria-valuetext="@Seconds(TrimEnd)" />
+                    </div>
                 </div>
             }
             <RadzenSelectBar TValue="string" Value="@(Get(RunOptions.VideoAspect) is { Length: > 0 } aspect ? aspect : "original")"
@@ -116,8 +116,11 @@
                         }
                         else
                         {
-                            <label class="bulk-pick">
-                                <input type="checkbox" checked="@_bulkTicked[index]" @onchange="@(e => TickBulk(index, e.Value is true))" />
+                            @* A tap anywhere on the card ticks; the checkbox's own click does not reach the card. *@
+                            <div class="bulk-pick" @onclick="@(() => TickBulk(index, !_bulkTicked[index]))">
+                                <span class="bulk-check" @onclick:stopPropagation="true">
+                                    <RadzenCheckBox TValue="bool" Name="@($"bulk-{index}")" Value="@_bulkTicked[index]" Change="@(on => TickBulk(index, on))" AriaLabel="@name" />
+                                </span>
                                 <span class="bulk-text">
                                     <strong>@name</strong>
                                     @if (body.Length > 0)
@@ -125,7 +128,7 @@
                                         <span class="bulk-desc">@body.Replace(BulkPrompts.SubjectToken, "the subject", StringComparison.Ordinal)</span>
                                     }
                                 </span>
-                            </label>
+                            </div>
                             <span class="bulk-card-actions">
                                 <RadzenButton Icon="edit" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Base"
                                               aria-label="@($"Edit {name}")" title="Edit" Click="@(() => _bulkEditing = index)" />

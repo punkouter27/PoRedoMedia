@@ -29,7 +29,7 @@ src/PoRedoMedia.Client   Blazor WebAssembly UI (Radzen), served by the Api
 src/PoRedoMedia.Shared   wire DTOs, enums, config keys, validators (shared by Api, Client and Mobile)
 src/PoRedoMedia.Movie    Create Movie's engine (script, pictures, FFmpeg render)
 src/PoRedoMedia.Mobile   MAUI phone client (not in the .slnx; CI builds the Android target)
-tests/PoRedoMedia.Unit   97 fast tests, no I/O
+tests/PoRedoMedia.Unit   105 fast tests, no I/O
 tests/PoRedoMedia.Integration   50 tests against a throwaway Azurite (Docker) and real ffmpeg
 tests/PoRedoMedia.E2EAPI 8 in-process API contract tests
 tests/PoRedoMedia.E2EUI  15 Playwright tests against a running app

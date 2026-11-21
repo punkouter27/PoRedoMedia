@@ -67,21 +67,15 @@
     right: 0.5rem;
 }
 
-/* The native range input covers the whole picture, so dragging anywhere moves the handle and the
-   keyboard works with no script. It is invisible; the line above is what is seen. */
-.compare-range {
+/* Radzen's slider lies along the bottom edge, full width, so its handle sits right under the line. */
+.compare ::deep .rz-slider.compare-range {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    left: 0;
+    right: 0;
+    bottom: 0.9rem;
+    width: auto;
     margin: 0;
-    opacity: 0;
     cursor: ew-resize;
-}
-
-.compare:has(.compare-range:focus-visible) {
-    outline: 2px solid var(--rz-primary);
-    outline-offset: 2px;
 }
 
 @media (max-width: 900px) {

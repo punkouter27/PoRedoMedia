@@ -37,7 +37,7 @@ public sealed class CreateVideoUiTests : UiTestBase
 
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "What should happen to this video?" })).ToBeVisibleAsync(new() { Timeout = 60_000 });
         await Assertions.Expect(page.Locator("[data-fn=Restyle]")).ToHaveCountAsync(0);
-        await page.Locator("[data-fn=VideoRoast] input").CheckAsync();
+        await page.Locator("[data-fn=VideoRoast] [role=checkbox]").ClickAsync();
         await Assertions.Expect(page.Locator("[data-fn=Captions]")).ToHaveCountAsync(0);
         await Assertions.Expect(page.GetByText("Comic voice")).ToBeVisibleAsync();
         await page.GetByText("Square 1:1").ClickAsync();

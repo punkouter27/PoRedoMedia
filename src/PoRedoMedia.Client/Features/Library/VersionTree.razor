@@ -43,8 +43,8 @@
         var children = _children[item.Id].OrderBy(m => m.CreatedAt).ToList();
         var current = item.Id == Current.Id;
         <li role="treeitem" aria-selected="@(current ? "true" : "false")" aria-expanded="@(children.Count > 0 ? "true" : null)">
-            <button type="button" class="version-node @(current ? "current" : "")" aria-current="@(current ? "true" : null)"
-                    title="@item.Title" @onclick="@(() => Selected.InvokeAsync(item))">
+            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="@($"po-plain version-node {(current ? "current" : "")}")" aria-current="@(current ? "true" : null)"
+                          title="@item.Title" Click="@(() => Selected.InvokeAsync(item))">
                 @if (item.Kind == MediaKind.Audio)
                 {
                     <RadzenIcon Icon="music_note" class="version-thumb" />
@@ -54,7 +54,7 @@
                     <img class="version-thumb" src="@item.ThumbUrl" alt="" loading="lazy" />
                 }
                 <span>@MadeBy(item)</span>
-            </button>
+            </RadzenButton>
             @if (children.Count > 0 && depth < MaxDepth)
             {
                 <ul role="group">

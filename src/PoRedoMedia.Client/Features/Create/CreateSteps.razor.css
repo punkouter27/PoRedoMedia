@@ -27,7 +27,7 @@
     background: var(--rz-primary);
 }
 
-.create-steps button {
+.create-steps ::deep .rz-button.create-step {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
@@ -42,16 +42,16 @@
     cursor: pointer;
 }
 
-.create-steps button:disabled {
+.create-steps ::deep .rz-button.create-step:disabled {
     cursor: default;
 }
 
-.create-steps button:not(:disabled):hover {
+.create-steps ::deep .rz-button.create-step:not(:disabled):hover {
     border-color: var(--po-line);
     color: var(--rz-text-color);
 }
 
-.create-steps button:focus-visible {
+.create-steps ::deep .rz-button.create-step:focus-visible {
     outline: 2px solid var(--rz-primary);
     outline-offset: 2px;
 }
@@ -72,7 +72,7 @@
     font-size: 1rem;
 }
 
-.create-steps li.current button {
+.create-steps li.current ::deep .rz-button.create-step {
     color: var(--rz-primary);
     font-weight: 600;
     background: color-mix(in srgb, var(--rz-primary) 10%, transparent);
@@ -85,14 +85,14 @@
     color: var(--rz-on-primary, #fff);
 }
 
-.create-steps li.done button {
+.create-steps li.done ::deep .rz-button.create-step {
     color: var(--rz-text-color);
 }
 
 /* A phone shows the numbers, and the name of the current step only. */
 @media (max-width: 520px) {
     /* Still read out: the step's name stays its accessible name. */
-    .create-steps li:not(.current) button > span:last-child {
+    .create-steps li:not(.current) ::deep .rz-button.create-step span:last-child {
         position: absolute;
         width: 1px;
         height: 1px;
@@ -104,4 +104,13 @@
     .create-steps li + li::before {
         width: 0.75rem;
     }
+}
+
+.create-step-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }

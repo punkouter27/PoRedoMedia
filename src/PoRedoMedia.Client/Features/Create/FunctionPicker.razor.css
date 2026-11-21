@@ -27,9 +27,15 @@
     background: color-mix(in srgb, var(--rz-primary) 9%, var(--rz-base-background-color));
 }
 
+/* Not offered: quieter, but its words stay readable (>= 4.5:1), as they say why. */
 .function-tile.off {
     cursor: not-allowed;
-    opacity: 0.5;
+    border-style: dashed;
+    color: var(--rz-text-secondary-color);
+}
+
+.function-tile.off ::deep .function-icon {
+    color: var(--rz-text-secondary-color);
 }
 
 .function-tile:focus-within {
@@ -37,15 +43,11 @@
     outline-offset: 2px;
 }
 
-.function-tile input {
+.function-check {
     position: absolute;
-    top: 0.55rem;
-    right: 0.55rem;
-    width: 1.15rem;
-    height: 1.15rem;
-    margin: 0;
-    accent-color: var(--rz-primary);
-    cursor: inherit;
+    top: 0.5rem;
+    right: 0.5rem;
+    line-height: 0;
 }
 
 .function-tile ::deep .function-icon {

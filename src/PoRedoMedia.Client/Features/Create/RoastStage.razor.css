@@ -26,7 +26,7 @@
 }
 
 /* A line is a button that plays from there; it reads as a line of the lyrics. */
-.roast-lines [data-line] {
+.roast-lines ::deep .rz-button.roast-line {
     display: block;
     width: 100%;
     padding: 0.1rem 0.25rem;
@@ -42,16 +42,16 @@
     transition: transform 180ms var(--po-spring), opacity 180ms, font-weight 180ms;
 }
 
-.roast-lines [data-line]:hover {
+.roast-lines ::deep .rz-button.roast-line:hover {
     background: color-mix(in srgb, var(--rz-primary) 12%, transparent);
 }
 
-.roast-lines [data-line].sung {
+.roast-lines ::deep .rz-button.roast-line.sung {
     opacity: 0.72;
 }
 
 /* The line being delivered grows with the beat. */
-.roast-lines [data-line].now {
+.roast-lines ::deep .rz-button.roast-line.now {
     opacity: 1;
     font-weight: 800;
     transform: scale(calc(1.06 + var(--beat) * 0.1));
@@ -66,7 +66,7 @@
     font-size: 0.9rem;
 }
 
-.roast-sync input {
+.roast-sync ::deep .rz-slider {
     flex: 1;
     min-width: 8rem;
 }
@@ -80,11 +80,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .roast-lines [data-line] {
+    .roast-lines ::deep .rz-button.roast-line {
         transition: none;
     }
 
-    .roast-lines [data-line].now {
+    .roast-lines ::deep .rz-button.roast-line.now {
         transform: none;
     }
 }

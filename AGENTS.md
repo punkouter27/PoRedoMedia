@@ -33,11 +33,15 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
 #### Page shell (every page, signed in or out, including the sign-in page)
 - Header `.po-header`, height 56px, sticky: app name top-left (`.po-header__title`, links to `/`).
 - Top-right `.po-header__actions`: signed-in user's **email** (`.po-header__email`, full email, ellipsis at 16ch on
-  phones) — or, signed out, one **Sign in** button `class="po-link-btn filled small"` (same style on every page) —
-  then the settings gear. Apps without OAuth show nothing in place of the email (no fake identity chips).
-- Version badge `.po-version` fixed bottom-right showing `vYYMMDD`. It must never cover content: `main` gets
-  `padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom))`, and when a mobile bottom nav exists the
-  badge sits above it (`--po-stamp-lift: <nav height>`).
+  phones) — or, signed out, one **Sign in** button `class="po-link-btn filled small"` (same style on every page except
+  the sign-in page itself) — then the settings gear. Apps without OAuth show nothing in place of the email (no fake
+  identity chips).
+- **Sign-in page** (`/login`): the app's name as its `h1` and the sign-in button, nothing else; no navigation, no
+  tagline, no second Sign in in the header. Navigation appears only once signed in.
+- Version badge `.po-version` bottom-right showing `vYYMMDD`, **in the page's flow, never fixed**: it is the last item
+  of the scrolling column (`RadzenBody`, or the sign-in page's `.po-bare-shell`), which is a flex column, so it sits in
+  the bottom-right corner of a short page and after the content of a long one. It can never cover content or the
+  phone tab bar (a row of its own in the layout grid).
 - Colours only from `wwwroot/css/po-tokens.css` (`--po-*`). All text ≥ 4.5:1 contrast in light AND dark mode
   (status banners: use `--po-text` on `--po-*-soft` backgrounds, never warning-on-peach).
 - Login-only data must not be requested for signed-out visitors (no 401s in the console on public pages), and
@@ -46,6 +50,18 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
 #### Version
 - `Directory.Build.props` stamps ONE assembly metadata key: `BuildVersion` = UTC `yyMMdd`. No `BuildStamp`/`BuildDate`
   aliases. Every reader (header badge component, `/api/diag`, `/health` headers) reads `BuildVersion`.
+
+#### Components (owner decision 2026-11-21: "Radzen wins, convert")
+- Every interactive control is a Radzen component: buttons, text fields, checkboxes, sliders, select bars, colour
+  picker, dialogs, notifications. No other component library, no raw `<button>`/`<input>`/`<select>`/`<textarea>`.
+- Controls that draw themselves (tiles, steps, thumbnails, lyric lines, disclosure rows) are
+  `RadzenButton ButtonStyle="Base" Variant="Flat" class="po-plain <name>"`; `css/app.css` resets Radzen's look for
+  `po-plain`, and the component's stylesheet styles it with `::deep .rz-button.<name>`. A tile that ticks is a `div`
+  with `@onclick` holding a `RadzenCheckBox` (named with `aria-label`) whose own click is stopped
+  (`@onclick:stopPropagation`), so it never toggles twice.
+- Left as they are, on purpose: Blazor's `InputFile` (hidden; a RadzenButton opens it, because Radzen's upload cannot
+  hand the page the file stream), `<details>/<summary>` disclosures (account menu, "What the AI saw"), and native
+  `<audio>`/`<video>` players.
 
 #### Health + /diag contract
 - `GET /health/live` (liveness, returns header `X-Commit: <sha>`), `GET /health` (readiness), `GET /api/diag` →
@@ -59,7 +75,8 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
   `<title>` and `h1`: **System status**. Layout: overall banner in plain words ("Everything is working" /
   "Working, with N things degraded" / "Not working: …"), then three sections in this order: **API**, **Data**,
   **Services**; each row = label, purpose, status pill, latency ms, problem/detail text. Every external dependency
-  the app really calls appears as a check. Anonymous, nothing secret in the payload.
+  the app really calls appears as a check, **probed live** (never "configured" alone). Anonymous, nothing secret in
+  the payload.
 
 #### Workflow (`.github/workflows/deploy.yml`, the only one)
 push to master → format check → build (Release, warnings as errors) → Unit tests → Integration tests (Testcontainers /
@@ -90,14 +107,14 @@ Several sessions (people and agents) commit to this repo, sometimes at the same 
 
 ## 3. Verification
 
-All run from the repo root and checked on 2026-11-20 (.NET SDK 10.0.403 via `global.json` 10.0.400 + latestFeature).
+All run from the repo root and checked on 2026-11-21 (.NET SDK 10.0.403 via `global.json` 10.0.400 + latestFeature).
 
 | What | Command | Needs / without it |
 |---|---|---|
 | Format | `dotnet format PoRedoMedia.slnx --verify-no-changes` | — |
 | Build | `dotnet build PoRedoMedia.slnx -c Release` | warnings are errors |
-| Unit (97) | `dotnet test tests/PoRedoMedia.Unit -c Release --no-build` | nothing |
-| Integration (50) | `dotnet test tests/PoRedoMedia.Integration -c Release --no-build` | Docker (Testcontainers Azurite) and ffmpeg on PATH for 9 video tests; each skips with a "Skipped: …" message when missing |
+| Unit (105) | `dotnet test tests/PoRedoMedia.Unit -c Release --no-build` | nothing |
+| Integration (50) | `dotnet test tests/PoRedoMedia.Integration -c Release --no-build` | Docker (Testcontainers Azurite) and ffmpeg on PATH for 9 video tests; each skips with a "Skipped: …" message when missing. Any static ffmpeg build works (e.g. the gyan.dev "essentials" zip, its `bin` put first on PATH for the shell that runs the tests and the app) |
 | E2E API (8) | `dotnet test tests/PoRedoMedia.E2EAPI -c Release --no-build` | nothing (in-process host, mock AI) |
 | E2E UI (15) | `pwsh scripts/run-e2e.ps1 [-Filter <name>]` | Docker; starts Azurite + the app (Test env, mock AI) on :4100 and runs Playwright. Plain `dotnet test tests/PoRedoMedia.E2EUI` skips every test with a message when no app answers at `E2E_BASE_URL` or Chromium is missing; 5 video tests also skip without ffmpeg |
 | Run locally | `docker compose up -d` then `dotnet run --project src/PoRedoMedia.Api` | → http://localhost:4100 (Development: Azurite + Key Vault keys via `az login`) |
@@ -116,6 +133,13 @@ laid out: [docs/architecture.md](docs/architecture.md). Publishing keys: [docs/p
 - **No Settings gear** in the header (owner's call, 2026-11-20): the app has no settings page; its switches are fixed
   defaults in `Client/Services/AppSettings`. Signed in, the email opens a small menu with Sign out.
 - **Azure names** keep their pre-standard form (see CI/CD and Azure below).
+
+### /diag here
+`Common/Health/HealthChecks.cs` registers the rows; `Common/Health/ServiceProbes.cs` holds the live probes. Each asks
+the service something free: Gemini reads the vision model's description, Azure OpenAI and AI Foundry list their models,
+Key Vault lists one page of secret names with the app's identity, Microsoft sign-in reads the tenant's OpenID document,
+Application Insights and Pexels are probed only when set up (otherwise "Not set up here, so not called"), YouTube and
+TikTok reach their sign-in servers only when their app keys are set. Stand-in (mock) providers in Test are never called.
 
 ### Working rules
 - **Stay on `master`:** commit directly to `master`; create branches only when asked. Short, natural commit messages.
@@ -144,10 +168,10 @@ dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound libr
 pwsh scripts/mobile-dev.ps1 -ApiPort 4100 -Run         # the MAUI phone app against the local API
 ```
 
-### Tests (real counts, 2026-11-20)
+### Tests (real counts, 2026-11-21)
 | Tier | Project | Cases | Where it runs |
 |---|---|---|---|
-| Unit | `tests/PoRedoMedia.Unit` | 97 | CI + locally; no I/O |
+| Unit | `tests/PoRedoMedia.Unit` | 105 | CI + locally; no I/O |
 | Integration | `tests/PoRedoMedia.Integration` | 50 | CI (Docker + ffmpeg installed) + locally. `[DockerFact]` skips with "Docker is not running…" without Docker; `[FFmpegFact]`/`[DockerFFmpegFact]` skip with "ffmpeg is not on PATH…" without ffmpeg |
 | E2E API | `tests/PoRedoMedia.E2EAPI` | 8 | locally; in-process host, mock AI, no Docker |
 | E2E UI | `tests/PoRedoMedia.E2EUI` | 15 | locally against a running app (`scripts/run-e2e.ps1`); `[LiveServerFact]` skips with a message when no app answers at `E2E_BASE_URL` or Playwright's Chromium is missing |

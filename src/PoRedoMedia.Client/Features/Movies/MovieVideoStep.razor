@@ -40,10 +40,10 @@ var publish = movie.Publish;
                             <img src="@poster" alt="" />
                         }
                         <span class="mv-teaser-hook">@teaser.Hook</span>
-                        <button type="button" class="mv-card-play shown" @onclick="@(() => PlayTeaserAsync(index))" disabled="@(Store.IsWorking || _playing is not null)"
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-card-play shown" Click="@(() => PlayTeaserAsync(index))" Disabled="@(Store.IsWorking || _playing is not null)"
                                 title="Watch this teaser as it stands, small and quick, before rendering it. Costs nothing." aria-label="@($"Play teaser {index + 1}")">
                             <RadzenIcon Icon="play_arrow" />
-                        </button>
+                        </RadzenButton>
                         @if (_playing == index)
                         {
                             <span class="mv-card-busy"><RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" /></span>
@@ -144,7 +144,7 @@ var publish = movie.Publish;
                 @for (var i = 0; i < publish.ThumbnailChoices.Length; i++)
                 {
                     var choice = i;
-                    <button type="button" @onclick="@(() => Store.DoAsync($"thumbnail?index={choice}"))"><img src="@publish.ThumbnailChoices[choice]" alt="@($"Thumbnail {choice + 1}")" /></button>
+                    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-thumb-choice" Click="@(() => Store.DoAsync($"thumbnail?index={choice}"))"><img src="@publish.ThumbnailChoices[choice]" alt="@($"Thumbnail {choice + 1}")" /></RadzenButton>
                 }
             </div>
         }

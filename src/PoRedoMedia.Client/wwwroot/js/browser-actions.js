@@ -432,7 +432,9 @@ window.poMedia = {
         const keys = ['/', '?', 'u', 'U', 'r', 'R', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Delete', 'p', 'P', 'c', 'C', 'Enter', 'Escape'];
         const handler = (e) => {
             const tag = (e.target.tagName || '').toLowerCase();
-            const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+            // Radzen's sliders, dropdowns and the like are not inputs but use these keys themselves.
+            const widget = Boolean(e.target.closest && e.target.closest('[role=slider], [role=spinbutton], [role=combobox], [role=listbox], [role=textbox], [role=radiogroup]'));
+            const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable || widget;
             if (typing || e.ctrlKey || e.metaKey || e.altKey || !keys.includes(e.key)) return;
             // A modal dialog owns the keyboard; a side drawer (Runs, a Library item) does not.
             if (document.querySelector('.rz-dialog:not(.rz-dialog-side)')) return;

@@ -74,6 +74,9 @@
     /// <summary>What the file chooser offers; every kind this app takes unless narrowed.</summary>
     [Parameter] public string Accept { get; set; } = FilePick.MediaTypes;
 
+    /// <summary>Raised when a choice of files starts uploading, before the first one is handed on.</summary>
+    [Parameter] public EventCallback BatchStarted { get; set; }
+
     /// <summary>Raised once every file of a choice has been uploaded (or refused).</summary>
     [Parameter] public EventCallback BatchDone { get; set; }
 
@@ -156,6 +159,7 @@
         var files = Multiple ? e.GetMultipleFiles(MostFiles) : [e.File];
         var refused = new List<string>();
         (_error, _cameraOn, _recording) = (null, false, false);
+        await BatchStarted.InvokeAsync();
         for (var i = 0; i < files.Count; i++)
         {
             var file = files[i];

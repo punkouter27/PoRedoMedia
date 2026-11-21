@@ -14,7 +14,7 @@
     margin: 0.2rem 0;
 }
 
-.version-node {
+.version-tree ::deep .rz-button.version-node {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
@@ -29,11 +29,11 @@
     cursor: pointer;
 }
 
-.version-node:hover {
+.version-tree ::deep .rz-button.version-node:hover {
     border-color: var(--rz-primary);
 }
 
-.version-node.current {
+.version-tree ::deep .rz-button.version-node.current {
     border-color: var(--rz-primary);
     background: var(--rz-primary-lighter);
     font-weight: 600;

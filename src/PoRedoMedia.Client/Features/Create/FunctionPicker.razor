@@ -10,16 +10,18 @@
         var ticked = Value.Contains(f);
         var disabled = !available || (!ticked && !FunctionStack.CanAdd(Value, f));
         var describe = available ? FunctionStack.Describe(f) : "Not available on this server.";
-        @* The whole tile is the label, so a tap anywhere on it ticks. A native checkbox: Radzen's
-           nests an input inside a role="checkbox" element, which assistive technology reads as two
-           controls with no name. *@
-        <label class="function-tile @(ticked ? "on" : null) @(disabled ? "off" : null)" data-fn="@f" title="@describe">
-            <input type="checkbox" id="@($"fn-{f}")" checked="@ticked" disabled="@disabled"
-                   @onchange="@(e => ToggleAsync(f, e.Value is true))" />
+        @* The whole tile ticks: a tap anywhere on it toggles the function. The checkbox is Radzen's (one role="checkbox"
+           control named after the function; its own click does not reach the tile, so nothing toggles twice). *@
+        <div class="function-tile @(ticked ? "on" : null) @(disabled ? "off" : null)" data-fn="@f" title="@describe"
+             @onclick="@(async () => { if (!disabled) await ToggleAsync(f, !ticked); })">
+            <span class="function-check" @onclick:stopPropagation="true">
+                <RadzenCheckBox TValue="bool" Name="@($"fn-{f}")" Value="@ticked" Disabled="@disabled" Change="@(on => ToggleAsync(f, on))"
+                                AriaLabel="@FunctionStack.Label(f)" aria-describedby="@($"fn-{f}-describe")" />
+            </span>
             <RadzenIcon Icon="@IconOf(f)" class="function-icon" aria-hidden="true" />
             <strong>@FunctionStack.Label(f)</strong>
-            <span class="function-describe">@describe</span>
-        </label>
+            <span class="function-describe" id="@($"fn-{f}-describe")">@describe</span>
+        </div>
     }
 </div>
 

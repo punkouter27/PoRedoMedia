@@ -49,7 +49,7 @@
 }
 
 /* The card's own button fills it; the tick box sits in its corner, outside the button. */
-.library-open {
+.library-card ::deep .rz-button.library-open {
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -65,13 +65,13 @@
     cursor: pointer;
 }
 
-.library-open:focus-visible {
+.library-card ::deep .rz-button.library-open:focus-visible {
     outline: 2px solid var(--rz-primary);
     outline-offset: 2px;
 }
 
 /* Shown on hover and focus, always on touch screens, and on every card once one is ticked. */
-.library-pick {
+.library-card ::deep .library-pick {
     position: absolute;
     top: 0.6rem;
     left: 0.6rem;
@@ -86,15 +86,15 @@
     transition: opacity 120ms;
 }
 
-.library-card:hover .library-pick,
-.library-card:focus-within .library-pick,
-.library-pick:checked,
-.picking .library-pick {
+.library-card:hover ::deep .library-pick,
+.library-card:focus-within ::deep .library-pick,
+.library-card ::deep .library-pick[aria-checked="true"],
+.picking ::deep .library-pick {
     opacity: 1;
 }
 
 @media (hover: none) {
-    .library-pick {
+    .library-card ::deep .library-pick {
         opacity: 1;
     }
 }
@@ -175,4 +175,9 @@
     .library-card:hover {
         transform: none;
     }
+}
+
+.library-card ::deep .library-pick .rz-chkbox-box {
+    width: 100%;
+    height: 100%;
 }

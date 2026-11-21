@@ -36,7 +36,7 @@
     font-size: 1.15rem;
 }
 
-.po-header ::deep .runs-button {
+.po-header ::deep .rz-button.runs-button {
     position: relative;
     width: 40px;
     height: 40px;
@@ -50,7 +50,7 @@
     cursor: pointer;
 }
 
-.po-header ::deep .runs-button:hover {
+.po-header ::deep .rz-button.runs-button:hover {
     border-color: var(--po-accent);
     color: var(--po-accent);
 }

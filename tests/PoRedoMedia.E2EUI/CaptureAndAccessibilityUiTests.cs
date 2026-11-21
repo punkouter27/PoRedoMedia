@@ -18,7 +18,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
         await page.GetByRole(AriaRole.Button, new() { Name = "Stop and use the video" }).ClickAsync();
 
         await Assertions.Expect(page.GetByText(new System.Text.RegularExpressions.Regex(@"camera-\d+\.webm · video"))).ToBeVisibleAsync(new() { Timeout = 60_000 });
-        await page.Locator("[data-fn=VideoRoast] input").CheckAsync();
+        await page.Locator("[data-fn=VideoRoast] [role=checkbox]").ClickAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Run", Exact = true }).ClickAsync();
         await Assertions.Expect(page.GetByText("Done. The results are in your gallery.")).ToBeVisibleAsync(new() { Timeout = 120_000 });
         await Assertions.Expect(page.Locator("figure.run-result video")).ToHaveCountAsync(1);
@@ -53,7 +53,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
 
         var anonymous = await NewTrackedPageAsync();
         await anonymous.GotoAsync(BaseUrl + "/login");
-        await Assertions.Expect(anonymous.GetByRole(AriaRole.Heading, new() { Name = "Sign in" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(anonymous.GetByRole(AriaRole.Heading, new() { Name = "PoRedoMedia", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await ScanAsync(anonymous, "login");
 
         // Installable: the page links a manifest that names the app and offers both icon sizes.
@@ -72,7 +72,7 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
         await page.GetByRole(AriaRole.Button, new() { Name = "Take the photo" }).ClickAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "What should happen to this image?" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
         foreach (var function in (string[])["Restyle", "MemeCaption", "RapRoast", "PhotoToVideo"])
-            await page.Locator($"[data-fn={function}] input").CheckAsync();
+            await page.Locator($"[data-fn={function}] [role=checkbox]").ClickAsync();
         await ScanAsync(page, "create-2-functions");
 
         await page.GotoAsync(BaseUrl + "/gallery");

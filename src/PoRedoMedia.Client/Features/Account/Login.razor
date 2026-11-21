@@ -10,8 +10,8 @@
 <RadzenStack AlignItems="AlignItems.Center" class="rz-mt-12">
     <RadzenCard class="po-narrow po-pop">
         <RadzenStack Gap="1rem">
-            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">Sign in</RadzenText>
-            <RadzenText class="rz-m-0">Turn a photo or a video into a meme, a roast or a clip.</RadzenText>
+            @* The sign-in page shows the app's name and the way in, nothing else (Po standard). *@
+            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">PoRedoMedia</RadzenText>
             @if (Denied == true)
             {
                 <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" class="rz-m-0">

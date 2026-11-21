@@ -26,12 +26,10 @@ public sealed class CreateMovieUiTests : UiTestBase
         await Assertions.Expect(page.GetByAltText("The intro as it will look")).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await ShotAsync(page, "1-channel");
 
-        // Title, episode and one film; Make with no film says so under the films, and costs nothing.
+        // Title, episode and one film. With no clip yet the upload is open, Make is disabled and the hint says why.
         await page.GetByLabel("Title", new() { Exact = true }).FillAsync("Treehouse Day");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Make the video from my films" }).ClickAsync();
-        await Assertions.Expect(page.Locator(".po-field-error")).ToHaveTextAsync("Add a film first.");
-        await Assertions.Expect(page.GetByRole(AriaRole.Alertdialog)).ToHaveCountAsync(0);
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add films" }).ClickAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Make the video from my films" })).ToBeDisabledAsync();
+        await Assertions.Expect(page.GetByText("Add at least one video clip", new() { Exact = false }).First).ToBeVisibleAsync();
         await page.SetInputFilesAsync(".mv-add-films input[type=file]", new FilePayload { Name = "treehouse.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(8) });
         await Assertions.Expect(page.Locator(".mv-film")).ToHaveCountAsync(1, new() { Timeout = 60_000 });
         await Assertions.Expect(page.Locator(".mv-film")).ToContainTextAsync("Narrated");
@@ -66,7 +64,8 @@ public sealed class CreateMovieUiTests : UiTestBase
         // The Test server's YouTube and TikTok are stand-ins (Features/Publishing/FakePublishers): nothing leaves it.
         var page = await SignedInPageAsync("/movie");
         await page.SetViewportSizeAsync(390, 844);
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add films" }).ClickAsync(new() { Timeout = 30_000 });
+        // With no clip yet the upload is already open.
+        await Assertions.Expect(page.Locator(".mv-add-films input[type=file]")).ToHaveCountAsync(1, new() { Timeout = 30_000 });
         await page.SetInputFilesAsync(".mv-add-films input[type=file]", new FilePayload { Name = "porch.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(6) });
         await Assertions.Expect(page.Locator(".mv-film")).ToHaveCountAsync(1, new() { Timeout = 60_000 });
         await page.GetByRole(AriaRole.Button, new() { Name = "Make the video from my films" }).ClickAsync();
@@ -101,7 +100,8 @@ public sealed class CreateMovieUiTests : UiTestBase
         await page.SetViewportSizeAsync(1440, 900);
 
         // Two films, chosen together; long enough to narrate over and to cut a ten-second teaser from.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add films" }).ClickAsync(new() { Timeout = 30_000 });
+        // With no clip yet the upload is already open.
+        await Assertions.Expect(page.Locator(".mv-add-films input[type=file]")).ToHaveCountAsync(1, new() { Timeout = 30_000 });
         await page.SetInputFilesAsync(".mv-add-films input[type=file]",
         [
             new FilePayload { Name = "treehouse.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(14) },

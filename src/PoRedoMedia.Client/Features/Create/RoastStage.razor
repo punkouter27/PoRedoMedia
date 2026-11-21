@@ -13,22 +13,26 @@
     <ol class="roast-lines" aria-label="Lyrics. Pick a line to play from there.">
         @foreach (var line in Lines)
         {
-            <li><button type="button" data-line>@line</button></li>
+            @* js/roast-stage.js lights the line being delivered and plays from a clicked line ([data-line]). *@
+            <li><RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain roast-line" data-line="">@line</RadzenButton></li>
         }
     </ol>
-    <label class="roast-sync">
-        <span>Lyric timing</span>
-        <input type="range" min="-3" max="3" step="0.1" value="0" data-sync />
-        <output data-sync-out>on the beat</output>
-    </label>
+    <div class="roast-sync">
+        <RadzenLabel Text="Lyric timing" Component="roast-sync" />
+        <RadzenSlider Name="roast-sync" TValue="double" Min="-3" Max="3" Step="0.1" Value="@_offset" Change="SyncAsync"
+                      aria-label="Lyric timing" aria-valuetext="@SyncText" />
+        <output>@SyncText</output>
+    </div>
     @if (Media.ParentId is not null)
     {
         <div class="roast-exports">
             <RadzenButton Text="Save as a card" Icon="image" Size="ButtonSize.Small" Variant="Variant.Outlined" IsBusy="_saving" Disabled="_recording is not null" Click="SaveCardAsync" />
-            <select @bind="_cut" aria-label="Video style" disabled="@(_recording is not null)">
-                <option value="meme">Meme cut</option>
-                <option value="classic">Classic</option>
-            </select>
+            <RadzenSelectBar TValue="string" @bind-Value="_cut" Size="ButtonSize.Small" Disabled="@(_recording is not null)" aria-label="Video style">
+                <Items>
+                    <RadzenSelectBarItem Text="Meme cut" Value="@("meme")" />
+                    <RadzenSelectBarItem Text="Classic" Value="@("classic")" />
+                </Items>
+            </RadzenSelectBar>
             <RadzenButton Text="@(_recording is { } percent ? $"Recording {percent}%" : "Export video")" Icon="movie" Size="ButtonSize.Small" Variant="Variant.Outlined"
                           Disabled="@(_recording is not null || _saving)" Click="ExportVideoAsync" />
         </div>
@@ -51,6 +55,17 @@
     private bool _saving;
     private string _cut = "meme";
     private int? _recording;
+    private double _offset;
+
+    /// <summary>How far the lyric timings are moved, in words: they are an estimate, and the slider nudges them all.</summary>
+    private string SyncText => Math.Abs(_offset) < 0.05 ? "on the beat" : $"{(_offset > 0 ? "+" : "")}{_offset.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}s";
+
+    private async Task SyncAsync(double offset)
+    {
+        _offset = offset;
+        if (_attached)
+            await JS.InvokeVoidAsync("poRoast.offset", _stage, offset);
+    }
 
     private string PictureUrl => $"api/media/{Media.ParentId}/content";
 

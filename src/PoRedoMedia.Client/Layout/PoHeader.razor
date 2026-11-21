@@ -15,7 +15,7 @@
                 <details class="account-menu">
                     <summary class="po-header__email" title="@AccountMenu.Email(context.User)">@AccountMenu.Email(context.User)</summary>
                     <div class="account-menu__panel">
-                        <button type="button" class="po-link-btn outlined small" disabled="@_leaving" @onclick="SignOutAsync">@(_leaving ? "Signing out…" : "Sign out")</button>
+                        <RadzenButton Text="@(_leaving ? "Signing out…" : "Sign out")" Variant="Variant.Outlined" Size="ButtonSize.Small" Disabled="@_leaving" Click="SignOutAsync" />
                     </div>
                 </details>
             </div>
@@ -23,7 +23,11 @@
         </Authorized>
         <NotAuthorized>
             <div class="po-header__actions">
-                <a class="po-link-btn filled small" href="login">Sign in</a>
+                @* On the sign-in page itself its card is the one way in, so the header shows only the title there. *@
+                @if (!OnSignInPage)
+                {
+                    <a class="po-link-btn filled small" href="login">Sign in</a>
+                }
             </div>
         </NotAuthorized>
     </AuthorizeView>
@@ -31,6 +35,8 @@
 
 @code {
     private bool _leaving;
+
+    private bool OnSignInPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Equals("login", StringComparison.OrdinalIgnoreCase);
 
     private async Task SignOutAsync()
     {

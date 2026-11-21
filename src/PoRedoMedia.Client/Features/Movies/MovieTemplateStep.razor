@@ -38,11 +38,11 @@
         <div class="mv-looks" title="Ready-made looks to start from. Click one to give the intro its colour and layout, then change either below. Your name, logo, mascot and sting stay as they are.">
             @foreach (var start in config.IntroStarts)
             {
-                <button type="button" class="mv-look @start.Layout.ToLowerInvariant()" @onclick="@(() => SaveAsync(kit with { Accent = start.Accent, Layout = start.Layout }))"
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="@($"po-plain mv-look {start.Layout.ToLowerInvariant()}")" Click="@(() => SaveAsync(kit with { Accent = start.Accent, Layout = start.Layout }))"
                         title="Click to give the intro this colour and layout. The picture on the right shows it a moment later.">
                     <span class="mv-look-tile" style="@($"--look:{start.Accent}")"><i></i><b></b><b></b></span>
                     <span class="mv-quiet">@start.Name</span>
-                </button>
+                </RadzenButton>
             }
         </div>
         <div class="mv-field">
@@ -60,7 +60,8 @@
         <div class="mv-field">
             <RadzenLabel Text="Accent colour" Component="mv-accent" />
             <div class="mv-row">
-                <input type="color" value="@kit.Accent" @onchange="@(e => SaveAsync(kit with { Accent = e.Value?.ToString() ?? kit.Accent }))" aria-label="Pick the accent colour" class="mv-colour" />
+                <RadzenColorPicker Value="@kit.Accent" ShowHSV="true" ShowRGBA="false" ShowColors="true" ShowButton="true"
+                                   Change="@(v => SaveAsync(kit with { Accent = Hex(v) ?? kit.Accent }))" ToggleAriaLabel="Pick the accent colour" class="mv-colour" />
                 <RadzenTextBox Name="mv-accent" Value="@kit.Accent" MaxLength="7" Placeholder="#FFD400" Change="@(v => SaveAsync(kit with { Accent = v }))"
                                title="The series colour, typed as # and six letters or digits, such as #22CC88. It fills the intro and outro background and colours the section straps of new movies." />
             </div>
@@ -84,9 +85,9 @@
                 <div class="mv-candidates">
                     @foreach (var url in _logos)
                     {
-                        <button type="button" @onclick="@(() => UseAsync($"logo?token={Token(url)}"))" title="Use this logo. The intro picture shows it a moment later, and the kit keeps its own copy.">
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-design" Click="@(() => UseAsync($"logo?token={Token(url)}"))" title="Use this logo. The intro picture shows it a moment later, and the kit keeps its own copy.">
                             <img src="@url" alt="A logo design" />
-                        </button>
+                        </RadzenButton>
                     }
                 </div>
             }
@@ -110,9 +111,9 @@
                 <div class="mv-candidates wide">
                     @foreach (var url in _hosts)
                     {
-                        <button type="button" @onclick="@(() => UseAsync($"host?token={Token(url)}"))" title="Keep this design as the host, so every new picture shows the same character. Pictures already made are not changed.">
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-design" Click="@(() => UseAsync($"host?token={Token(url)}"))" title="Keep this design as the host, so every new picture shows the same character. Pictures already made are not changed.">
                             <img src="@url" alt="A host design" />
-                        </button>
+                        </RadzenButton>
                     }
                 </div>
             }
@@ -214,6 +215,33 @@
 }
 
 @code {
+    /// <summary>
+    /// Radzen's colour picker answers as #rrggbb or rgb(r, g, b); the kit keeps #RRGGBB. Anything else is ignored.
+    /// </summary>
+    public static string? Hex(string? colour)
+    {
+        if (string.IsNullOrWhiteSpace(colour))
+            return null;
+        var value = colour.Trim();
+        if (value.StartsWith('#') && value.Length == 7)
+            return value.ToUpperInvariant();
+        var open = value.IndexOf('(');
+        var close = value.IndexOf(')');
+        if (open < 0 || close <= open)
+            return null;
+        var parts = value[(open + 1)..close].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3)
+            return null;
+        var rgb = new int[3];
+        for (var i = 0; i < 3; i++)
+        {
+            if (!int.TryParse(parts[i], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out rgb[i]) || rgb[i] is < 0 or > 255)
+                return null;
+        }
+
+        return $"#{rgb[0]:X2}{rgb[1]:X2}{rgb[2]:X2}";
+    }
+
     private string? _still;
     private string? _video;
     private string? _sound;

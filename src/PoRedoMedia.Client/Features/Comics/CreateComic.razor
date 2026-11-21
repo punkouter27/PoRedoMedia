@@ -31,10 +31,13 @@
         @* The form checks with ComicRequestValidator, the rules POST /api/comics runs too, and shows the message under the field. *@
         <EditForm EditContext="_edit" OnValidSubmit="MakeAsync" class="comic-form">
             <FluentValidationValidator TModel="ComicRequest" Validator="Rules" Request="Request" />
-            <label for="comic-text" class="comic-label">The conversation</label>
-            <textarea id="comic-text" class="comic-text rz-textbox" rows="12" maxlength="@ComicRequest.MaxLength"
-                      placeholder="@Example" @bind="_form.Conversation" @bind:event="oninput" @onchange="Changed" disabled="@Busy"
-                      aria-describedby="comic-text-error" aria-invalid="@(_edit.GetValidationMessages(Field).Any() ? "true" : null)"></textarea>
+            <RadzenLabel Text="The conversation" Component="comic-text" class="comic-label" />
+            @* oninput keeps the count current while typing; leaving the field (Change) checks it, as before. *@
+            <RadzenTextArea Name="comic-text" class="comic-text" Rows="12" MaxLength="@ComicRequest.MaxLength" Placeholder="@Example"
+                            Value="@_form.Conversation" ValueExpression="@(() => _form.Conversation)"
+                            @oninput="@(e => _form.Conversation = e.Value?.ToString() ?? string.Empty)"
+                            Change="@(v => { _form.Conversation = v ?? string.Empty; Changed(); })" Disabled="@Busy"
+                            aria-describedby="comic-text-error" aria-invalid="@(_edit.GetValidationMessages(Field).Any() ? "true" : null)" />
             <div id="comic-text-error"><ValidationMessage For="@(() => _form.Conversation)" class="po-field-error" /></div>
             <div class="comic-settings">
                 <div class="comic-row" title="An offscreen heckler wisecracks in the pause after some panels, in a red box at the bottom. Its meanness, swearing and how often it speaks are the Roast settings below.">

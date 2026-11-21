@@ -40,8 +40,6 @@ window.poRoast = {
         window.poRoast.detach(stage);
         const lines = [...stage.querySelectorAll('[data-line]')];
         const ends = window.poRoast.lineEnds(lines.map((line) => line.textContent));
-        const sync = stage.querySelector('[data-sync]');
-        const syncOut = stage.querySelector('[data-sync-out]');
 
         const state = { raf: 0, envelope: null, rate: 50, offset: 0, line: -1 };
         stage._poRoast = state;
@@ -86,13 +84,8 @@ window.poRoast = {
             audio.play().catch(() => { });
         }));
 
-        if (sync) {
-            sync.addEventListener('input', () => {
-                state.offset = parseFloat(sync.value) || 0;
-                if (syncOut) syncOut.textContent = state.offset === 0 ? 'on the beat' : `${state.offset > 0 ? '+' : ''}${state.offset.toFixed(1)}s`;
-                show();
-            });
-        }
+        // The lyric-timing slider (RoastStage) moves every line earlier or later through poRoast.offset.
+        state.show = show;
 
         // Concert mode: the screen over the lyrics that dances to the track.
         window.poConcert?.attach(stage, audio);
@@ -106,6 +99,13 @@ window.poRoast = {
             const envelope = window.poRoast.envelope(decoded, state.rate);
             if (stage._poRoast === state) state.envelope = envelope;
         } catch { /* the lines still follow the track */ }
+    },
+
+    offset(stage, seconds) {
+        const state = stage && stage._poRoast;
+        if (!state) return;
+        state.offset = Number(seconds) || 0;
+        state.show();
     },
 
     detach(stage) {

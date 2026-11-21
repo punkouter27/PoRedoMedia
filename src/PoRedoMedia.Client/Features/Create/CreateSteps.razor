@@ -6,10 +6,13 @@
         @for (var i = 0; i < Names.Length; i++)
         {
             var step = i + 1;
+            var name = Names[i];
             var reachable = step == 1 || (step == 2 && CanFunctions) || (step == 3 && CanRun);
             <li class="@(step == Current ? "current" : step < Current ? "done" : null)">
-                <button type="button" disabled="@(!reachable || step == Current)" aria-current="@(step == Current ? "step" : null)" aria-label="@($"Step {step}: {Names[i]}")"
-                        @onclick="@(() => Go.InvokeAsync(step))">
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain create-step" Disabled="@(!reachable || step == Current)"
+                              aria-current="@(step == Current ? "step" : null)" Click="@(() => Go.InvokeAsync(step))">
+                    @* Read out as "Step 2: Functions"; the visible number is the same words for the eye. *@
+                    <span class="create-step-sr">Step @step: </span>
                     <span class="create-step-number" aria-hidden="true">
                         @if (step < Current)
                         {
@@ -20,8 +23,8 @@
                             @step
                         }
                     </span>
-                    <span>@Names[i]</span>
-                </button>
+                    <span>@name</span>
+                </RadzenButton>
             </li>
         }
     </ol>

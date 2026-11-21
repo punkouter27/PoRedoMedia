@@ -24,14 +24,14 @@
         }
     }
 
-    <button type="button" class="mv-mix-more" aria-expanded="@(_more ? "true" : "false")" aria-controls="@($"{IdPrefix}-panel")" @onclick="Toggle">
+    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-mix-more" aria-expanded="@(_more ? "true" : "false")" aria-controls="@($"{IdPrefix}-panel")" Click="Toggle">
         <RadzenIcon Icon="@(_more ? "expand_less" : "tune")" />
         <span>@(_more ? "Fewer settings" : "More meme settings")</span>
         @if (!_more && Changed() is { Length: > 0 } changed)
         {
             <span class="mv-mix-changed">@changed</span>
         }
-    </button>
+    </RadzenButton>
 
     @if (_more)
     {

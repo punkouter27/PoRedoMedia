@@ -5,7 +5,9 @@ window.poMovie = (function () {
 
     function typing(target) {
         const tag = (target.tagName || '').toLowerCase();
-        return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+        // Radzen's sliders, dropdowns and the like are not inputs but use the keys themselves.
+        const widget = Boolean(target.closest && target.closest('[role=slider], [role=spinbutton], [role=combobox], [role=listbox], [role=textbox], [role=radiogroup]'));
+        return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable || widget;
     }
 
     return {

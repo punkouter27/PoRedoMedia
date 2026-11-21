@@ -10,7 +10,12 @@ public sealed class LoginUiTests : UiTestBase
         var page = await NewTrackedPageAsync();
 
         await page.GotoAsync(BaseUrl + "/");
-        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Sign in" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "PoRedoMedia", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+        // The sign-in page is the app's name and the way in: no navigation, no second Sign in in the header.
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Sign in with Microsoft" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Navigation)).ToHaveCountAsync(0);
+        await Assertions.Expect(page.Locator(".po-header a.po-link-btn")).ToHaveCountAsync(0);
 
         await page.GetByRole(AriaRole.Button, new() { Name = "Developer sign-in" }).ClickAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Create", Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
@@ -19,7 +24,7 @@ public sealed class LoginUiTests : UiTestBase
         // The header shows the email; Sign out is in the small menu it opens.
         await page.Locator(".account-menu summary").ClickAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Sign out" }).ClickAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Sign in" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "PoRedoMedia", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
     }
 
     /// <summary>

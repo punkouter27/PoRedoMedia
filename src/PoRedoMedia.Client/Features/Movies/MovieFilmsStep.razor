@@ -75,7 +75,10 @@ var info = Store.ShowInfo;
                 {
                     <p class="mv-add-lead">A movie is made from your own videos. Upload at least one clip (up to a minute each) to continue.</p>
                 }
-                <MediaPicker ValueChanged="AddFilm" Multiple="true" Accept=".mp4,.mov,.webm" BatchDone="@(() => { _adding = false; Store.Notify(); })" />
+                @* While a choice of several files uploads, the zone stays (it would close at the first clip and take the rest
+                   of the files with it); it closes once they are all in. *@
+                <MediaPicker ValueChanged="AddFilm" Multiple="true" Accept=".mp4,.mov,.webm" BatchStarted="@(() => _adding = true)"
+                             BatchDone="@(() => { _adding = false; Store.Notify(); })" />
                 @if (LibraryClips.Count > 0)
                 {
                     <strong class="mv-add-or">Or pick from your Library</strong>
@@ -83,10 +86,10 @@ var info = Store.ShowInfo;
                         @foreach (var clip in LibraryClips)
                         {
                             var media = clip;
-                            <button type="button" class="mv-pick-card" disabled="@Store.IsWorking" @onclick="@(() => AddFilm(media))" title="@($"Add {media.Title}")">
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-pick-card" Disabled="@Store.IsWorking" Click="@(() => AddFilm(media))" title="@($"Add {media.Title}")">
                                 <img src="@media.ThumbUrl" alt="" loading="lazy" />
                                 <span>@media.Title</span>
-                            </button>
+                            </RadzenButton>
                         }
                     </div>
                 }
@@ -189,7 +192,7 @@ var info = Store.ShowInfo;
                 {
                     var item = saved;
                     <div class="mv-saved @(item.Id == Store.Movie?.Id ? "open" : null)">
-                        <button type="button" class="mv-saved-open" @onclick="@(() => OpenAsync(item))" title="@($"{item.Title}\nSaved {item.Saved.ToLocalTime():d MMM yyyy, HH:mm}. Click to open this movie and carry on with it.")">
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-saved-open" Click="@(() => OpenAsync(item))" title="@($"{item.Title}\nSaved {item.Saved.ToLocalTime():d MMM yyyy, HH:mm}. Click to open this movie and carry on with it.")">
                             @if (item.ThumbUrl is not null)
                             {
                                 <img src="@item.ThumbUrl" alt="" loading="lazy" />
@@ -199,7 +202,7 @@ var info = Store.ShowInfo;
                                 <span class="mv-saved-blank" aria-hidden="true"><RadzenIcon Icon="movie" /></span>
                             }
                             <span class="mv-saved-text"><strong>@item.Title</strong><span class="mv-quiet">@item.Details</span></span>
-                        </button>
+                        </RadzenButton>
                         <RadzenSplitButton Icon="more_horiz" Variant="Variant.Text" Size="ButtonSize.Small" AlwaysOpenPopup="true" Click="@(choice => SavedAsync(item, choice))" aria-label="@($"More for {item.Title}")">
                             <ChildContent>
                                 <RadzenSplitButtonItem Text="Make a copy" Value="copy" Icon="content_copy" />

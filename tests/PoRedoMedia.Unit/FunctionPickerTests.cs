@@ -22,8 +22,10 @@ public sealed class FunctionPickerTests
             .Add(x => x.ValueChanged, changed ?? (_ => { })));
     }
 
+    // Each tile holds one Radzen checkbox (role="checkbox"); a disabled one says so with aria-disabled.
     private static Dictionary<string, bool> Disabled(IRenderedComponent<FunctionPicker> cut) =>
-        cut.FindAll("input[type=checkbox]").ToDictionary(c => c.Id!["fn-".Length..], c => c.HasAttribute("disabled"));
+        cut.FindAll("[data-fn]").ToDictionary(t => t.GetAttribute("data-fn")!,
+            t => t.QuerySelector("[role=checkbox]")!.GetAttribute("aria-disabled") == "true");
 
     [Fact]
     public void Only_the_functions_for_the_media_kind_are_offered()
@@ -64,9 +66,24 @@ public sealed class FunctionPickerTests
         IReadOnlyList<MediaFunction>? reported = null;
         var cut = Render(ctx, MediaKind.Image, [RapRoast], changed: v => reported = v);
 
-        await cut.Find("#fn-Restyle").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = true });
+        // A tap anywhere on the tile ticks it.
+        await cut.Find("[data-fn=Restyle]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.Equal([Restyle, RapRoast], reported);
+    }
+
+    [Fact]
+    public async Task The_checkbox_itself_ticks_once_and_is_named_after_its_function()
+    {
+        using var ctx = new BunitContext();
+        var reports = new List<IReadOnlyList<MediaFunction>>();
+        var cut = Render(ctx, MediaKind.Image, [RapRoast], changed: reports.Add);
+
+        var box = cut.Find("[data-fn=Restyle] [role=checkbox]");
+        Assert.Equal("Restyle", box.GetAttribute("aria-label"));
+        await box.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        Assert.Equal([[Restyle, RapRoast]], reports);
     }
 
     [Theory]

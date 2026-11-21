@@ -3,8 +3,8 @@
 @inject RunTracker Tracker
 @inject DialogService Dialogs
 
-<button type="button" class="@($"runs-button {Class} {(Tracker.Active > 0 ? "runs-busy" : "")}")" aria-label="@Label" title="@Label"
-        aria-haspopup="dialog" @onclick="OpenAsync">
+<RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="@($"po-plain runs-button {Class} {(Tracker.Active > 0 ? "runs-busy" : "")}")" aria-label="@Label" title="@Label"
+              aria-haspopup="dialog" Click="OpenAsync">
     <RadzenIcon Icon="@(Tracker.Active > 0 ? "sync" : "history")" aria-hidden="true" />
     @if (ShowText)
     {
@@ -14,7 +14,7 @@
     {
         <span class="runs-count" aria-hidden="true">@Tracker.Active</span>
     }
-</button>
+</RadzenButton>
 
 @code {
     [Parameter] public string? Class { get; set; }
