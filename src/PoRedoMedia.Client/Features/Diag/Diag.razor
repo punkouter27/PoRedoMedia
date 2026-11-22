@@ -130,6 +130,7 @@
     {
         "Healthy" => "ok",
         "Degraded" => "warn",
+        "Off" => "off",
         _ => "bad",
     };
 
@@ -150,8 +151,11 @@
         var degraded = checks.Where(c => c.Status == "Degraded").Select(c => c.Label).ToList();
         if (checks.Any(c => c.Status == "Unhealthy"))
             return "Sign-in, the Library or making things may not work until this is fixed.";
+        // "Off" rows (switched off on purpose, not called) are neither passed nor degraded.
+        var off = checks.Count(c => c.Status == "Off");
+        var offText = off == 0 ? "" : $" {off} switched off on purpose.";
         return degraded.Count == 0
-            ? $"All {checks.Length} checks passed."
-            : $"Degraded: {string.Join(", ", degraded)}. The app runs and offers less.";
+            ? $"All {checks.Length - off} checks passed.{offText}"
+            : $"Degraded: {string.Join(", ", degraded)}. The app runs and offers less.{offText}";
     }
 }

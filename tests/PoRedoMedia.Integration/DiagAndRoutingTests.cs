@@ -28,7 +28,9 @@ public sealed class DiagAndRoutingTests(AzuriteFixture azurite)
         Assert.Equal("api", report.Checks.Single(c => c.Name == "server").Group);
         Assert.Contains(report.Checks, c => c.Group == "service");
         Assert.All(report.Checks, c => Assert.True(c.Group is "api" or "data" or "service", c.Group));
-        Assert.All(report.Checks, c => Assert.Equal(c.Status == "Healthy", c.Problem is null));
+        Assert.All(report.Checks, c => Assert.Equal(c.Status is "Healthy" or "Off", c.Problem is null));
+        // Application Insights is not set up in Test: switched off on purpose, so "Off" (not called), not Healthy.
+        Assert.Equal("Off", report.Checks.Single(c => c.Name == "app-insights").Status);
         Assert.All(report.Checks, c => Assert.False(string.IsNullOrWhiteSpace(c.Purpose)));
         Assert.Matches("^\\d{6}$|^unknown$", report.Version);
 

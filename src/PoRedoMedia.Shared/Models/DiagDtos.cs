@@ -10,7 +10,9 @@ namespace PoRedoMedia.Shared.Models;
 public sealed record DiagReportDto(string Status, string Environment, string Version, DateTimeOffset CheckedAt, double CheckedMs, DiagCheckDto[] Checks);
 
 /// <summary>One dependency on <c>/diag</c>.</summary>
-/// <param name="Group">"storage" (Database / storage) or "service" (Services).</param>
+/// <param name="Group">"api" (API), "data" (Data) or "service" (Services): its section on <c>/diag</c>.</param>
+/// <param name="Status">"Healthy", "Degraded", "Unhealthy", or "Off" for a service switched off on purpose (not set up
+/// here, or a stand-in in use): it is not called and does not count toward the overall status.</param>
 /// <param name="Purpose">What the app uses it for, in one line.</param>
 /// <param name="Detail">How it is, in one line.</param>
 /// <param name="Problem">The type of the exception behind a failure, if there was one.</param>

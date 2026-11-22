@@ -119,7 +119,7 @@ public sealed class PublishingHealthCheck(PoRedoMedia.Api.Features.Publishing.IY
         var youTubeSite = platform == PoRedoMedia.Api.Features.Publishing.Platform.YouTube;
         object publisher = youTubeSite ? youTube : tikTok;
         if (!(youTubeSite ? youTube.Configured : tikTok.Configured))
-            return new HealthCheckResult(context.Registration.FailureStatus, "Not configured, so Publish does not offer it (see docs/publishing-setup.md).");
+            return ServiceProbe.Off("Not set up here, so Publish does not offer it (see docs/publishing-setup.md).");
         if (publisher is PoRedoMedia.Api.Features.Publishing.FakeYouTubePublisher or PoRedoMedia.Api.Features.Publishing.FakeTikTokPublisher)
             return HealthCheckResult.Healthy("Stand-in publisher in use; nothing leaves this server.");
 

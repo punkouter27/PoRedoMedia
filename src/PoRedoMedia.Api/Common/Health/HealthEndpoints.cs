@@ -40,8 +40,10 @@ public static class HealthEndpoints
         {
             var about = HealthChecks.About.TryGetValue(e.Key, out var known) ? known : (Group: "service", Label: e.Key, Purpose: "");
             var detail = e.Value.Description ?? e.Value.Status.ToString();
+            // A service switched off on purpose is "Off" (neutral), not Healthy: it was not called (ServiceProbe.Off).
+            var status = e.Value.Data.ContainsKey(ServiceProbe.OffKey) ? "Off" : e.Value.Status.ToString();
             // Problem is set only when the check is not Healthy: the same plain words, never an exception message.
-            return new DiagCheckDto(e.Key, about.Group, about.Label, e.Value.Status.ToString(), about.Purpose,
+            return new DiagCheckDto(e.Key, about.Group, about.Label, status, about.Purpose,
                 detail, Math.Round(e.Value.Duration.TotalMilliseconds, 1),
                 e.Value.Status == HealthStatus.Healthy ? null : detail);
         }).ToArray();

@@ -23,6 +23,16 @@ internal static class ServiceProbe
         return services;
     }
 
+    /// <summary>Marks a check as "Off" on <c>/diag</c>: its data key (see <see cref="Off"/>).</summary>
+    public const string OffKey = "off";
+
+    /// <summary>
+    /// A service switched off on purpose (not set up here, or replaced by a stand-in): nothing is called. Healthy to
+    /// <c>/health</c> and the overall status, shown as a neutral "Off" on <c>/diag</c>.
+    /// </summary>
+    public static HealthCheckResult Off(string why) =>
+        HealthCheckResult.Healthy(why, new Dictionary<string, object> { [OffKey] = true });
+
     /// <summary>Sends one GET and says, in plain words, whether the service answered and accepted the key.</summary>
     public static async Task<HealthCheckResult> GetAsync(IHttpClientFactory http, HealthCheckContext context, Uri url,
         Action<HttpRequestHeaders>? headers, bool anyAnswerIsHealthy, CancellationToken ct)
@@ -142,7 +152,7 @@ public sealed class AppInsightsHealthCheck(IConfiguration configuration, IHostEn
         var connection = ServiceProbe.Setting(configuration, ConfigKeys.ApplicationInsightsConnectionString)
             ?? ServiceProbe.Setting(configuration, "APPLICATIONINSIGHTS_CONNECTION_STRING");
         if (connection is null || environment.IsEnvironment(PoEnvironments.Test))
-            return HealthCheckResult.Healthy("Not set up here, so not called: errors go to the server log only.");
+            return ServiceProbe.Off("Not set up here, so not called: errors go to the server log only.");
 
         var ingestion = connection.Split(';', StringSplitOptions.RemoveEmptyEntries)
             .Select(part => part.Split('=', 2))
@@ -161,9 +171,9 @@ public sealed class PexelsHealthCheck(IConfiguration configuration, IHostEnviron
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         if (MockAi.IsEnabled(configuration, environment))
-            return HealthCheckResult.Healthy("Not called: stand-in (mock) providers are in use.");
+            return ServiceProbe.Off("Not called: stand-in (mock) providers are in use.");
         if (ServiceProbe.Setting(configuration, Features.Movies.MovieKeys.PexelsKey) is not { } key)
-            return HealthCheckResult.Healthy("Not set up here, so not called: Create Movie draws its pictures instead.");
+            return ServiceProbe.Off("Not set up here, so not called: Create Movie draws its pictures instead.");
 
         return await ServiceProbe.GetAsync(http, context, new Uri("https://api.pexels.com/v1/curated?per_page=1"),
             h => h.TryAddWithoutValidation("Authorization", key), anyAnswerIsHealthy: false, cancellationToken);

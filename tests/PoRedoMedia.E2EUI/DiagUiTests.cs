@@ -19,6 +19,10 @@ public sealed class DiagUiTests : UiTestBase
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Services" })).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByText("Storage account")).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Refresh" })).ToBeEnabledAsync();
+            // Application Insights is not set up in Test: a neutral "Off" pill, not counted in the banner.
+            var insights = page.Locator(".po-diag__card", new() { HasText = "Application Insights" });
+            await Assertions.Expect(insights.Locator(".po-badge--off")).ToHaveTextAsync("Off");
+            await Assertions.Expect(page.Locator(".po-diag__banner")).Not.ToContainTextAsync("Application Insights");
             Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth"), $"/diag scrolls sideways at {width}px");
         }
 
