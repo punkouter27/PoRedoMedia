@@ -94,9 +94,15 @@ window.poFx = (() => {
     // The theme follows the device (prefers-color-scheme); there is no switch.
     const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 
+    /**
+     * Media from storage, read with CORS. `no-store`: an <img>/<video> of the same link may already have put a no-CORS
+     * copy (no Access-Control-Allow-Origin, no Vary: Origin) in the HTTP cache, and reusing it fails the CORS check.
+     */
+    const media = (url, init) => fetch(url, { ...init, cache: 'no-store' });
+
     /** A picture fetched as a bitmap. Through fetch, so a picture in storage does not taint a canvas. */
     async function bitmap(url) {
-        const response = await fetch(url);
+        const response = await media(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return createImageBitmap(await response.blob());
     }
@@ -175,7 +181,7 @@ window.poFx = (() => {
 
     /** A track decoded to one channel. */
     async function mono(url) {
-        const bytes = await (await fetch(url)).arrayBuffer();
+        const bytes = await (await media(url)).arrayBuffer();
         const decoded = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(bytes);
         const samples = new Float32Array(decoded.length);
         for (let c = 0; c < decoded.numberOfChannels; c++) {

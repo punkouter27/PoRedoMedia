@@ -92,7 +92,7 @@ window.poRoast = {
 
         if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         try {
-            const bytes = await (await fetch(audio.currentSrc || audio.src)).arrayBuffer();
+            const bytes = await (await fetch(audio.currentSrc || audio.src, { cache: 'no-store' })).arrayBuffer(); // not the player's no-CORS cached copy
             const context = new AudioContext();
             const decoded = await context.decodeAudioData(bytes);
             context.close();
@@ -132,7 +132,7 @@ window.poRoast = {
     // Draws the picture with the roast under it and downloads the card as a PNG.
     async card(imageUrl, title, lyrics) {
         try {
-            const bitmap = await createImageBitmap(await (await fetch(imageUrl)).blob());
+            const bitmap = await createImageBitmap(await (await fetch(imageUrl, { cache: 'no-store' })).blob()); // not the <img>'s no-CORS cached copy
             const width = 1080, pad = 56;
             const picture = Math.round(width * bitmap.height / bitmap.width);
             const text = lyrics.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 14);
@@ -165,10 +165,10 @@ window.poRoast = {
         if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return false;
         let context;
         try {
-            const bitmap = await createImageBitmap(await (await fetch(imageUrl)).blob());
+            const bitmap = await createImageBitmap(await (await fetch(imageUrl, { cache: 'no-store' })).blob()); // not the <img>'s no-CORS cached copy
             context = new AudioContext();
             await context.resume();
-            const decoded = await context.decodeAudioData(await (await fetch(audioUrl)).arrayBuffer());
+            const decoded = await context.decodeAudioData(await (await fetch(audioUrl, { cache: 'no-store' })).arrayBuffer());
             const rate = 50;
             const envelope = window.poRoast.envelope(decoded, rate);
             const texts = lyrics.split('\n').map((l) => l.trim()).filter(Boolean);

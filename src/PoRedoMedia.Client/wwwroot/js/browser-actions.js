@@ -356,7 +356,8 @@ window.poMedia = {
     // The clipboard is handed a promise, which keeps the click's permission while the picture loads.
     copyImage(url) {
         if (!navigator.clipboard || !window.ClipboardItem) return Promise.resolve(false);
-        const png = fetch(url).then((r) => r.blob()).then(createImageBitmap).then((bitmap) => {
+        // cache: 'no-store': a no-CORS copy of this storage link from an <img>/<audio> must not be reused (CORS check).
+        const png = fetch(url, { cache: 'no-store' }).then((r) => r.blob()).then(createImageBitmap).then((bitmap) => {
             const canvas = document.createElement('canvas');
             canvas.width = bitmap.width;
             canvas.height = bitmap.height;

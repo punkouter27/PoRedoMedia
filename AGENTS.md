@@ -69,7 +69,7 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
   DiagReportDto(string Status, string Environment, string Version, DateTimeOffset CheckedAt, double CheckedMs,
                 DiagCheckDto[] Checks)
   DiagCheckDto(string Name, string Group /* "api" | "data" | "service" */, string Label, string Status
-               /* Healthy|Degraded|Unhealthy */, string Purpose, string Detail, double LatencyMs, string? Problem)
+               /* Healthy|Degraded|Unhealthy|Off */, string Purpose, string Detail, double LatencyMs, string? Problem)
   ```
 - UI route `/diag` ONLY (delete other diagnostics pages/routes such as `/system`, `/diagnostics`, `/status`). Page
   `<title>` and `h1`: **System status**. Layout: overall banner in plain words ("Everything is working" /
@@ -115,8 +115,8 @@ All run from the repo root and checked on 2026-11-21 (.NET SDK 10.0.403 via `glo
 | Build | `dotnet build PoRedoMedia.slnx -c Release` | warnings are errors |
 | Unit (105) | `dotnet test tests/PoRedoMedia.Unit -c Release --no-build` | nothing |
 | Integration (50) | `dotnet test tests/PoRedoMedia.Integration -c Release --no-build` | Docker (Testcontainers Azurite) and ffmpeg on PATH for 9 video tests; each skips with a "Skipped: …" message when missing. Any static ffmpeg build works (e.g. the gyan.dev "essentials" zip, its `bin` put first on PATH for the shell that runs the tests and the app) |
-| E2E API (8) | `dotnet test tests/PoRedoMedia.E2EAPI -c Release --no-build` | nothing (in-process host, mock AI) |
-| E2E UI (15) | `pwsh scripts/run-e2e.ps1 [-Filter <name>]` | Docker; starts Azurite + the app (Test env, mock AI) on :4100 and runs Playwright. Plain `dotnet test tests/PoRedoMedia.E2EUI` skips every test with a message when no app answers at `E2E_BASE_URL` or Chromium is missing; 5 video tests also skip without ffmpeg |
+| E2E API (9) | `dotnet test tests/PoRedoMedia.E2EAPI -c Release --no-build` | nothing (in-process host, mock AI) |
+| E2E UI (15) | `pwsh scripts/run-e2e.ps1 [-Filter <name>] [-FetchFFmpeg]` | Docker; publishes the trimmed Release build (`dotnet publish -c Release`, what deploys), starts Azurite + that publish (Test env, mock AI) on :4100 and runs Playwright; stops Azurite again if it started it. It prints the ffmpeg it uses (`-FFmpegDir`, `FFMPEG_DIR`, PATH, or a portable copy in `%LOCALAPPDATA%\PoRedoMediafmpeg` that `-FetchFFmpeg` downloads; nothing is installed system-wide). Plain `dotnet test tests/PoRedoMedia.E2EUI` skips every test with a message when no app answers at `E2E_BASE_URL` or Chromium is missing; 5 video tests also skip without ffmpeg |
 | Run locally | `docker compose up -d` then `dotnet run --project src/PoRedoMedia.Api` | → http://localhost:4100 (Development: Azurite + Key Vault keys via `az login`) |
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (job `deploy`; job `mobile` builds Android, non-blocking) | `*.md` and `SCREENSHOTS/**` pushes do not deploy |
 | Deploy check | `curl -sI https://app-poredomedia2.azurewebsites.net/health/live` shows `X-Commit: <pushed sha>` | the workflow waits for this |
@@ -138,8 +138,11 @@ laid out: [docs/architecture.md](docs/architecture.md). Publishing keys: [docs/p
 `Common/Health/HealthChecks.cs` registers the rows; `Common/Health/ServiceProbes.cs` holds the live probes. Each asks
 the service something free: Gemini reads the vision model's description, Azure OpenAI and AI Foundry list their models,
 Key Vault lists one page of secret names with the app's identity, Microsoft sign-in reads the tenant's OpenID document,
-Application Insights and Pexels are probed only when set up (otherwise "Not set up here, so not called"), YouTube and
-TikTok reach their sign-in servers only when their app keys are set. Stand-in (mock) providers in Test are never called.
+Application Insights and Pexels are probed only when set up, YouTube and TikTok reach their sign-in servers only when
+their app keys are set. A service switched off on purpose (not set up here, or a stand-in in Test) is not called and
+shows **Off**: a grey neutral pill (`.po-badge--off`) that does not count toward the banner or the overall status
+(`ServiceProbe.Off`, asserted by E2EAPI `HealthApiTests` and E2EUI `DiagUiTests`). Production today: Application
+Insights, Pexels, YouTube and TikTok are Off (no connection string / keys set).
 
 ### Working rules
 - **Stay on `master`:** commit directly to `master`; create branches only when asked. Short, natural commit messages.
@@ -163,7 +166,7 @@ dotnet format PoRedoMedia.slnx --verify-no-changes     # what CI checks first
 dotnet build PoRedoMedia.slnx -c Release               # warnings are errors
 dotnet test tests/PoRedoMedia.Unit                     # add --filter "FullyQualifiedName~MemeRenderingTests" for one class
 dotnet test tests/PoRedoMedia.Integration              # needs Docker (Testcontainers Azurite); video tests also need ffmpeg
-pwsh scripts/run-e2e.ps1 [-Filter x]                   # E2EUI: starts Azurite + the app (Test env, mock AI), runs Playwright
+pwsh scripts/run-e2e.ps1 [-Filter x] [-FetchFFmpeg]    # E2EUI against the Release publish: Azurite + the app (Test env, mock AI), Playwright
 dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound library, then exits (startup does this too)
 pwsh scripts/mobile-dev.ps1 -ApiPort 4100 -Run         # the MAUI phone app against the local API
 ```
@@ -173,8 +176,8 @@ pwsh scripts/mobile-dev.ps1 -ApiPort 4100 -Run         # the MAUI phone app agai
 |---|---|---|---|
 | Unit | `tests/PoRedoMedia.Unit` | 105 | CI + locally; no I/O |
 | Integration | `tests/PoRedoMedia.Integration` | 50 | CI (Docker + ffmpeg installed) + locally. `[DockerFact]` skips with "Docker is not running…" without Docker; `[FFmpegFact]`/`[DockerFFmpegFact]` skip with "ffmpeg is not on PATH…" without ffmpeg |
-| E2E API | `tests/PoRedoMedia.E2EAPI` | 8 | locally; in-process host, mock AI, no Docker |
-| E2E UI | `tests/PoRedoMedia.E2EUI` | 15 | locally against a running app (`scripts/run-e2e.ps1`); `[LiveServerFact]` skips with a message when no app answers at `E2E_BASE_URL` or Playwright's Chromium is missing |
+| E2E API | `tests/PoRedoMedia.E2EAPI` | 9 | locally; in-process host, mock AI, no Docker |
+| E2E UI | `tests/PoRedoMedia.E2EUI` | 15 | locally against the Release publish (`scripts/run-e2e.ps1`); `[LiveServerFact]` skips with a message when no app answers at `E2E_BASE_URL` or Playwright's Chromium is missing |
 
 There are no test caps; keep the counts above current.
 

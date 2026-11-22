@@ -12,7 +12,7 @@ window.poDeviceAi = {
     // The same for a video already in the Library, fetched here first: a film picked for a movie.
     async transcribeMedia(url, mediaId, status) {
         try {
-            const response = await fetch(url, { credentials: 'same-origin' });
+            const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' }); // not a <video>'s no-CORS cached copy
             if (!response.ok) return -1;
             return await window.poDeviceAi.transcribeFile(await response.blob(), mediaId, status);
         } catch (err) {

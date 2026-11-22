@@ -31,7 +31,7 @@ src/PoRedoMedia.Movie    Create Movie's engine (script, pictures, FFmpeg render)
 src/PoRedoMedia.Mobile   MAUI phone client (not in the .slnx; CI builds the Android target)
 tests/PoRedoMedia.Unit   105 fast tests, no I/O
 tests/PoRedoMedia.Integration   50 tests against a throwaway Azurite (Docker) and real ffmpeg
-tests/PoRedoMedia.E2EAPI 8 in-process API contract tests
+tests/PoRedoMedia.E2EAPI 9 in-process API contract tests
 tests/PoRedoMedia.E2EUI  15 Playwright tests against a running app
 infra/                   Bicep for the Azure resources the app runs on
 docs/                    architecture.md, publishing-setup.md
@@ -59,7 +59,7 @@ Tests:
 dotnet test tests/PoRedoMedia.Unit
 dotnet test tests/PoRedoMedia.Integration     # skips with a message when Docker (or ffmpeg) is missing
 dotnet test tests/PoRedoMedia.E2EAPI
-pwsh scripts/run-e2e.ps1                      # starts Azurite + the app and runs the Playwright tier
+pwsh scripts/run-e2e.ps1                      # publishes Release, starts Azurite + that build, runs the Playwright tier
 ```
 
 ## How it deploys
