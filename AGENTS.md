@@ -107,6 +107,13 @@ Several sessions (people and agents) commit to this repo, sometimes at the same 
 
 ## 3. Verification
 
+One command sequence verifies the repo (format, build, Unit, Integration, E2E API, then E2E UI on the trimmed Release
+publish):
+
+```powershell
+dotnet format PoRedoMedia.slnx --verify-no-changes && dotnet build PoRedoMedia.slnx -c Release && dotnet test tests/PoRedoMedia.Unit -c Release --no-build && dotnet test tests/PoRedoMedia.Integration -c Release --no-build && dotnet test tests/PoRedoMedia.E2EAPI -c Release --no-build && pwsh scripts/run-e2e.ps1 -FetchFFmpeg
+```
+
 All run from the repo root and checked on 2026-11-21 (.NET SDK 10.0.403 via `global.json` 10.0.400 + latestFeature).
 
 | What | Command | Needs / without it |
@@ -129,10 +136,18 @@ PoRedoMedia turns photos and videos into memes, roasts, comics and short movies 
 ASP.NET Core API, FFmpeg, several AI providers). What it is and how to run it: [README.md](README.md). How the code is
 laid out: [docs/architecture.md](docs/architecture.md). Publishing keys: [docs/publishing-setup.md](docs/publishing-setup.md).
 
-### Exceptions to the standard
-- **No Settings gear** in the header (owner's call, 2026-11-20): the app has no settings page; its switches are fixed
-  defaults in `Client/Services/AppSettings`. Signed in, the email opens a small menu with Sign out.
-- **Azure names** keep their pre-standard form (see CI/CD and Azure below).
+### Deliberate deviations
+
+| Deviation | Why | Commit sha / date | How to undo |
+|---|---|---|---|
+| No Settings gear or page; switches are fixed defaults in `Client/Services/AppSettings`; the email opens a small menu with Sign out | owner's call | `4937fc6` 2026-11-20 | bring the settings page back |
+| Radzen exceptions: hidden Blazor `InputFile` (a RadzenButton opens it), `<details>/<summary>` disclosures, native `<audio>`/`<video>` | Radzen's upload cannot hand the page the file stream; native players | `d9e4574` 2026-11-21 | — |
+| /diag: services switched off on purpose show a grey **Off** pill, not counted (production today: App Insights, Pexels, YouTube, TikTok) | not set up here; Off is honest, Degraded was not | `9db0e8c` 2026-11-21 | set the keys / connection string |
+| Sign-in page is only the name and the button; the version stamp never sits on content on phones | overrides the older shell layout | `d9e4574` 2026-11-21 | `git revert d9e4574` (layout part) |
+| Azure names `app-poredomedia2`, `stporedomedia2`, `asp-PoRedoMedia-f1` (standard `app-poredomedia`) | renaming means recreating and moving data | — | owner-approved recreate |
+
+**Hosting:** App Service F1 (Free, Linux, `asp-PoRedoMedia-f1`): 165 MB of data out and 60 CPU-minutes per day, 1 GB
+disk, no Always On. Never run test suites against the live site; live checks = at most 6 page loads + /diag + X-Commit.
 
 ### /diag here
 `Common/Health/HealthChecks.cs` registers the rows; `Common/Health/ServiceProbes.cs` holds the live probes. Each asks
