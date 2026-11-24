@@ -123,7 +123,7 @@ public sealed partial class ChatScriptWriter
     public async Task<FootageSeen?> WatchAsync(IReadOnlyList<Frame> frames, string note, Show show, CancellationToken ct)
     {
         if (See is null || frames.Count == 0) return null;
-        var reply = await See(settings.FastChatDeployment, ScriptSchemas.WatchSystem(show),
+        var reply = await See(settings.VisionDeployment ?? settings.FastChatDeployment, ScriptSchemas.WatchSystem(show),
             note.Trim().Length > 0 ? Fenced("existing", " what=\"the owner's note on the film\"", note) : "The owner wrote no note on it.",
             [.. frames.Select(f => (FormattableString.Invariant($"At {f.At.TotalSeconds:0.0} s:"), f.Path))], "watch", ScriptSchemas.Watch, ct);
         var seen = Read<FootageSeen>(reply);

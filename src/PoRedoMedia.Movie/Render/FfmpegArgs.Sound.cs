@@ -68,12 +68,14 @@ public static partial class FfmpegArgs
         string.Concat(clips.Select(path => $"file '{path.Replace("'", @"'\''")}'\n"));
 
     /// <summary>
-    /// Joins the finished clips by copying their pictures, and lays the crossfaded, levelled narration under them. No
-    /// music plays under the clips: the series' music is the outro's own sound (see <see cref="OutroMusic"/>).
+    /// Joins the finished clips by copying their pictures, and lays the crossfaded, levelled narration under them. The
+    /// series' music is the outro's own sound (see <see cref="OutroMusic"/>); a movie made of films may also have a
+    /// music bed under its clips.
     /// </summary>
     /// <param name="whoosh">A sound (see <see cref="Synth.Whoosh"/>) played into each of the <paramref name="cuts"/>, loudest on the cut; null for none.</param>
+    /// <param name="bed">A music track looped quietly under <paramref name="bedSpan"/> (the clips), ducking under the voices; null for none.</param>
     public static IReadOnlyList<string> Join(string clipListFile, IReadOnlyList<string> audios, string output, string? whoosh = null,
-        IReadOnlyList<TimeSpan>? cuts = null)
+        IReadOnlyList<TimeSpan>? cuts = null, string? bed = null, (TimeSpan Start, TimeSpan End)? bedSpan = null)
     {
         var starts = whoosh is null ? [] : (cuts ?? []).Select(cut => cut - Synth.WhooshPeak).Where(start => start >= TimeSpan.Zero).ToList();
         var graph = new List<string>();
@@ -96,6 +98,21 @@ public static partial class FfmpegArgs
             graph.Add($"{sound}{string.Concat(starts.Select((_, j) => $"[d{j}]"))}amix=inputs={starts.Count + 1}:duration=first:normalize=0[swept]");
             sound = "[swept]";
         }
+        var bedding = bed is not null && bedSpan is { } span && span.End - span.Start > TimeSpan.FromSeconds(3);
+        if (bedding)
+        {
+            // Under the clips only: the intro has its sting and the outro its own music. Well under the voice, and
+            // pressed further down whenever anyone speaks, so it fills the quiet without covering a word.
+            var (from, to) = bedSpan!.Value;
+            var length = to - from;
+            var input = audios.Count + 1 + (starts.Count > 0 ? 1 : 0);
+            graph.Add(FormattableString.Invariant(
+                $"[{input}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=-20dB,atrim=0:{Seconds(length)},afade=t=in:d=1,afade=t=out:st={Seconds(length - TimeSpan.FromSeconds(1.5))}:d=1.5,adelay=delays={(long)from.TotalMilliseconds}:all=1[bedraw]"));
+            graph.Add($"{sound}asplit=2[voice][key]");
+            graph.Add("[bedraw][key]sidechaincompress=threshold=0.03:ratio=6:attack=15:release=400[bed]");
+            graph.Add("[voice][bed]amix=inputs=2:duration=first:normalize=0[bedded]");
+            sound = "[bedded]";
+        }
         graph.Add($"{sound}loudnorm=I={TargetLufs.ToString(CultureInfo.InvariantCulture)}:TP=-1.5:LRA=11,aresample=48000[aout]");
 
         return
@@ -103,6 +120,7 @@ public static partial class FfmpegArgs
             "-f", "concat", "-safe", "0", "-i", clipListFile,
             .. audios.SelectMany(path => new[] { "-i", path }),
             .. starts.Count == 0 ? [] : new[] { "-i", whoosh! },
+            .. bedding ? new[] { "-stream_loop", "-1", "-i", bed! } : [],
             "-filter_complex", string.Join(';', graph),
             "-map", "0:v", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-y", output,

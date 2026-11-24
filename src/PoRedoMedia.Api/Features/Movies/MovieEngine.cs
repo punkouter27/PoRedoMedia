@@ -64,6 +64,7 @@ public sealed class MovieEngine
             ChatRates = TokenRates.Parse(config[MovieKeys.ChatRates] ?? ""),
             FastChatRates = TokenRates.Parse(config[MovieKeys.FastChatRates] ?? ""),
             VoiceRate = config.GetValue<decimal?>(MovieKeys.VoiceRate),
+            VisionDeployment = AiFoundryClient.Setting(config, MovieKeys.VisionDeployment) ?? MovieKeys.DefaultVisionDeployment,
         };
 
         if (!mock && MovieAi.ChatResource(config) is var (chatEndpoint, chatKey))
@@ -94,6 +95,10 @@ public sealed class MovieEngine
         {
             PaceLearned = VoiceLive ? pace => { lock (paceGate) JsonFile.Save(PaceFile, pace); } : null,
         };
+
+        // A music bed for a movie made of films, when the series has no music of its own (Lyria, about 4 cents a movie).
+        Music = !mock && services.GetService<IMusicGenerationService>() is { IsConfigured: true } music ? music : null;
+        MusicPrice = config.GetValue<decimal?>("AiPricing:MusicUsd") ?? 0.04m;
 
         // Pictures come from whichever picture provider the app has; footage needs the video provider as well.
         if (services.GetService<IImageGenerationService>() is { } images)
@@ -129,6 +134,11 @@ public sealed class MovieEngine
     public bool FfmpegAvailable { get; }
 
     public FfmpegRunner Runner { get; }
+
+    /// <summary>Makes a music bed when a series has no music of its own; null when no music service is set up.</summary>
+    public IMusicGenerationService? Music { get; }
+
+    public decimal MusicPrice { get; }
 
     public AppSettings Settings { get; }
 
@@ -252,6 +262,11 @@ public static class MovieKeys
 
     /// <summary>The model for the small jobs (checking, watching frames, upload notes). Empty = the script model.</summary>
     public const string FastChatDeployment = "Movie:FastChatDeployment";
+
+    /// <summary>The model that watches each film (what happens, when, the best moment). Empty = gpt-5.4-mini.</summary>
+    public const string VisionDeployment = "Movie:VisionDeployment";
+
+    public const string DefaultVisionDeployment = "gpt-5.4-mini";
 
     /// <summary>The narrator's voice, one the speech deployment knows. Empty = "ash".</summary>
     public const string Voice = "Movie:Voice";

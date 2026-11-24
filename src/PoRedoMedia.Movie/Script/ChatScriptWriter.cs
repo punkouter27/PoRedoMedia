@@ -51,7 +51,7 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
     private sealed record TeaserDto(string Hook, List<MomentDto> Moments);
     private sealed record TeasersDto(List<TeaserDto> Teasers);
     private sealed record PlannedClipDto(string Title, string Kind, string About, string Beat = "", int Footage = 0, bool Host = false);
-    private sealed record OutlineDto(string Title, List<PlannedClipDto> Clips, string Subject = "");
+    private sealed record OutlineDto(string Title, List<PlannedClipDto> Clips, string Subject = "", int Payoff = 0);
     private sealed record SearchDto(List<string> Terms);
     private sealed record HostDto(bool Same, string Difference);
     private sealed record LetteringDto(bool Lettered, string Text);
@@ -115,7 +115,7 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
                 new Dictionary<Tier, TierScript> { [Tier.B] = new(c.B.Dialogue, c.B.VisualPrompt, c.B.Pose) },
                 new VisualSpec(Visuals.KindFor(c.Kind)), HostVisible: c.Host && show == Show.Robot) // the kids' series has no presenter on screen
             { Beat = c.Beat };
-            return c.Footage >= 1 && c.Footage <= footage.Count ? BeatPlan.WithFootage(clip, footage[c.Footage - 1]) : clip;
+            return c.Footage >= 1 && c.Footage <= footage.Count ? BeatPlan.WithFootage(clip, footage[c.Footage - 1]) with { Payoff = c.Footage == outline.Payoff } : clip;
         }).ToList();
         // The model's beats and footage numbers are not trusted further than this: the plan is held to its structure.
         var episode = new Episode(title, lesson.Topic, clips, MixSeed: Random.Shared.Next()) { Structure = lesson.Structure, Subject = subject };
@@ -193,6 +193,10 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
         var clips = new ClipDto?[planned.Count];
         var left = new bool[planned.Count];
         var asked = 0;
+        // A movie made of the owner's films alone is one story told by one narrator: each clip is written after the one
+        // before it, seeing what was said so far, so the voice-over builds up and can call back instead of starting over
+        // in every clip. It is slower (one clip at a time), so a script with clips of its own keeps writing side by side.
+        var story = planned.Count > 1 && planned.All(c => c.Footage > 0);
 
         async Task WriteAsync(int i)
         {
@@ -206,6 +210,7 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
             {
                 var mine = new StringBuilder(request).AppendLine()
                     .Append(Fenced("existing", " what=\"the plan of the whole video\"", $"{outline.Title}\n{plan}"))
+                    .Append(story ? SoFar(i) : "")
                     .AppendLine($"Write clip {i + 1} of {planned.Count}.{(film is null ? "" : $" It shows footage {clip.Footage}, in about {Durations.WordsFor(film.Length)} words.")}")
                     .AppendLine(kinds.FirstOrDefault(k => k.Key == clip.Kind) is { } kind ? $"Picture type: {kind.Key}. {kind.Brief}" : "Picture type: title. visualPrompt: the title.");
                 Interlocked.Increment(ref asked);
@@ -225,10 +230,18 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
         }
 
         // The first clip is written alone: the others then find the long opening they share already cached, which
-        // costs less and answers sooner. Then the rest, a few at a time.
+        // costs less and answers sooner. Then the rest, a few at a time, or one by one when they tell one story.
         if (planned.Count > 0)
             await WriteAsync(0);
-        await Batch.EachAsync(Enumerable.Range(1, Math.Max(0, planned.Count - 1)), ClipsAtOnce, WriteAsync, ct);
+        await Batch.EachAsync(Enumerable.Range(1, Math.Max(0, planned.Count - 1)), story ? 1 : ClipsAtOnce, WriteAsync, ct);
+
+        string SoFar(int i)
+        {
+            var told = Enumerable.Range(0, i).Select(j => clips[j]).OfType<ClipDto>().Where(c => c.B.Dialogue.Length > 0 && c.B.Dialogue != LeftToWrite)
+                .Select(c => $"{c.Title}: {c.B.Dialogue}").ToList();
+            return told.Count == 0 ? "" : Fenced("existing", " what=\"the narration so far, clip by clip\"", string.Join('\n', told))
+                + "Carry the story on from the narration so far: do not repeat what was said, build towards the payoff the plan names, and where it pays off call back to an earlier clip once." + Environment.NewLine;
+        }
 
         var unwritten = planned.Where((_, i) => left[i]).Select(c => c.Title).ToList();
         if (unwritten.Count > 0 && unwritten.Count == asked)

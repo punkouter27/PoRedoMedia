@@ -12,5 +12,13 @@ public enum VisualEffectType
     // member would throw JsonException when loading those sessions.
     SnapZoom,
     MotionBlur,
-    Overlay
+    Overlay,
+
+    // Windowed, like DeepFry: only inside the cue's window, so the rest of the video keeps its framing.
+
+    /// <summary>A punch-in on the middle of the picture, for a reaction.</summary>
+    Zoom,
+
+    /// <summary>The picture shaken, for an impact: a crash, a fall, a slam.</summary>
+    Shake,
 }

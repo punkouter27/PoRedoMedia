@@ -113,6 +113,15 @@ internal static partial class ScriptSchemas
         that the list does not.
         """;
 
+    // The films are listed in the order they were added, which is no story. The order of the clips in the plan is the
+    // order they play in (within a beat), so the plan is where the story is told.
+    private const string StoryOrder = """
+        Put the clips in the order that tells the best story, not in the order the footage is listed: open with a film
+        that sets the scene or hooks, build up through the ones that escalate, put the biggest, funniest or most
+        surprising film near the end of the footage as the payoff, and wind down after it. Within a beat, list the clips
+        in the order they should play. Each "about" says what the clip adds to that arc.
+        """;
+
     // What a clip with the owner's film is told about it, on top of the plan.
     private const string Narrating = """
         When the clip shows footage, its dialogue is narration over that film: say what happens as it happens, in the
@@ -209,6 +218,8 @@ internal static partial class ScriptSchemas
         Break the topic into the number of clips the request asks for.
         {Of(show).Structure}
 
+        {StoryOrder}
+
         Give the video a title; a subject: one sentence on how the main thing seen in the pictures looks (its shape,
         colours and parts, never its name alone), so every picture draws it the same way; and for every clip:
         - title: two to five words.
@@ -218,6 +229,8 @@ internal static partial class ScriptSchemas
         {KindList(kinds)}
         - about: one sentence saying what the clip covers, and what it leaves to the clips after it. No two clips cover
           the same ground. The first clip's is the hook that makes a viewer stay.
+        And a payoff: the footage number of the film with the biggest, funniest or most surprising moment, the one the
+        story builds to; its best moment is teased before the intro and shown again as a replay. 0 when there is no footage.
 
         {Of(show).DrawablePictures}
 
@@ -225,7 +238,7 @@ internal static partial class ScriptSchemas
         """;
 
     public static string Outline(IReadOnlyList<KindInfo> kinds, IReadOnlyList<Beat> beats) => $$"""
-        { "type": "object", "properties": { "title": { "type": "string" }, "subject": { "type": "string" }, "clips": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, {{PlanFields(beats)}}, "kind": { "type": "string", "enum": [{{Keys(kinds)}}] }, "about": { "type": "string" } }, "required": ["title", "beat", "footage", "host", "kind", "about"], "additionalProperties": false } } }, "required": ["title", "subject", "clips"], "additionalProperties": false }
+        { "type": "object", "properties": { "title": { "type": "string" }, "subject": { "type": "string" }, "clips": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, {{PlanFields(beats)}}, "kind": { "type": "string", "enum": [{{Keys(kinds)}}] }, "about": { "type": "string" } }, "required": ["title", "beat", "footage", "host", "kind", "about"], "additionalProperties": false } }, "payoff": { "type": "integer" } }, "required": ["title", "subject", "clips", "payoff"], "additionalProperties": false }
         """;
 
     // Where a clip sits in the episode: which beat, which of the owner's films it shows, and whether the host presents it.

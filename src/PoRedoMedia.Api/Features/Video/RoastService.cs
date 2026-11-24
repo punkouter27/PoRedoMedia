@@ -86,6 +86,8 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         {{InsultRule(mix)}}
         Each joke: one or two sentences, at most 14 words, written to be said aloud. No emoji, no hashtags, no stage directions, no quotation marks.
         Spread the jokes across the clip, in time order, at most one per moment. Skip moments with nothing to mock.
+        Go for the most specific detail of each moment: the exact thing done, held or said, not a general remark about it.
+        When it fits, make the last joke a callback: bring back something from an earlier joke with a twist.
         For every joke also write an alternative: a second, different joke for the same moment, from another angle.
         Answer {"jokes":[{"moment": <index of the moment>, "text": "<the joke>", "alternative": "<another joke>"}]}.
         """;
@@ -279,8 +281,11 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         // By the roast-lines level. This used to be one per seven seconds whatever the level said, so
         // the slider changed nothing and a 15 s clip was asked for two lines at most.
         var max = MaxJokesFor(mix, durationSeconds);
+        // Twice the jokes that are kept, each with its alternative: the judge then keeps the best of four for each line,
+        // and the best moments too, instead of having to keep whatever was written.
+        var candidates = _judge is null ? max : Math.Min(max * 2, moments.Count);
         var prompt = new StringBuilder()
-            .Append(inv, $"The clip is {durationSeconds:0.#} seconds long. Write {max} joke(s), fewer only when there are fewer moments.\n")
+            .Append(inv, $"The clip is {durationSeconds:0.#} seconds long. Write {candidates} joke(s), fewer only when there are fewer moments.\n")
             .Append(narrated ? NarratorBrief : "")
             .Append(TargetBrief(mix.Target) ?? (childIsIt ? KidsBrief : ""))
             .Append(childIsIt ? "If you mention the little child, call it \"it\" or \"the little one\", never he, she, they, him, her, his, bro, boy, girl or king.\n" : "")
@@ -288,8 +293,8 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         for (var i = 0; i < moments.Count; i++)
             prompt.Append(inv, $"[{i}] t={moments[i].AtSeconds:0.0}s {moments[i].What}\n");
 
-        var jokes = ReadJokes(await AskAsync(prompt.ToString()), moments, max);
-        List<(long AtMs, string Text)> picked = _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, mix, ct);
+        var jokes = ReadJokes(await AskAsync(prompt.ToString()), moments, candidates);
+        List<(long AtMs, string Text)> picked = _judge is null ? [.. jokes.Select(j => (j.AtMs, j.Text))] : await PickJokesAsync(_judge, jokes, mix, max, ct);
         if (picked.Count == 0)
             return picked;
 
@@ -310,7 +315,7 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         return better ? rewritten : picked;
 
         Task<string> AskAsync(string user, CancellationToken? token = null) => _ai.CompleteJsonAsync(
-            new AiCall("roast", _ai.Deployment, "roast", Schema)
+            new AiCall("roast", RoastDeployment, "roast", Schema)
             {
                 MediaId = mediaId,
                 Temperature = 1.0f,
@@ -335,9 +340,20 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         + "profanity or vulgarity. Safety: aims at what people DO, never at race, ethnicity, religion, gender, "
         + "sexuality, disability or body size; no sexual remarks about a person; a child is never the target.";
 
-    /// <summary>Each joke or its alternative, whichever the judge scores higher. One judge call for the whole set.</summary>
+    /// <summary>
+    /// The model the jokes are written with (<c>AiFoundry:RoastDeployment</c>): a stronger one than the director's, as
+    /// the jokes are what a roast is judged by and they are a few short lines. Empty = gpt-5.4.
+    /// </summary>
+    private string RoastDeployment => _config["AiFoundry:RoastDeployment"] is { Length: > 0 } set ? set : DefaultRoastDeployment;
+
+    internal const string DefaultRoastDeployment = "gpt-5.4";
+
+    /// <summary>
+    /// The best <paramref name="keep"/> lines: for each moment its joke or its alternative, whichever the judge scores
+    /// higher, then the highest-scoring moments, back in time order. One judge call for the whole set.
+    /// </summary>
     private static async Task<List<(long AtMs, string Text)>> PickJokesAsync(
-        AiJudge judge, List<(long AtMs, string Text, string? Alternative, string Moment)> jokes, MemeMix mix, CancellationToken ct)
+        AiJudge judge, List<(long AtMs, string Text, string? Alternative, string Moment)> jokes, MemeMix mix, int keep, CancellationToken ct)
     {
         var drafts = jokes.SelectMany(j => j.Alternative is null ? [$"({j.Moment}) {j.Text}"] : new[] { $"({j.Moment}) {j.Text}", $"({j.Moment}) {j.Alternative}" }).ToList();
         double[] scores;
@@ -347,18 +363,33 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {
-            return [.. jokes.Select(j => (j.AtMs, j.Text))];
+            return [.. jokes.Take(keep).Select(j => (j.AtMs, j.Text))];
         }
 
-        var picked = new List<(long, string)>();
+        return Best(jokes, scores, keep);
+    }
+
+    /// <summary>The kept lines, from the judge's <paramref name="scores"/>: each joke's, then its alternative's when it has one.</summary>
+    internal static List<(long AtMs, string Text)> Best(
+        IReadOnlyList<(long AtMs, string Text, string? Alternative, string Moment)> jokes, IReadOnlyList<double> scores, int keep)
+    {
+        var scored = new List<(long AtMs, string Text, double Score)>();
         var i = 0;
         foreach (var joke in jokes)
         {
-            var first = scores[i++];
-            picked.Add(joke.Alternative is not null && scores[i++] > first ? (joke.AtMs, joke.Alternative) : (joke.AtMs, joke.Text));
+            var first = i < scores.Count ? scores[i] : 0;
+            i++;
+            if (joke.Alternative is null)
+            {
+                scored.Add((joke.AtMs, joke.Text, first));
+                continue;
+            }
+            var second = i < scores.Count ? scores[i] : 0;
+            i++;
+            scored.Add(second > first ? (joke.AtMs, joke.Alternative, second) : (joke.AtMs, joke.Text, first));
         }
 
-        return picked;
+        return [.. scored.OrderByDescending(j => j.Score).ThenBy(j => j.AtMs).Take(keep).OrderBy(j => j.AtMs).Select(j => (j.AtMs, j.Text))];
     }
 
     /// <summary>The jokes in the model's answer, each at its moment's time: one per moment, in time order.</summary>

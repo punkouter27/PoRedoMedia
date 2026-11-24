@@ -24,6 +24,9 @@ public sealed partial class MovieStudio
 
     private const int VoicesAtOnce = 4;
 
+    /// <summary>Frames a film is watched by: one every couple of seconds for a usual film, so its best moment is found to the second.</summary>
+    private const int WatchFrames = 16;
+
     /// <summary>
     /// One of the user's Library videos as a file on this server, fetched from storage the first time. FFmpeg and the
     /// models that watch a film need it beside them.
@@ -74,9 +77,10 @@ public sealed partial class MovieStudio
     private async Task<FootageSeen?> WatchAsync(string film, string note, Show show, CancellationToken ct)
     {
         if (!engine.ScriptLive || !engine.FfmpegAvailable) return null;
-        var kept = await FootageCache.GetOrCreateAsync([$"watched-{show}", Path.GetFileName(film)], ".json", async scratch =>
+        // "watched2": watched by the stronger model at twice the frames, so a film watched before is watched again once.
+        var kept = await FootageCache.GetOrCreateAsync([$"watched2-{show}", Path.GetFileName(film)], ".json", async scratch =>
         {
-            var frames = await engine.Builder.FramesAsync(film, 8, ct);
+            var frames = await engine.Builder.FramesAsync(film, WatchFrames, ct);
             try
             {
                 var seen = await Writer.WatchAsync(frames, note, show, ct) ?? throw new InvalidOperationException("Nothing here can look at pictures.");

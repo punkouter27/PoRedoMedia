@@ -78,6 +78,12 @@ public sealed record Clip(
     /// <summary>The user switched Meme-ify off for this clip: its film plays in the movie as it is. Clips are meme-ified unless this is set.</summary>
     public bool NoMemes { get; init; }
 
+    /// <summary>Seconds into the owner's film of its best moment, as the model that watched it saw it; null when not watched.</summary>
+    public double? Highlight { get; init; }
+
+    /// <summary>The film the story builds to: its best moment opens the movie as a teaser and is shown again as a replay.</summary>
+    public bool Payoff { get; init; }
+
     /// <summary>
     /// The narrator chosen for the movie, as "style@rate" (e.g. "deadpan@1.08"); null is the usual narrator at the usual
     /// pace. The rate multiplies <see cref="NarrationRate"/>.
@@ -140,6 +146,18 @@ public sealed record Episode(
 
     /// <summary>The shots planned for filming the lesson, as ticked off; empty when none were asked for.</summary>
     public IReadOnlyList<Shot> Shots { get; init; } = Shots ?? [];
+
+    // The three below are set only on the copy of a movie made from films that is rendered (see MovieStudio's
+    // showtime), never on a saved episode.
+
+    /// <summary>How many clips play before the intro: a cold open, the best moment teased before the series' intro.</summary>
+    public int Opening { get; init; }
+
+    /// <summary>Every cut, not only a new beat's, gets the rush of air and the streak of light.</summary>
+    public bool EveryCut { get; init; }
+
+    /// <summary>A music track looped quietly under the clips (not the intro or outro), ducking under the voices; null for none.</summary>
+    public string? BedPath { get; init; }
 
     /// <summary>The first picture any clip has on disk, used as the episode's thumbnail; null when there is none.</summary>
     public string? Cover() => Clips.Select(clip => clip.Picture()).FirstOrDefault(path => path is not null);

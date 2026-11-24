@@ -56,6 +56,13 @@ public static class RunOptions
     public const string VideoRoastNarrated = "VideoRoast.narrated";
 
     /// <summary>
+    /// The moments the picture changes most suddenly (a fall, a crash), as milliseconds separated by commas, measured
+    /// from the film itself (a Create Movie clip). Cues snap to them first: the clip's loudness also carries the
+    /// narrator, whose words are not the action. Absent = cues snap to loud hits only.
+    /// </summary>
+    public const string VideoImpacts = "Video.impacts";
+
+    /// <summary>
     /// "1" when the video's own sound carries a narrator who must stay on top (a Create Movie clip): the source plays at
     /// full level and the meme sounds come in lower. Absent = the usual mix, where the meme sounds cut through.
     /// </summary>

@@ -6,7 +6,8 @@ public sealed record Preview(string VideoPath, IReadOnlyList<ClipMark> Marks);
 
 /// <summary>One clip's place on the finished timeline.</summary>
 /// <param name="Bookend">The series intro or outro, not one of the episode's clips.</param>
-public sealed record ClipMark(string Title, TimeSpan Start, string AudioPath, bool Bookend = false);
+/// <param name="Clip">The clip's place in the episode; -1 for the intro and outro.</param>
+public sealed record ClipMark(string Title, TimeSpan Start, string AudioPath, bool Bookend = false, int Clip = -1);
 
 /// <summary>Where a render has got to: what it is doing in plain words, and how far through the whole job it is (0 to 1).</summary>
 /// <param name="Clips">How far each clip's picture has got (0 to 1), in running order; null outside the drawing stage.</param>

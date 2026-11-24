@@ -14,6 +14,12 @@ public sealed record AppSettings(string ChatDeployment, string FastChatDeploymen
     /// </summary>
     public string? LocalModel { get; init; }
 
+    /// <summary>
+    /// The model that watches a film's frames and says what happens, when, and which moment is best. It sets what the
+    /// whole movie can joke about, so it is a stronger model than the fast one. Null = the fast model.
+    /// </summary>
+    public string? VisionDeployment { get; init; }
+
     // What script and voice cost depends on the owner's own agreement, so the engine carries no price for them. Each is
     // null until given, and that service's use is then shown as an amount used, without a price.
 

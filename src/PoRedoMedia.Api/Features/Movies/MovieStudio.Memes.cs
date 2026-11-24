@@ -16,7 +16,7 @@ namespace PoRedoMedia.Api.Features.Movies;
 public sealed partial class MovieStudio
 {
     /// <summary>Names a meme-ified clip on disk. Change it when what Meme-ify is asked for changes, so clips are made again.</summary>
-    private const string MemeVersion = "meme 10"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"; 6: the roast never talks over the narrator; 7: kids' roast and captions are meaner and sarcastic; 8: the meme mix levels; 9: jokes with no pause go after the narration, unused room is cut; 10: no captions are burned in later, so meme text goes where directed
+    private const string MemeVersion = "meme 11"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"; 6: the roast never talks over the narrator; 7: kids' roast and captions are meaner and sarcastic; 8: the meme mix levels; 9: jokes with no pause go after the narration, unused room is cut; 10: no captions are burned in later, so meme text goes where directed; 11: stronger vision and roast models, best-of-twice-as-many jokes, Zoom and Shake, cues snap to the film's action
 
     private bool CanMeme => memes?.Handles.Contains(MediaFunction.Memeify) == true;
 
@@ -186,6 +186,18 @@ public sealed partial class MovieStudio
         var mix = MixOf(open.Episode);
         var narrated = !clip.OwnSound && clip.Active.Dialogue.Trim().Length > 0;
         var (functions, options) = MemeRun(show, memes!.Handles, narrated, open.Episode.RoastVoice, mix);
+        // Where the film's action is, so meme sounds and effects land on it. A film plays from the start in its clip; an
+        // AI video loops, so its times would not hold. Free, and a clip is Meme-ified without them if they fail.
+        if (clip.Visual.Kind == VisualKind.UserVideo)
+            try
+            {
+                if (await engine.Builder.ImpactsAsync(film, ct) is { Count: > 0 } impacts)
+                    options[RunOptions.VideoImpacts] = string.Join(',', impacts.Select(s => ((long)(s * 1000)).ToString(CultureInfo.InvariantCulture)));
+            }
+            catch (FfmpegException)
+            {
+                // Snapped to loud hits alone, as before.
+            }
         // "Make room": a narrated clip with a spoken roast holds its last frame a little, so the roast gets its turn
         // after the narrator, within the one-minute clip limit.
         var hold = narrated && mix.Turns == "room" && functions.Contains(MediaFunction.VideoRoast)

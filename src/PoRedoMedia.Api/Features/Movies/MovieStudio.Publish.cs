@@ -223,7 +223,8 @@ public sealed partial class MovieStudio
         var memeFailures = await MemeifyAsync(job, open, ct);
         job.Phase = (from + span * 0.5, span * 0.45);
         var (episode, brand) = (open.Episode, BrandOf(open));
-        var video = await engine.Builder.ExportAsync(WithMemes(open), open.Folder, preset, brand, Rendering(job), ct);
+        var shown = await ShowtimeAsync(job, open, WithMemes(open), ct);
+        var video = await engine.Builder.ExportAsync(shown, open.Folder, preset, brand, Rendering(job), ct);
         job.Made = true;
         job.Phase = (from + span * 0.95, span * 0.05);
         open.VideoLink = null;

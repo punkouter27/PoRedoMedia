@@ -391,7 +391,8 @@ public sealed class VideoStep(
 
         ApplySubjectDefaults(entries, plan.ApprovedLabels);
         entries = [.. entries.OrderBy(e => e.TimestampMs)];
-        SnapToAudio(entries, plan.ApprovedLabels, sourceAudio, duration);
+        SnapToAudio(entries, plan.ApprovedLabels, sourceAudio, duration, Impacts(context.Option(RunOptions.VideoImpacts)),
+            narrated: context.Option(RunOptions.VideoRoastNarrated) == "1");
         if (PlacementPlanner.NoRepeats(entries, plan.DirectorMenu) is > 0 and var swapped)
             await context.ReportAsync($"{swapped} repeated sound(s) swapped for unused ones, so each sound plays once");
 
@@ -464,12 +465,29 @@ public sealed class VideoStep(
     }
 
     /// <summary>Moves cues onto nearby loud moments in the source's sound. Reactions to speech stay where they are.</summary>
-    private static void SnapToAudio(ScriptEntry[] entries, IReadOnlyList<SceneLabel> labels, SourceAudio sourceAudio, double duration)
+    /// <summary>The film's own moments of sudden action (<see cref="RunOptions.VideoImpacts"/>), as strong onsets; empty when not given.</summary>
+    internal static IReadOnlyList<AudioOnset> Impacts(string? option) =>
+        [.. (option ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(ms => long.TryParse(ms, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var at) ? at : -1)
+            .Where(at => at >= 0)
+            .Select(at => new AudioOnset(at, ImpactStrength))];
+
+    /// <summary>
+    /// How strong a moment of sudden action counts, against a loud hit's rise in dB: as strong as a sharp slam, so the
+    /// action wins over most sounds near it.
+    /// </summary>
+    internal const double ImpactStrength = 15;
+
+    /// <param name="impacts">The film's moments of sudden action. Over a narrator, the clip's loud hits are mostly the
+    /// narrator's words, so they count for little against them.</param>
+    private static void SnapToAudio(ScriptEntry[] entries, IReadOnlyList<SceneLabel> labels, SourceAudio sourceAudio, double duration,
+        IReadOnlyList<AudioOnset> impacts, bool narrated)
     {
-        if (sourceAudio.Envelope is null || entries.Length == 0)
+        if ((sourceAudio.Envelope is null && impacts.Count == 0) || entries.Length == 0)
             return;
 
-        var onsets = CueSnapping.DetectOnsets(sourceAudio.Envelope);
+        var hits = sourceAudio.Envelope is null ? [] : CueSnapping.DetectOnsets(sourceAudio.Envelope);
+        IReadOnlyList<AudioOnset> onsets = [.. hits.Select(h => narrated && impacts.Count > 0 ? h with { Strength = h.Strength * 0.3 } : h), .. impacts];
         var labelAt = labels.GroupBy(l => (long)Math.Round(l.TimestampSeconds * 1000)).ToDictionary(g => g.Key, g => g.First());
         var snappable = entries
             .Select(e => !(labelAt.TryGetValue(e.TimestampMs, out var l) && l.Label.StartsWith(PlacementPlanner.SpeechLabelPrefix, StringComparison.Ordinal)))
