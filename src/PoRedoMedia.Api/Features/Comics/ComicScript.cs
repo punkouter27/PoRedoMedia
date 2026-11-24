@@ -97,6 +97,9 @@ public sealed record ComicScript(string Title, string ArtStyle, string Music, IR
     /// </summary>
     public static ComicDraft Fallback(string conversation)
     {
+        // A camera log has no "Name: words" rows of its own; what it quotes people saying is the conversation.
+        if (ObservationLog.IsLog(conversation) && ObservationLog.Speech(conversation) is { Count: > 0 } speech)
+            conversation = string.Join("\n", speech);
         var lines = ParseLines(conversation);
         if (lines.Count == 0)
             lines = [new ComicLineDraft("Someone", Clean(conversation, MaxLineLength), "")];
