@@ -25,7 +25,7 @@
             <RadzenText class="rz-m-0">JPG, PNG or WEBP (big photos are shrunk to fit), GIF up to 10 MB. MP4, MOV or WEBM up to 200 MB and 1 minute.</RadzenText>
             <FilePick @ref="_file" Text="Choose file" Disabled="Busy" Accept="@Accept" OnChange="UploadAsync" />
         }
-        @if (_hasCamera && !_cameraOn)
+        @if (Camera && _hasCamera && !_cameraOn)
         {
             <RadzenButton Text="Use the camera" Icon="photo_camera" Variant="Variant.Outlined" Disabled="Busy" Click="StartCameraAsync" />
         }
@@ -70,6 +70,9 @@
 
     /// <summary>Several files at once, each uploaded in turn and handed on as it is ready (a movie's films).</summary>
     [Parameter] public bool Multiple { get; set; }
+
+    /// <summary>Offer "Use the camera" (Create Movie turns it off: its films are uploaded videos).</summary>
+    [Parameter] public bool Camera { get; set; } = true;
 
     /// <summary>What the file chooser offers; every kind this app takes unless narrowed.</summary>
     [Parameter] public string Accept { get; set; } = FilePick.MediaTypes;

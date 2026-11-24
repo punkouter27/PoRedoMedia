@@ -204,6 +204,20 @@ var publish = movie.Publish;
                     <FieldErrors Errors="_errors" For="PublishAt" />
                 </div>
             }
+            @if (config.YouTube)
+            {
+                <div class="mv-field">
+                    <RadzenLabel Text="Replaces on YouTube (optional)" Component="mv-up-replace" />
+                    <div class="mv-row">
+                        <RadzenTextBox Name="mv-up-replace" @bind-Value="_replace" Placeholder="https://youtu.be/…" class="mv-grow"
+                                       title="The link of a video on your channel (from YouTube or YouTube Studio). Upload to YouTube then puts the new render up and, once it is up, deletes this one. YouTube cannot swap a video's file, so the new one gets a new link and the old one's views and likes go with it." />
+                        <RadzenButton Text="Delete from YouTube" Icon="delete" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                      Disabled="@(_uploading || Store.IsWorking || YouTubeLinks.VideoId(_replace) is null)" Click="DeleteFromYouTubeAsync"
+                                      title="Delete the video at this link from your channel, for good, and upload nothing. A new tab opens to sign in to Google first." />
+                    </div>
+                    <FieldErrors Errors="_errors" For="Replace" />
+                </div>
+            }
             <span title="@(config.YouTube
                 ? "Send the finished video to your YouTube channel with this title, description, tags and privacy, and the chosen thumbnail. A new tab opens to sign in to Google each time; nothing is kept. Free."
                 : "Uploading needs this server's Google sign-in: a Google Cloud OAuth client of the Web application kind, with the YouTube Data API on, set as YouTube:ClientId and YouTube:ClientSecret.")">
@@ -241,6 +255,10 @@ var publish = movie.Publish;
     private bool _uploading;
 
     private string _title = "", _description = "", _tags = "", _privacy = "Private";
+
+    /// <summary>The video the next upload replaces (or Delete from YouTube deletes); filled in with the last one uploaded from here.</summary>
+    private string _replace = "";
+    private string? _lastUploaded;
     private string? _seeded;
     private DateTime? _publishAt;
     private int? _playing;
@@ -253,6 +271,10 @@ var publish = movie.Publish;
     /// <summary>Fills the upload form from the finished video's notes, once for each render, so what is typed over them is kept.</summary>
     private void Seed(MovieDto movie)
     {
+        // A finished video just uploaded from here is the one a new render most likely replaces.
+        var uploaded = movie.Publish.VideoLink is { } link && !link.Contains('\n') && !link.Contains("/shorts/", StringComparison.Ordinal) ? link : null;
+        if (uploaded != _lastUploaded)
+            (_lastUploaded, _replace) = (uploaded, uploaded ?? (_replace == _lastUploaded ? "" : _replace));
         var key = $"{movie.Id}|{movie.Publish.MasterUrl}";
         if (_seeded == key) return;
         (_seeded, _title, _description, _tags) = (key, movie.Publish.Title, movie.Publish.Description, movie.Publish.Tags);
@@ -361,7 +383,7 @@ var publish = movie.Publish;
     {
         if (_uploading || Store.Movie is not { } movie) return;
         var when = Store.Advanced && _publishAt is { } at ? new DateTimeOffset(at) : (DateTimeOffset?)null;
-        var upload = new MovieUploadRequest(_title, _description, _tags, _privacy, when, shorts);
+        var upload = new MovieUploadRequest(_title, _description, _tags, _privacy, when, shorts, shorts ? null : NullIfBlank(_replace));
         var checkedUpload = UploadRules.Validate(upload);
         _errors = checkedUpload.IsValid ? null : checkedUpload.ToDictionary();
         if (!checkedUpload.IsValid) return;
@@ -381,8 +403,37 @@ var publish = movie.Publish;
         var seen = when is { } then ? $"private until {then:d MMM yyyy, HH:mm}, then public" : _privacy.ToLowerInvariant();
         var (title, message) = shorts
             ? ($"Upload {movie.Publish.TeaserUrls.Length} teasers as YouTube Shorts?", $"Each goes to your channel as a Short, {seen}, titled with its hook and #Shorts. A new tab opens to sign in to Google first; that sign-in is used for these uploads only. It costs nothing.")
-            : ("Upload to YouTube?", $"Uploads {movie.Publish.MasterName} to your channel as “{_title}”, {seen}{(movie.Publish.ThumbnailUrl is null ? "" : ", with the chosen thumbnail")}. A new tab opens to sign in to Google first; that sign-in is used for this upload only. It costs nothing.");
-        if (!await MovieDialogs.ConfirmAsync(Dialogs, title, message, "Upload")) return;
+            : upload.Replace is { } old
+                ? ("Replace the video on YouTube?", $"Uploads {movie.Publish.MasterName} to your channel as “{_title}”, {seen}{(movie.Publish.ThumbnailUrl is null ? "" : ", with the chosen thumbnail")}. Once it is up, {old} is deleted for good: its views, likes and comments go with it, and the new video has a new link. If the upload fails, the old video stays. A new tab opens to sign in to Google first, asking to upload and delete videos; that sign-in is used for this alone. It costs nothing.")
+                : ("Upload to YouTube?", $"Uploads {movie.Publish.MasterName} to your channel as “{_title}”, {seen}{(movie.Publish.ThumbnailUrl is null ? "" : ", with the chosen thumbnail")}. A new tab opens to sign in to Google first; that sign-in is used for this upload only. It costs nothing.");
+        if (!await MovieDialogs.ConfirmAsync(Dialogs, title, message, upload.Replace is null || shorts ? "Upload" : "Upload and replace")) return;
+        await SignInAsync(movie, upload, "Press Sign in to Google. The upload starts once you have signed in there.");
+    }
+
+    /// <summary>Asks, then opens Google's sign-in; the video is deleted when Google sends that tab back.</summary>
+    private async Task DeleteFromYouTubeAsync()
+    {
+        if (_uploading || Store.Movie is not { } movie || YouTubeLinks.VideoId(_replace) is not { } id) return;
+        _uploading = true;
+        try
+        {
+            if (!await MovieDialogs.ConfirmAsync(Dialogs, "Delete this video from YouTube?",
+                    $"{YouTubeLinks.Watch(id)} is deleted from your channel for good, with its views, likes and comments. YouTube keeps no copy to bring back. A new tab opens to sign in to Google first, asking to upload and delete videos; that sign-in is used for this alone.",
+                    "Delete it"))
+                return;
+            await SignInAsync(movie, new MovieUploadRequest("", "", "", _privacy, null, false, _replace.Trim(), DeleteOnly: true),
+                "Press Sign in to Google. The video is deleted once you have signed in there.");
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private static string? NullIfBlank(string text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    private async Task SignInAsync(MovieDto movie, MovieUploadRequest upload, string next)
+    {
         var reply = await Api.UploadAsync(movie.Id, upload);
         if (reply.Url is null)
         {
@@ -391,7 +442,7 @@ var publish = movie.Publish;
         }
         // A link the user presses themselves: a tab opened from here, after the question, is one browsers block.
         _signIn = reply.Url;
-        Store.Say("Press Sign in to Google. The upload starts once you have signed in there.");
+        Store.Say(next);
         _ = WaitForUploadAsync();
     }
 

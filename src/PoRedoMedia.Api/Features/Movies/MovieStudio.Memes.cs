@@ -135,7 +135,10 @@ public sealed partial class MovieStudio
             dollars, false, OverBudget(dollars));
     }
 
-    /// <summary>Puts every clip not yet done through Meme-ify, one at a time. A clip that fails is joined as it is.</summary>
+    /// <summary>
+    /// Puts every clip not yet done through Meme-ify, a few side by side (<see cref="MovieEngine.MemeAtOnce"/>): each one
+    /// is mostly waiting on AI calls, so they overlap well. A clip that fails is joined as it is.
+    /// </summary>
     /// <returns>A line for each clip that could not be done.</returns>
     private async Task<List<string>> MemeifyAsync(Job job, OpenMovie open, CancellationToken ct)
     {
@@ -149,21 +152,27 @@ public sealed partial class MovieStudio
             failures.Add($"The clips were joined without memes. {refusal}");
             return failures;
         }
-        for (var i = 0; i < clips.Count; i++)
+        var done = 0;
+        Report(job, $"Meme-ifying {Count(clips.Count, "clip")}", 0);
+        await Parallel.ForEachAsync(clips, new ParallelOptions { MaxDegreeOfParallelism = engine.MemeAtOnce, CancellationToken = ct }, async (clip, token) =>
         {
-            var clip = clips[i];
-            Report(job, $"Meme-ifying clip {i + 1} of {clips.Count} · {clip.Title}", (double)i / clips.Count);
             try
             {
-                await MemeifyOneAsync(job, open, clip, ct);
+                await MemeifyOneAsync(job, open, clip, token);
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
-                failures.Add($"“{clip.Title}” was joined without memes: {Plain(e)}");
+                lock (failures) failures.Add($"“{clip.Title}” was joined without memes: {Plain(e)}");
             }
-        }
+            var finished = Interlocked.Increment(ref done);
+            Report(job, $"Meme-ified {finished} of {clips.Count} clips", (double)finished / clips.Count);
+        });
+        // Side by side they finish in any order; the messages keep the movie's.
+        failures.Sort((a, b) => Order(a).CompareTo(Order(b)));
         Report(job, "Meme-ify is done", 1);
         return failures;
+
+        int Order(string failure) => clips.FindIndex(c => failure.StartsWith($"“{c.Title}”", StringComparison.Ordinal));
     }
 
     private async Task MemeifyOneAsync(Job job, OpenMovie open, Clip clip, CancellationToken ct)

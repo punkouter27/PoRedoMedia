@@ -74,6 +74,12 @@ public sealed class RoastServiceTests
         Assert.Equal(full, MemeMix.Parse(full.Encode()));
         Assert.Equal(MemeMix.Default with { Meanness = 4 }, MemeMix.Parse("40332"));
         Assert.Equal(NarratorChoice.Parse("deadpan@1.08"), new NarratorChoice("deadpan", 3));
+        // The one Roast slider: Sarcastic is the usual roast, Brutal every roast setting at its top; Memes Lots is the usual.
+        Assert.Equal(MemeMix.Default, MemeMix.Default.WithRoast(4).WithRoast(2));
+        Assert.Equal((4, 4, 4), (MemeMix.Default.WithRoast(4).Meanness, MemeMix.Default.WithRoast(4).Swearing, MemeMix.Default.WithRoast(4).Jokes));
+        Assert.Equal(MemeMix.Kids, MemeMix.Kids.WithRoast(MemeMix.Kids.RoastLevel));
+        Assert.Equal(MemeMix.Default, MemeMix.Default.WithMemes(4).WithMemes(MemeMix.Default.MemeLevel));
+        Assert.Equal((4, 4), (MemeMix.Default.WithMemes(4).Sounds, MemeMix.Default.WithMemes(4).Pictures));
         Assert.Contains("shaky camera", RoastService.TargetBrief("camera"));
 
         // Chaos None takes every effect off; Light only the deep-fry.

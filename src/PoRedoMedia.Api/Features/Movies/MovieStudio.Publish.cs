@@ -401,13 +401,18 @@ public sealed partial class MovieStudio
     {
         if (engine.YouTube() is not { } youTube) return (null, "Uploading to YouTube is not set up on this server.");
         if (IsWorking) return (null, Busy);
-        if (request.Shorts ? TeaserFiles(open.Folder).Count == 0 : EpisodeBuilder.LatestMaster(open.Folder) is null)
+        var replace = YouTubeLinks.VideoId(request.Replace);
+        if (!string.IsNullOrWhiteSpace(request.Replace) && replace is null)
+            return (null, "That is not a link to a YouTube video.");
+        if (request.DeleteOnly && replace is null) return (null, "Paste the link of the video to delete.");
+        if (!request.DeleteOnly && (request.Shorts ? TeaserFiles(open.Folder).Count == 0 : EpisodeBuilder.LatestMaster(open.Folder) is null))
             return (null, request.Shorts ? "There are no rendered teasers to upload. Suggest teasers, then render them." : "Render the finished video first.");
         var (verifier, challenge) = YouTube.NewProof();
         var state = YouTube.NewState();
         _signIns.Clear(); // one sign-in at a time: starting another forgets the last
         _signIns[state] = new PendingUpload(open.Id, request, verifier, redirect);
-        return (youTube.SignInPage(redirect, state, challenge).AbsoluteUri, null);
+        // Deleting needs a wider pass than uploading, so it is asked for only when a video is to be deleted.
+        return (youTube.SignInPage(redirect, state, challenge, delete: replace is not null).AbsoluteUri, null);
     }
 
     /// <returns>What to tell the user in the tab Google sent back.</returns>
@@ -415,7 +420,21 @@ public sealed partial class MovieStudio
     {
         if (state is null || !_signIns.TryRemove(state, out var pending) || code is null || engine.YouTube() is not { } youTube || Open(pending.MovieId) is not { } open)
             return "Sign-in was not finished. You can close this tab and go back to PoRedoMedia.";
-        var problem = Start(pending.Request.Shorts ? "Uploading the teasers to YouTube" : "Uploading to YouTube", open.Id, open.Folder, async (job, ct) =>
+        var replace = YouTubeLinks.VideoId(pending.Request.Replace);
+        if (pending.Request.DeleteOnly && replace is { } doomed)
+        {
+            var refused = Start("Deleting from YouTube", open.Id, open.Folder, async (job, ct) =>
+            {
+                Report(job, "Signing in to Google", 0.05);
+                var token = await youTube.TokenAsync(code, pending.Redirect, pending.Verifier, ct);
+                Report(job, "Deleting the video", 0.5);
+                await youTube.DeleteAsync(token, doomed, ct);
+                Forget(open, doomed);
+                job.Message = $"Deleted {YouTubeLinks.Watch(doomed)} from your channel.";
+            });
+            return refused ?? "Signed in. The video is being deleted; you can close this tab and go back to PoRedoMedia.";
+        }
+        var problem = Start(pending.Request.Shorts ? "Uploading the teasers to YouTube" : replace is null ? "Uploading to YouTube" : "Replacing the video on YouTube", open.Id, open.Folder, async (job, ct) =>
         {
             Report(job, "Signing in to Google", 0.01);
             var token = await youTube.TokenAsync(code, pending.Redirect, pending.Verifier, ct);
@@ -433,8 +452,9 @@ public sealed partial class MovieStudio
             {
                 var video = EpisodeBuilder.LatestMaster(open.Folder) ?? throw new InvalidOperationException("The finished video is not in the export folder any more. Render it again.");
                 var title = pending.Request.Title.Trim() is { Length: > 0 } typed ? typed : open.Episode.Title;
-                var id = await youTube.UploadAsync(token, video, Details(title, pending.Request.Description), new Sink<double>(p => Report(job, "Sending the video", 0.02 + 0.95 * p)), ct);
-                open.VideoLink = $"https://youtu.be/{id}";
+                var id = await youTube.UploadAsync(token, video, Details(title, pending.Request.Description), new Sink<double>(p => Report(job, "Sending the video", 0.02 + 0.93 * p)), ct);
+                open.VideoLink = YouTubeLinks.Watch(id);
+                var problems = new List<string>();
                 var thumbnail = Path.Combine(open.Folder, "export", EpisodeBuilder.ThumbnailName);
                 if (File.Exists(thumbnail))
                     try
@@ -443,9 +463,25 @@ public sealed partial class MovieStudio
                     }
                     catch (InvalidOperationException e)
                     {
-                        job.Error = $"The video is up, but its thumbnail was not set. {e.Message}";
+                        problems.Add($"The video is up, but its thumbnail was not set. {e.Message}");
                     }
-                job.Message = $"Uploaded, {seen}: {open.VideoLink}";
+                // The old video goes only once the new one is safely up: an upload that fails leaves the channel as it was.
+                var replaced = "";
+                if (replace is { } old && old != id)
+                {
+                    Report(job, "Deleting the video it replaces", 0.97);
+                    try
+                    {
+                        await youTube.DeleteAsync(token, old, ct);
+                        replaced = $", replacing {YouTubeLinks.Watch(old)} (deleted)";
+                    }
+                    catch (InvalidOperationException e)
+                    {
+                        problems.Add($"The new video is up, but {YouTubeLinks.Watch(old)} was not deleted: {e.Message} Delete it in YouTube Studio.");
+                    }
+                }
+                if (problems.Count > 0) job.Error = string.Join(' ', problems);
+                job.Message = $"Uploaded, {seen}: {open.VideoLink}{replaced}";
                 return;
             }
 
@@ -463,6 +499,14 @@ public sealed partial class MovieStudio
             job.Message = $"Uploaded {Count(links.Count, "Short")}, {seen}.";
         });
         return problem ?? "Signed in. The upload has started; you can close this tab and go back to PoRedoMedia.";
+    }
+
+    /// <summary>A deleted video is no longer offered as the movie's link.</summary>
+    private static void Forget(OpenMovie open, string videoId)
+    {
+        if (open.VideoLink is not { } links) return;
+        var kept = links.Split('\n', StringSplitOptions.RemoveEmptyEntries).Where(link => YouTubeLinks.VideoId(link) != videoId).ToList();
+        open.VideoLink = kept.Count > 0 ? string.Join('\n', kept) : null;
     }
 
     // ---- What the browser is shown of a movie ----

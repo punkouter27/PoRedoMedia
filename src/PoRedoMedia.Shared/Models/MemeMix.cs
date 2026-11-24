@@ -22,8 +22,35 @@ public sealed record MemeMix(
     /// <summary>The usual mix: a sarcastic roast without swearing, a roast line every seven seconds, the usual meme sounds and pictures.</summary>
     public static readonly MemeMix Default = new(2, 0, Usual, Usual, 2);
 
-    /// <summary>A kids' video: the meanest, sweariest roast, the usual meme sounds and pictures, and a light laugh track.</summary>
-    public static readonly MemeMix Kids = new(4, 4, Usual, Usual, 2, Laughs: 1);
+    /// <summary>A kids' video: the Brutal roast (meanest, sweariest, most lines), the usual meme sounds and pictures, and a light laugh track.</summary>
+    public static readonly MemeMix Kids = new(4, 4, Max, Usual, 2, Laughs: 1);
+
+    /// <summary>
+    /// The one Roast slider, by level (named by <see cref="MeannessNames"/>): meanness, swearing and roast lines move
+    /// together. Sarcastic is <see cref="Default"/>'s roast; Brutal is every one at its top.
+    /// </summary>
+    public static readonly (int Meanness, int Swearing, int Jokes)[] RoastLevels = [(0, 0, 2), (1, 0, Usual), (2, 0, Usual), (3, 3, Max), (Max, Max, Max)];
+
+    /// <summary>The one Memes slider, by level (named by <see cref="AmountNames"/>): meme sounds and pictures together. Lots is the usual.</summary>
+    public static readonly (int Sounds, int Pictures)[] MemeLevels = [(0, 0), (1, 1), (2, 1), (Usual, 2), (Max, Max)];
+
+    /// <summary>Where the Roast slider stands: by meanness, the setting the roast is known by.</summary>
+    public int RoastLevel => Math.Clamp(Meanness, 0, Max);
+
+    /// <summary>Where the Memes slider stands: by meme sounds.</summary>
+    public int MemeLevel => Math.Clamp(Sounds, 0, Max);
+
+    public MemeMix WithRoast(int level)
+    {
+        var (meanness, swearing, jokes) = RoastLevels[Math.Clamp(level, 0, Max)];
+        return this with { Meanness = meanness, Swearing = swearing, Jokes = jokes };
+    }
+
+    public MemeMix WithMemes(int level)
+    {
+        var (sounds, pictures) = MemeLevels[Math.Clamp(level, 0, Max)];
+        return this with { Sounds = sounds, Pictures = pictures };
+    }
 
     /// <summary>The mix the old on/off "crude" switch stood for.</summary>
     public static MemeMix FromCrude(bool crude) => crude ? Default with { Meanness = 3, Swearing = 4 } : Default;

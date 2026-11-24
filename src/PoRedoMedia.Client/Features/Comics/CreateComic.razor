@@ -41,7 +41,7 @@
                             aria-describedby="comic-text-error" aria-invalid="@(_edit.GetValidationMessages(Field).Any() ? "true" : null)" />
             <div id="comic-text-error"><ValidationMessage For="@(() => _form.Conversation)" class="po-field-error" /></div>
             <div class="comic-settings">
-                <div class="comic-row" title="An offscreen heckler wisecracks in the pause after some panels, in a red box at the bottom. Its meanness, swearing and how often it speaks are the Roast settings below.">
+                <div class="comic-row" title="An offscreen heckler wisecracks in the pause after some panels, in a red box at the bottom. Its meanness, swearing and how often it speaks are the Roast slider below.">
                     <RadzenSwitch Name="comic-heckler" @bind-Value="_heckler" Disabled="@Busy" />
                     <RadzenLabel Text="Heckler" Component="comic-heckler" />
                     <span class="comic-hint">@(_heckler ? "Chimes in after some panels" : "Off")</span>

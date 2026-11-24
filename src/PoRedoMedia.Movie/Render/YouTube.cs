@@ -27,7 +27,8 @@ public sealed record UploadDetails(string Title, string Description, IReadOnlyLi
 }
 
 /// <summary>
-/// Uploads to the owner's YouTube channel with the YouTube Data API. Every upload signs in afresh with Google, and
+/// Uploads to the owner's YouTube channel with the YouTube Data API, and deletes from it (a replaced video is the old
+/// one deleted once the new one is up: YouTube cannot swap a video's file). Every upload signs in afresh with Google, and
 /// the pass Google gives back is held in memory for that one job: nothing is kept on disk, and no lasting pass is asked for.
 /// </summary>
 /// <remarks>
@@ -36,6 +37,9 @@ public sealed record UploadDetails(string Title, string Description, IReadOnlyLi
 public sealed class YouTube(string clientId, string clientSecret, SendHttp send)
 {
     private const string Scope = "https://www.googleapis.com/auth/youtube.upload";
+
+    /// <summary>Asked for only when a video is to be deleted (replaced, or deleted alone): uploading needs no more than <see cref="Scope"/>.</summary>
+    private const string DeleteScope = "https://www.googleapis.com/auth/youtube.force-ssl";
 
     /// <summary>The limits YouTube sets on what it is sent.</summary>
     private const int MaxTitle = 100, MaxDescription = 5000, MaxTags = 500;
@@ -54,12 +58,14 @@ public sealed class YouTube(string clientId, string clientSecret, SendHttp send)
     /// The Google page the user signs in on, as a web app's sign-in goes: Google then sends the browser back to
     /// <paramref name="redirect"/> with a one-time code and the <paramref name="state"/> it was given.
     /// </summary>
-    public Uri SignInPage(string redirect, string state, string challenge)
+    /// <param name="delete">Also ask to delete videos, for a replace or a delete.</param>
+    public Uri SignInPage(string redirect, string state, string challenge, bool delete = false)
     {
+        var scope = delete ? $"{Scope} {DeleteScope}" : Scope;
         string[] query =
         [
             $"client_id={Uri.EscapeDataString(clientId)}", $"redirect_uri={Uri.EscapeDataString(redirect)}", "response_type=code",
-            $"scope={Uri.EscapeDataString(Scope)}", $"code_challenge={challenge}", "code_challenge_method=S256", $"state={state}",
+            $"scope={Uri.EscapeDataString(scope)}", $"code_challenge={challenge}", "code_challenge_method=S256", $"state={state}",
         ];
         return new Uri("https://accounts.google.com/o/oauth2/v2/auth?" + string.Join('&', query));
     }
@@ -154,6 +160,21 @@ public sealed class YouTube(string clientId, string clientSecret, SendHttp send)
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         using var reply = await send(request, ct);
         await JsonAsync(reply, ct);
+    }
+
+    /// <summary>Deletes a video from the signed-in channel, for good: YouTube keeps no copy to bring back.</summary>
+    public async Task DeleteAsync(string token, string videoId, CancellationToken ct)
+    {
+        using var request = DeleteRequest(token, videoId);
+        using var reply = await send(request, ct);
+        await JsonAsync(reply, ct);
+    }
+
+    public static HttpRequestMessage DeleteRequest(string token, string videoId)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"https://www.googleapis.com/youtube/v3/videos?id={Uri.EscapeDataString(videoId)}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return request;
     }
 
     /// <summary>The reply's JSON; YouTube's or Google's own words on what was wrong when it is a refusal.</summary>

@@ -237,4 +237,29 @@ public sealed class MovieEngineTests
         Assert.DoesNotContain(verifier, page.Query); // the secret half of the proof stays here
         Assert.DoesNotContain("secret", page.Query);
     }
+
+    [Fact]
+    public void Deleting_asks_google_for_more_only_when_a_video_is_to_go_and_any_of_its_links_names_it()
+    {
+        var youTube = new YouTube("client id", "secret", (_, _) => throw new InvalidOperationException("nothing is sent to build a link"));
+        var (_, challenge) = YouTube.NewProof();
+        const string redirect = "https://example.test/api/movies/youtube/callback";
+        Assert.DoesNotContain("force-ssl", youTube.SignInPage(redirect, "s", challenge).Query);
+        Assert.Contains("youtube.upload%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube.force-ssl", youTube.SignInPage(redirect, "s", challenge, delete: true).Query);
+
+        using var delete = YouTube.DeleteRequest("token", "dQw4w9WgXcQ");
+        Assert.Equal(HttpMethod.Delete, delete.Method);
+        Assert.Equal("https://www.googleapis.com/youtube/v3/videos?id=dQw4w9WgXcQ", delete.RequestUri!.AbsoluteUri);
+        Assert.Equal("Bearer token", delete.Headers.Authorization!.ToString());
+
+        foreach (var link in new[]
+        {
+            "dQw4w9WgXcQ", " https://youtu.be/dQw4w9WgXcQ ", "https://youtu.be/dQw4w9WgXcQ?si=abc", "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ&t=3", "https://youtube.com/shorts/dQw4w9WgXcQ",
+            "https://studio.youtube.com/video/dQw4w9WgXcQ/edit", "https://m.youtube.com/live/dQw4w9WgXcQ",
+        })
+            Assert.Equal("dQw4w9WgXcQ", YouTubeLinks.VideoId(link));
+        foreach (var link in new[] { "", "hello", "https://www.youtube.com/@UnitreeR1EDU", "https://studio.youtube.com/channel/UCe7V4npVXQSkvdy_uFV2Xw/videos", "https://example.com/dQw4w9WgXcQ" })
+            Assert.Null(YouTubeLinks.VideoId(link));
+    }
 }

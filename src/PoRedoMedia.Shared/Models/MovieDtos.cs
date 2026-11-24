@@ -123,6 +123,32 @@ public sealed record MovieEdit(
 
 public sealed record MoviePrefsDto(decimal MonthlyBudget, bool DraftPictures, string ExportPreset, decimal MonthSpent);
 
-public sealed record MovieUploadRequest(string Title, string Description, string Tags, string Privacy, DateTimeOffset? PublishAt, bool Shorts);
+/// <param name="Replace">A video on the channel (its link or id) that this upload replaces: it is deleted once the new one is up.</param>
+/// <param name="DeleteOnly">Upload nothing: only delete <paramref name="Replace"/> from the channel.</param>
+public sealed record MovieUploadRequest(string Title, string Description, string Tags, string Privacy, DateTimeOffset? PublishAt, bool Shorts,
+    string? Replace = null, bool DeleteOnly = false);
+
+/// <summary>
+/// A YouTube video's id from what the user pastes: any of its links (watch, youtu.be, Shorts, live, YouTube Studio) or
+/// the id itself. YouTube cannot swap a video's file, so replacing one means deleting it by this id.
+/// </summary>
+public static partial class YouTubeLinks
+{
+    public static string? VideoId(string? text)
+    {
+        var trimmed = (text ?? "").Trim();
+        if (BareId().IsMatch(trimmed)) return trimmed;
+        return InLink().Match(trimmed) is { Success: true } found ? found.Groups[1].Value : null;
+    }
+
+    public static string Watch(string id) => $"https://youtu.be/{id}";
+
+    [System.Text.RegularExpressions.GeneratedRegex("^[A-Za-z0-9_-]{11}$")]
+    private static partial System.Text.RegularExpressions.Regex BareId();
+
+    // youtu.be/ID, youtube.com/watch?v=ID, /shorts/ID, /live/ID, /embed/ID, studio.youtube.com/video/ID/edit.
+    [System.Text.RegularExpressions.GeneratedRegex(@"^https?://(?:[a-z]+\.)?(?:youtube\.com|youtu\.be)/(?:[^?#]*?/)?(?:(?:watch)?\?(?:[^#]*&)?v=|(?:shorts|video|live|embed)/)?([A-Za-z0-9_-]{11})(?:[/?&#]|$)")]
+    private static partial System.Text.RegularExpressions.Regex InLink();
+}
 
 public sealed record MovieTeasersUpdate(MovieTeaserDto[] Teasers);

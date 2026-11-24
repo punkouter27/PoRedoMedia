@@ -73,4 +73,19 @@ public sealed class FormValidatorTests
             [nameof(MovieUploadRequest.Title), nameof(MovieUploadRequest.Privacy), nameof(MovieUploadRequest.PublishAt)],
             wrong.Errors.Select(e => e.PropertyName));
     }
+
+    [Fact]
+    public void A_replace_or_delete_needs_a_link_to_a_youtube_video_and_a_delete_needs_nothing_else()
+    {
+        var rules = new MovieUploadRequestValidator();
+
+        Assert.True(rules.Validate(new MovieUploadRequest("Treehouse Day", "", "", "Private", null, false, "https://youtu.be/dQw4w9WgXcQ")).IsValid);
+        Assert.True(rules.Validate(new MovieUploadRequest("", "", "", "", null, false, "https://youtu.be/dQw4w9WgXcQ", DeleteOnly: true)).IsValid);
+        Assert.Equal([nameof(MovieUploadRequest.Replace)],
+            rules.Validate(new MovieUploadRequest("Treehouse Day", "", "", "Private", null, false, "https://www.youtube.com/@channel")).Errors.Select(e => e.PropertyName));
+        Assert.Equal([nameof(MovieUploadRequest.Replace)],
+            rules.Validate(new MovieUploadRequest("", "", "", "", null, false, null, DeleteOnly: true)).Errors.Select(e => e.PropertyName));
+        Assert.Equal([nameof(MovieUploadRequest.Replace)],
+            rules.Validate(new MovieUploadRequest("Teasers", "", "", "Private", null, true, "https://youtu.be/dQw4w9WgXcQ")).Errors.Select(e => e.PropertyName));
+    }
 }

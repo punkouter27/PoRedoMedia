@@ -70,10 +70,20 @@ public sealed class MovieUploadRequestValidator : AbstractValidator<MovieUploadR
     public MovieUploadRequestValidator(TimeProvider? clock = null)
     {
         var time = clock ?? TimeProvider.System;
-        RuleFor(r => r.Title).Must(t => !string.IsNullOrWhiteSpace(t)).WithMessage("Give the video a title.")
-            .MaximumLength(MaxTitle).WithMessage($"YouTube takes a title of up to {MaxTitle} characters.");
-        RuleFor(r => r.Description).MaximumLength(MaxDescription).WithMessage($"YouTube takes a description of up to {MaxDescription:N0} characters.");
-        RuleFor(r => r.Privacy).Must(p => Privacies.Contains(p)).WithMessage("Choose who can watch it.");
-        RuleFor(r => r.PublishAt).Must(at => at is null || at > time.GetUtcNow()).WithMessage("Pick a time that has not passed yet.");
+        RuleFor(r => r.Replace).Must(link => string.IsNullOrWhiteSpace(link) || YouTubeLinks.VideoId(link) is not null)
+            .WithMessage("Paste the link of a video on your channel, such as https://youtu.be/… or its YouTube Studio link.");
+        RuleFor(r => r.Replace).Must(link => !string.IsNullOrWhiteSpace(link)).When(r => r.DeleteOnly)
+            .WithMessage("Paste the link of the video to delete.");
+        RuleFor(r => r.Replace).Must(string.IsNullOrWhiteSpace).When(r => r.Shorts && !r.DeleteOnly)
+            .WithMessage("Replacing works for the finished video, not for Shorts. Empty this box to upload the teasers.");
+        // Deleting uploads nothing, so the details of an upload are not asked for.
+        When(r => !r.DeleteOnly, () =>
+        {
+            RuleFor(r => r.Title).Must(t => !string.IsNullOrWhiteSpace(t)).WithMessage("Give the video a title.")
+                .MaximumLength(MaxTitle).WithMessage($"YouTube takes a title of up to {MaxTitle} characters.");
+            RuleFor(r => r.Description).MaximumLength(MaxDescription).WithMessage($"YouTube takes a description of up to {MaxDescription:N0} characters.");
+            RuleFor(r => r.Privacy).Must(p => Privacies.Contains(p)).WithMessage("Choose who can watch it.");
+            RuleFor(r => r.PublishAt).Must(at => at is null || at > time.GetUtcNow()).WithMessage("Pick a time that has not passed yet.");
+        });
     }
 }

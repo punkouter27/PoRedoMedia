@@ -1,18 +1,16 @@
-@* The films: add videos from the Library (or upload new ones) and make the whole movie from them in
+@* The films: upload the videos and make the whole movie from them in
    one go. Each film's narration and note fold away under its options button. Saved movies are on
    the right, to open again. *@
 @implements IDisposable
 @inject MovieStore Store
 @inject FluentValidation.IValidator<MovieLessonRequest> LessonRules
 @inject MovieApi Api
-@inject MediaApi Media
 @inject DialogService Dialogs
 @inject IJSRuntime JS
 @inject RunApi Runs
 
 @if (Store.Config is { } config)
 {
-var info = Store.ShowInfo;
 <div class="mv-two">
     <div class="mv-side mv-form">
         <h2 class="mv-section">@(Store.Movie is null ? "Your films" : "Make another movie")</h2>
@@ -60,12 +58,12 @@ var info = Store.ShowInfo;
             @if (Store.FilmList.Count > 1)
             {
                 <RadzenButton Text="Remove all" Icon="clear_all" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="Store.IsWorking" Click="@(() => { Store.FilmList.Clear(); Store.Notify(); })"
-                              title="Take every clip off this list. They stay in your Library; add them again with Add more clips." />
+                              title="Take every clip off this list. They stay in your Library; upload them again with Add more clips." />
             }
             @if (Store.FilmList.Count > 0)
             {
                 <RadzenButton Text="@(_adding ? "Done" : "Add more clips")" Icon="@(_adding ? "check" : "add")" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => _adding = !_adding)"
-                              title="Upload more videos (2 seconds to 1 minute each), or pick ones already in your Library." />
+                              title="Upload more videos (2 seconds to 1 minute each)." />
             }
             </span>
         </div>
@@ -78,22 +76,8 @@ var info = Store.ShowInfo;
                 }
                 @* While a choice of several files uploads, the zone stays (it would close at the first clip and take the rest
                    of the files with it); it closes once they are all in. *@
-                <MediaPicker ValueChanged="AddFilm" Multiple="true" Accept=".mp4,.mov,.webm" BatchStarted="@(() => _adding = true)"
+                <MediaPicker ValueChanged="AddFilm" Multiple="true" Camera="false" Accept=".mp4,.mov,.webm" BatchStarted="@(() => _adding = true)"
                              BatchDone="@(() => { _adding = false; Store.Notify(); })" />
-                @if (LibraryClips.Count > 0)
-                {
-                    <strong class="mv-add-or">Or pick from your Library</strong>
-                    <div class="mv-pick">
-                        @foreach (var clip in LibraryClips)
-                        {
-                            var media = clip;
-                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-pick-card" Disabled="@Store.IsWorking" Click="@(() => AddFilm(media))" title="@($"Add {media.Title}")">
-                                <img src="@media.ThumbUrl" alt="" loading="lazy" />
-                                <span>@media.Title</span>
-                            </RadzenButton>
-                        }
-                    </div>
-                }
             </div>
         }
         @if (Store.FilmList.Count > 0)
@@ -118,7 +102,7 @@ var info = Store.ShowInfo;
                             <RadzenButton Icon="tune" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => { if (!_options.Remove(row.Media.Id)) _options.Add(row.Media.Id); })"
                                           title="Options for this film: narration, and a note on what it shows." aria-label="Options for this film" aria-expanded="@(open ? "true" : "false")" />
                             <RadzenButton Icon="close" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => { Store.FilmList.Remove(row); Store.Notify(); })"
-                                          title="Leave this film out of the movie. It stays in your Library; add it again with Add films." aria-label="Leave this film out" />
+                                          title="Leave this film out of the movie. It stays in your Library; upload it again with Add more clips." aria-label="Leave this film out" />
                         </span>
                     </div>
                     <span class="mv-quiet">@(tooShort ? "Too short to narrate: plays its own sound" : row.OwnSound ? "Its own sound, no narrator" : "Narrated")@(config.Memes ? " · memes" : "")</span>
@@ -141,22 +125,6 @@ var info = Store.ShowInfo;
                         </div>
                     }
                 </div>
-            </div>
-        }
-
-        @if (Store.Advanced)
-        {
-            <div class="mv-field">
-                <RadzenLabel Text="@($"{info?.TopicLabel ?? "What it is about"} (optional)")" Component="mv-topic" />
-                <RadzenTextArea Name="mv-topic" @bind-Value="Store.Topic" MaxLength="@config.MaxTopicLength" Placeholder="@info?.TopicPlaceholder" Rows="2" @oninput="@(e => { Store.Topic = e.Value?.ToString() ?? ""; Store.Notify(); })"
-                                title="A sentence on what this movie is about, for the narrator. Leave it empty and the films speak for themselves." />
-                <FieldErrors Errors="_errors" For="Topic" />
-            </div>
-            <div class="mv-field">
-                <RadzenLabel Text="@(info?.SecondLabel ?? "Anything else (optional)")" Component="mv-second" />
-                <RadzenTextArea Name="mv-second" @bind-Value="Store.Second" MaxLength="2000" Placeholder="@info?.SecondPlaceholder" Rows="2"
-                                title="A sentence or two more for the script writer, so the movie can make the most of it. Leave it empty if you like." />
-                <FieldErrors Errors="_errors" For="Second" />
             </div>
         }
 
@@ -219,7 +187,7 @@ var info = Store.ShowInfo;
             <div class="mv-empty">
                 <RadzenIcon Icon="movie_filter" aria-hidden="true" />
                 <strong>No movies yet.</strong>
-                <span>First upload or pick at least one video clip under <em>Your video clips</em>, then press <em>Make the video from my films</em>. Movies you make are kept here to open again.</span>
+                <span>First upload at least one video clip under <em>Your video clips</em>, then press <em>Make the video from my films</em>. Movies you make are kept here to open again.</span>
             </div>
         }
     </div>
@@ -231,19 +199,7 @@ var info = Store.ShowInfo;
     private bool _adding;
     private readonly HashSet<Guid> _options = [];
 
-    /// <summary>The Library's videos, newest first, that can be added with one tap.</summary>
-    private List<MediaDto> _libraryVideos = [];
-
-    /// <summary>How many Library videos are offered beside the upload; the rest are a scroll of the Library away.</summary>
-    private const int LibraryOffered = 8;
-
-    private List<MediaDto> LibraryClips =>
-        [.. _libraryVideos.Where(m => Store.FilmList.All(f => f.Media.Id != m.Id)).Take(LibraryOffered)];
-
     protected override void OnInitialized() => Store.Changed += OnChanged;
-
-    protected override async Task OnInitializedAsync() =>
-        _libraryVideos = [.. (await Media.ListAsync()).Where(m => m.Kind == MediaKind.Video && m.DurationSeconds is null or <= 62)];
 
     private void OnChanged()
     {

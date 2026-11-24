@@ -53,6 +53,8 @@ public sealed class MovieEngine
             Fonts.Bundled = FFmpegProcess.BundledFontPath;
         Durations.WordsPerMinute = JsonFile.Load(PaceFile, Durations.DefaultWordsPerMinute);
         MemePrice = config.GetValue<decimal?>(MovieKeys.MemePrice) ?? MemePrice;
+        // The live site is on the Free plan (1 GB of memory), so it Meme-ifies fewer clips side by side.
+        MemeAtOnce = Math.Clamp(config.GetValue<int?>(MovieKeys.MemeAtOnce) ?? (environment.IsProduction() ? 2 : 3), 1, 6);
         _ = Task.Run(() => Files.SweepScratch(TimeSpan.FromDays(1), EpisodeBuilder.ClipCacheName));
 
         var mock = MockAi.IsEnabled(config, environment);
@@ -146,6 +148,9 @@ public sealed class MovieEngine
 
     /// <summary>About what Meme-ify costs for one clip: looking at it, directing it, and writing and speaking a roast.</summary>
     public decimal MemePrice { get; } = 0.03m;
+
+    /// <summary>How many clips go through Meme-ify side by side when a movie is made (<c>Movie:MemeifyAtOnce</c>).</summary>
+    public int MemeAtOnce { get; }
 
     public string? Notice { get; }
 
@@ -261,6 +266,7 @@ public static class MovieKeys
 
     /// <summary>About what Meme-ify costs for one clip, in dollars, for the estimate shown before rendering. Empty = 0.03.</summary>
     public const string MemePrice = "Movie:MemeifyUsd";
+    public const string MemeAtOnce = "Movie:MemeifyAtOnce";
 
     /// <summary>A Pexels key: stock photos are offered when it is set.</summary>
     public const string PexelsKey = "Pexels:ApiKey";

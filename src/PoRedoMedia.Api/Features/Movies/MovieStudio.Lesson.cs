@@ -191,9 +191,9 @@ public sealed partial class MovieStudio
         var show = BeatPlan.ShowOf(structure);
         var topic = request.Topic.Trim() is { Length: > 0 } typed ? typed : show switch
         {
-            Show.Kids => "Whatever the little one gets up to in these films.",
-            Show.General => "Whatever happens in these films.",
-            _ => "Whatever the robot does in these films.",
+            Show.Kids => "Whatever the little one gets up to in these films. Watch them and decide for yourself which moments are the funniest and most exciting, and make the most of them.",
+            Show.General => "Whatever happens in these films. Watch them and decide for yourself which moments are the most exciting and funniest, and make the most of them.",
+            _ => "Whatever the robot does in these films. Watch them and decide for yourself which moments are the most exciting and funniest, and make the most of them.",
         };
         var preset = Preset(request.ExportPreset);
         var films = request.Films.Length;
