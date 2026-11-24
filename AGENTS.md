@@ -122,7 +122,7 @@ All run from the repo root and checked on 2026-11-21 (.NET SDK 10.0.403 via `glo
 |---|---|---|
 | Format | `dotnet format PoRedoMedia.slnx --verify-no-changes` | — |
 | Build | `dotnet build PoRedoMedia.slnx -c Release` | warnings are errors |
-| Unit (112) | `dotnet test tests/PoRedoMedia.Unit -c Release --no-build` | nothing |
+| Unit (117) | `dotnet test tests/PoRedoMedia.Unit -c Release --no-build` | nothing |
 | Integration (50) | `dotnet test tests/PoRedoMedia.Integration -c Release --no-build` | Docker (Testcontainers Azurite) and ffmpeg on PATH for 9 video tests; each skips with a "Skipped: …" message when missing. Any static ffmpeg build works (e.g. the gyan.dev "essentials" zip, its `bin` put first on PATH for the shell that runs the tests and the app) |
 | E2E API (13) | `dotnet test tests/PoRedoMedia.E2EAPI -c Release --no-build` | nothing (in-process host, mock AI) |
 | E2E UI (19) | `pwsh scripts/run-e2e.ps1 [-Filter <name>] [-FetchFFmpeg]` | Docker; publishes the trimmed Release build (`dotnet publish -c Release`, what deploys), starts a throwaway Azurite container and that publish (Test env, mock AI) on free ports it picks (never the compose Azurite on 10000 nor a fixed app port, so concurrent sessions do not collide), runs Playwright with `E2E_REQUIRE_APP=1` (nothing may skip), then removes the container. It prints the ffmpeg it uses (`-FFmpegDir`, `FFMPEG_DIR`, PATH, or a portable copy in `%LOCALAPPDATA%\PoRedoMediafmpeg` that `-FetchFFmpeg` downloads; nothing is installed system-wide). Plain `dotnet test tests/PoRedoMedia.E2EUI` skips every test with a message when no app answers at `E2E_BASE_URL` or Chromium is missing; 5 video tests also skip without ffmpeg |
@@ -130,6 +130,7 @@ All run from the repo root and checked on 2026-11-21 (.NET SDK 10.0.403 via `glo
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (job `deploy`; job `mobile` builds Android, non-blocking) | `*.md` and `SCREENSHOTS/**` pushes do not deploy |
 | Deploy check | `curl -sI https://app-poredomedia2.azurewebsites.net/health/live` shows `X-Commit: <pushed sha>` | the workflow waits for this |
 | Live | https://app-poredomedia2.azurewebsites.net · https://app-poredomedia2.azurewebsites.net/diag | |
+| Screenshots | `pwsh scripts/screenshots.ps1 -Feature <name> [-Before <git ref, default HEAD~1> \| -BeforeDir <PNGs>] [-Routes /login,/diag,in:/,in:/gallery] [-Notes ...]` | Docker; publishes the Release build of the before ref (temporary `git worktree`) and of the working tree, runs each locally (Test env, mock AI, throwaway Azurite, free ports; never the live site), captures every route at 1366×768 and 390×844 with the E2EUI project's Playwright (`in:` = signed in via /dev-login), writes `SCREENSHOTS/{YYMMDD}-{feature}.html` (before \| after per screen) and one annotated side-by-side `.png`, then removes the worktree, app and container |
 | Infra preview | `az deployment group what-if -g PoRedoMedia -f infra/main.bicep -p infra/main.bicepparam` | read-only; never deployed by CI |
 
 ## Repo-specific notes
@@ -172,8 +173,8 @@ Insights, Pexels, YouTube and TikTok are Off (no connection string / keys set).
   `kv-poshared2` (PoShared), names prefixed `PoRedoMedia--` (`--` becomes `:`).
 - **Keep docs true:** update README.md, docs/ and this file in the same change when dependencies, config keys,
   endpoints or test counts change.
-- **UI previews:** for a visual change, save before/after HTML mockups to `SCREENSHOTS/{YYMMDD}-{feature}.html`
-  (README links the folder).
+- **UI previews:** for a visual change, run `pwsh scripts/screenshots.ps1 -Feature <name> [-Before <ref>]`: it writes
+  `SCREENSHOTS/{YYMMDD}-{feature}.html` and the side-by-side `.png` (README links the folder).
 - **Problems found:** propose a fix and wait for the user's approval before acting on it; say so when a change removes
   more than 100 lines.
 
@@ -188,12 +189,13 @@ dotnet test tests/PoRedoMedia.Integration              # needs Docker (Testconta
 pwsh scripts/run-e2e.ps1 [-Filter x] [-FetchFFmpeg]    # E2EUI against the Release publish: throwaway Azurite + the app on free ports (Test env, mock AI), Playwright
 dotnet run --project src/PoRedoMedia.Api -- seed-sounds   # fills the sound library, then exits (startup does this too)
 pwsh scripts/mobile-dev.ps1 -ApiPort 4100 -Run         # the MAUI phone app against the local API
+pwsh scripts/screenshots.ps1 -Feature x [-Before ref]  # SCREENSHOTS/{YYMMDD}-x.html + .png, before/after at 1366 and 390, local only
 ```
 
 ### Tests (real counts, 2026-11-23)
 | Tier | Project | Cases | Where it runs |
 |---|---|---|---|
-| Unit | `tests/PoRedoMedia.Unit` | 112 | CI + locally; no I/O |
+| Unit | `tests/PoRedoMedia.Unit` | 117 | CI + locally; no I/O |
 | Integration | `tests/PoRedoMedia.Integration` | 50 | CI (Docker + ffmpeg installed) + locally. `[DockerFact]` skips with "Docker is not running…" without Docker; `[FFmpegFact]`/`[DockerFFmpegFact]` skip with "ffmpeg is not on PATH…" without ffmpeg |
 | E2E API | `tests/PoRedoMedia.E2EAPI` | 13 | locally; in-process host, mock AI, no Docker |
 | E2E UI | `tests/PoRedoMedia.E2EUI` | 19 | locally against the Release publish (`scripts/run-e2e.ps1`); `[LiveServerFact]` skips with a message when no app answers at `E2E_BASE_URL` or Playwright's Chromium is missing |

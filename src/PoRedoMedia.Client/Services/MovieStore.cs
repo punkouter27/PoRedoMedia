@@ -325,7 +325,8 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     /// <summary>
     /// Downloads the open movie's package. The server removes the movie once the download has finished, so it is
-    /// closed here, and the list read again once the download has had time to go.
+    /// closed here, and the list is read again until the movie has left it (a big zip on a slow line or a busy server
+    /// takes longer than one fixed wait; reading once after 5 s left a removed movie listed until the next reload).
     /// </summary>
     public async Task DownloadAndRemoveAsync(string id)
     {
@@ -336,8 +337,12 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
             await js.InvokeVoidAsync("poMedia.write", LastKey, null);
         }
         Say("Downloading. The movie is removed from the server as soon as the download finishes.");
-        await Task.Delay(TimeSpan.FromSeconds(5));
-        await RefreshLibraryAsync();
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(attempt == 0 ? 3 : 2));
+            await RefreshLibraryAsync();
+            if (Library.All(m => m.Id != id)) break;
+        }
     }
 
     /// <summary>Deletes every saved movie, one by one; any that cannot be deleted (one being worked on) are named.</summary>

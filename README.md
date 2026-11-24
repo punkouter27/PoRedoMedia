@@ -29,13 +29,13 @@ src/PoRedoMedia.Client   Blazor WebAssembly UI (Radzen), served by the Api
 src/PoRedoMedia.Shared   wire DTOs, enums, config keys, validators (shared by Api, Client and Mobile)
 src/PoRedoMedia.Movie    Create Movie's engine (script, pictures, FFmpeg render)
 src/PoRedoMedia.Mobile   MAUI phone client (not in the .slnx; CI builds the Android target)
-tests/PoRedoMedia.Unit   112 fast tests, no I/O
+tests/PoRedoMedia.Unit   117 fast tests, no I/O
 tests/PoRedoMedia.Integration   50 tests against a throwaway Azurite (Docker) and real ffmpeg
 tests/PoRedoMedia.E2EAPI 13 in-process API contract tests
 tests/PoRedoMedia.E2EUI  19 Playwright tests against a running app
 infra/                   Bicep for the Azure resources the app runs on
 docs/                    architecture.md, publishing-setup.md
-SCREENSHOTS/             before/after mockups of UI changes
+SCREENSHOTS/             before/after pages of UI changes ({YYMMDD}-{feature}.html + .png), made by scripts/screenshots.ps1
 ```
 
 More detail: [docs/architecture.md](docs/architecture.md). Rules for agents and contributors: [AGENTS.md](AGENTS.md).
