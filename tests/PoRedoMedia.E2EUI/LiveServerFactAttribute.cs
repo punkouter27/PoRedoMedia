@@ -18,7 +18,7 @@ public sealed class LiveServerFactAttribute : FactAttribute
         {
             var uri = new Uri(BaseUrl);
             using var tcp = new TcpClient();
-            return tcp.ConnectAsync(uri.Host, uri.Port).Wait(TimeSpan.FromSeconds(2));
+            return tcp.ConnectAsync(uri.Host, uri.Port).Wait(TimeSpan.FromSeconds(10));
         }
         catch (Exception)
         {
@@ -65,15 +65,23 @@ public sealed class LiveServerFactAttribute : FactAttribute
         init
         {
             _needsFFmpeg = value;
-            if (value && Skip is null && !FFmpegOnPath.Value)
+            if (value && !Required && Skip is null && !FFmpegOnPath.Value)
                 Skip = "Skipped: ffmpeg is not on PATH, and this test makes or renders video. Install ffmpeg to run it.";
         }
     }
 
     private readonly bool _needsFFmpeg;
 
+    /// <summary>
+    /// Set by scripts/run-e2e.ps1 (E2E_REQUIRE_APP=1), which has just started the app: then nothing may skip for a
+    /// missing app or browser, so a tier that did not run cannot look green.
+    /// </summary>
+    private static readonly bool Required = Environment.GetEnvironmentVariable("E2E_REQUIRE_APP") == "1";
+
     public LiveServerFactAttribute()
     {
+        if (Required)
+            return;
         if (!Reachable.Value)
             Skip = $"Skipped: no app is running at {BaseUrl}. Start it (or run scripts/run-e2e.ps1), or set E2E_BASE_URL.";
         else if (!BrowserInstalled.Value)

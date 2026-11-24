@@ -29,10 +29,10 @@ src/PoRedoMedia.Client   Blazor WebAssembly UI (Radzen), served by the Api
 src/PoRedoMedia.Shared   wire DTOs, enums, config keys, validators (shared by Api, Client and Mobile)
 src/PoRedoMedia.Movie    Create Movie's engine (script, pictures, FFmpeg render)
 src/PoRedoMedia.Mobile   MAUI phone client (not in the .slnx; CI builds the Android target)
-tests/PoRedoMedia.Unit   105 fast tests, no I/O
+tests/PoRedoMedia.Unit   112 fast tests, no I/O
 tests/PoRedoMedia.Integration   50 tests against a throwaway Azurite (Docker) and real ffmpeg
-tests/PoRedoMedia.E2EAPI 9 in-process API contract tests
-tests/PoRedoMedia.E2EUI  15 Playwright tests against a running app
+tests/PoRedoMedia.E2EAPI 13 in-process API contract tests
+tests/PoRedoMedia.E2EUI  19 Playwright tests against a running app
 infra/                   Bicep for the Azure resources the app runs on
 docs/                    architecture.md, publishing-setup.md
 SCREENSHOTS/             before/after mockups of UI changes
@@ -51,7 +51,8 @@ dotnet run --project src/PoRedoMedia.Api      # http://localhost:4100
 
 Development uses Azurite for storage and reads AI keys from Key Vault `kv-poshared2` through your `az login`. For a
 key-free run with stand-in AI, set `ASPNETCORE_ENVIRONMENT=Test` and `Mocks__UseMockAi=true` (that is what
-`scripts/run-e2e.ps1` does), then sign in through `/dev-login?email=you@example.com`.
+`scripts/run-e2e.ps1` does), then sign in by opening `/dev-login?email=you@example.com&returnUrl=/` (Development and Test only: a 404 in Production, and
+it returns only to a path on this site). The sign-in page itself has one button, Microsoft's, in every environment.
 
 Tests:
 
@@ -59,7 +60,7 @@ Tests:
 dotnet test tests/PoRedoMedia.Unit
 dotnet test tests/PoRedoMedia.Integration     # skips with a message when Docker (or ffmpeg) is missing
 dotnet test tests/PoRedoMedia.E2EAPI
-pwsh scripts/run-e2e.ps1                      # publishes Release, starts Azurite + that build, runs the Playwright tier
+pwsh scripts/run-e2e.ps1                      # publishes Release, starts a throwaway Azurite + that build on free ports, runs the Playwright tier
 ```
 
 ## How it deploys

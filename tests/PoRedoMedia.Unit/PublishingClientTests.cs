@@ -75,9 +75,9 @@ public sealed class PublishingClientTests
 
         // The dialog's rules: something picked, and only what is connected.
         var connected = new PublishStatusDto(new(true, true), new(true, false));
-        var rules = new PublishRequestValidator(connected);
-        Assert.True(rules.Validate(new PublishRequest(true, "private", false, "draft", "SELF_ONLY")).IsValid);
-        Assert.Equal("Pick at least one place to publish to.", Assert.Single(rules.Validate(new PublishRequest(false, "private", false, "draft", "SELF_ONLY")).Errors).ErrorMessage);
-        Assert.Equal("Connect TikTok first.", Assert.Single(rules.Validate(new PublishRequest(false, "private", true, "draft", "SELF_ONLY")).Errors).ErrorMessage);
+        var rules = new PublishRequestValidator();
+        Assert.True(rules.Validate(new PublishRequest(true, "private", false, "draft", "SELF_ONLY"), connected).IsValid);
+        Assert.Equal("Pick at least one place to publish to.", Assert.Single(rules.Validate(new PublishRequest(false, "private", false, "draft", "SELF_ONLY"), connected).Errors).ErrorMessage);
+        Assert.Equal("Connect TikTok first.", Assert.Single(rules.Validate(new PublishRequest(false, "private", true, "draft", "SELF_ONLY"), connected).Errors).ErrorMessage);
     }
 }

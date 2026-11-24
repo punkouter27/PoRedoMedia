@@ -3,6 +3,7 @@
    TikTok's own sign-in; the server keeps the connection, encrypted) and can be disconnected here. The form is checked
    with PublishRequestValidator, the rules the server runs too. *@
 @inject MovieApi Api
+@inject FluentValidation.IValidator<PublishRequest> Rules
 @inject MovieStore Store
 @inject DialogService Dialogs
 @inject NavigationManager Navigation
@@ -22,7 +23,7 @@
     else
     {
         <EditForm EditContext="_edit" OnValidSubmit="PublishAsync" class="mv-publish-form">
-            <FluentValidationValidator TModel="PublishRequest" Validator="_rules" Request="Request" />
+            <FluentValidationValidator TModel="PublishRequest" Validator="Rules" ContextData="_status" Request="Request" />
 
             <section class="mv-publish-site" aria-labelledby="pub-yt">
                 <h3 id="pub-yt" class="mv-publish-title"><RadzenIcon Icon="smart_display" aria-hidden="true" /> YouTube</h3>
@@ -143,7 +144,6 @@
 
     private readonly PublishForm _form = new();
     private EditContext _edit = null!;
-    private PublishRequestValidator _rules = null!;
     private PublishStatusDto? _status;
     private bool _loadFailed, _busy;
     private string? _error;
@@ -161,7 +161,6 @@
         _status = status;
         _loadFailed = status is null;
         if (status is null) return;
-        _rules = new PublishRequestValidator(status);
         _form.YouTube = status.YouTube.Connected;
         _form.TikTok = status.TikTok.Connected;
     }

@@ -9,8 +9,10 @@
     <span class="compare-tag compare-tag-before" aria-hidden="true">Before</span>
     <span class="compare-tag compare-tag-after" aria-hidden="true">After</span>
     @* Radzen's slider runs along the bottom of the pictures, its handle under the line: drag it, or use the arrow keys. *@
-    <RadzenSlider TValue="double" Min="0" Max="100" Step="1" Value="@_split" Change="@(v => _split = v)" class="compare-range"
-                  aria-label="Before and after: how much of the result to show" aria-valuetext="@($"{_split:0}% after")" />
+    @* The group names the slider: Radzen's own div may not carry aria-label (axe aria-allowed-attr). *@
+    <div role="group" aria-label="Before and after: how much of the result to show" style="display: contents">
+        <RadzenSlider TValue="double" Min="0" Max="100" Step="1" Value="@_split" Change="@(v => _split = v)" class="compare-range" />
+    </div>
 </div>
 
 @code {

@@ -20,6 +20,9 @@ using PoRedoMedia.Api.Features.Quota;
 using PoRedoMedia.Api.Features.Render;
 using PoRedoMedia.Api.Features.Runs;
 using PoRedoMedia.Api.Features.Sharing;
+using FluentValidation;
+using PoRedoMedia.Shared.Models;
+using PoRedoMedia.Shared.Validation;
 using Serilog;
 
 // CLI verb: dotnet run --project src/PoRedoMedia.Api -- seed-sounds [--seeds-dir <path>]
@@ -78,6 +81,11 @@ try
     builder.Services.AddComics(builder.Configuration, builder.Environment);
     builder.Services.AddPublishing(builder.Configuration, builder.Environment);
     builder.Services.AddSingleton(TimeProvider.System);
+    // The form rules (Shared/Validation), one registration each by type; endpoints take IValidator<T>.
+    builder.Services.AddScoped<IValidator<ComicRequest>, ComicRequestValidator>();
+    builder.Services.AddScoped<IValidator<MovieLessonRequest>, MovieLessonRequestValidator>();
+    builder.Services.AddScoped<IValidator<MovieUploadRequest>, MovieUploadRequestValidator>();
+    builder.Services.AddScoped<IValidator<PublishRequest>, PublishRequestValidator>();
     builder.Services.AddSingleton<IRenderQuota, RenderQuotaService>();
     builder.Services.AddSingleton<IRunRepository, RunTableRepository>();
     builder.Services.AddSingleton<IRunNotifier, RunHubNotifier>();

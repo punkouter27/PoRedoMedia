@@ -1,9 +1,9 @@
 @using System.Reflection
 
 @* The Po build stamp, vYYMMDD (the UTC date of the commit built, stamped as the BuildVersion
-   assembly metadata by Directory.Build.props), bottom-right on every page.
+   assembly metadata by Directory.Build.props), bottom-right on every page, as the page's footer landmark.
    The server reports the same value (/api/diag, Common/Health/HealthEndpoints). *@
-<span class="po-version">v@(Stamp)</span>
+<footer class="po-version">v@(Stamp)</footer>
 
 @code {
     private static readonly string? Stamp = typeof(BuildVersion).Assembly

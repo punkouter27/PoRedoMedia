@@ -25,24 +25,37 @@ public sealed class ComicRequestValidator : AbstractValidator<ComicRequest>
         (conversation ?? "").Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
 }
 
+/// <summary>The server's limits for a movie (its <see cref="MovieConfigDto"/>), passed to each check as context data.</summary>
+public sealed record MovieLimits(int MaxFilms, int MaxTopicLength);
+
 /// <summary>
 /// Create Movie's "make the video from my films" form. Limits that depend on the server (how many films, how long a
-/// topic) come from its <see cref="MovieConfigDto"/>, so the page and the API pass the same numbers.
+/// topic) come from its <see cref="MovieConfigDto"/> as <see cref="MovieLimits"/> context data
+/// (<see cref="ContextData.Validate{T}"/>), so the page and the API pass the same numbers to one registered validator.
 /// </summary>
 public sealed class MovieLessonRequestValidator : AbstractValidator<MovieLessonRequest>
 {
     public const int MaxTitle = 120, MaxSecond = 2000, MaxNote = 200;
 
-    public MovieLessonRequestValidator(int maxFilms, int maxTopicLength)
+    public MovieLessonRequestValidator()
     {
         RuleFor(r => r.Films).Cascade(CascadeMode.Stop).NotEmpty().WithMessage("Add a film first.")
-            .Must(f => f.Length <= maxFilms)
-            .WithMessage(r => $"A movie can be made from up to {maxFilms} films. Remove {r.Films.Length - maxFilms} and try again.");
+            .Custom((films, context) =>
+            {
+                var most = ContextData.Get<MovieLimits, MovieLessonRequest>(context).MaxFilms;
+                if (films.Length > most)
+                    context.AddFailure($"A movie can be made from up to {most} films. Remove {films.Length - most} and try again.");
+            });
         RuleForEach(r => r.Films).Must(f => (f.Note ?? "").Length <= MaxNote)
             .WithMessage($"A film's note can be up to {MaxNote} characters.");
         RuleFor(r => r.Title).MaximumLength(MaxTitle).WithMessage($"A title can be up to {MaxTitle} characters.");
         RuleFor(r => r.Number).InclusiveBetween(1, 999).WithMessage("The episode number is 1 to 999.");
-        RuleFor(r => r.Topic).MaximumLength(maxTopicLength).WithMessage($"Say what it is about in up to {maxTopicLength:N0} characters.");
+        RuleFor(r => r.Topic).Custom((topic, context) =>
+        {
+            var most = ContextData.Get<MovieLimits, MovieLessonRequest>(context).MaxTopicLength;
+            if ((topic ?? "").Length > most)
+                context.AddFailure($"Say what it is about in up to {most:N0} characters.");
+        });
         RuleFor(r => r.Second).MaximumLength(MaxSecond).WithMessage($"Keep this to {MaxSecond:N0} characters.");
     }
 }

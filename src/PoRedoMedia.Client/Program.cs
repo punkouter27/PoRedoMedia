@@ -1,7 +1,10 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using PoRedoMedia.Client.Http;
 using PoRedoMedia.Client.LocalAi;
 using PoRedoMedia.Client.Services;
+using PoRedoMedia.Shared.Models;
+using PoRedoMedia.Shared.Validation;
 using Radzen;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -35,6 +38,11 @@ builder.Services.AddScoped<LocalAiService>();
 builder.Services.AddScoped<MovieApi>();
 builder.Services.AddScoped<MovieStore>();
 builder.Services.AddScoped<ComicApi>();
+// The form rules (Shared/Validation), the ones the API runs too: one registration each by type, injected by the pages.
+builder.Services.AddScoped<IValidator<ComicRequest>, ComicRequestValidator>();
+builder.Services.AddScoped<IValidator<MovieLessonRequest>, MovieLessonRequestValidator>();
+builder.Services.AddScoped<IValidator<MovieUploadRequest>, MovieUploadRequestValidator>();
+builder.Services.AddScoped<IValidator<PublishRequest>, PublishRequestValidator>();
 builder.Services.AddRadzenComponents();
 
 // Claims only, serialized by the server. The browser never holds a token.

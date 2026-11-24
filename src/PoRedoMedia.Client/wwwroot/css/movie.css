@@ -229,6 +229,7 @@
 .mv-mix-row { display: grid; grid-template-columns: 7.5rem 1fr 5.5rem; align-items: center; gap: 0.6rem; }
 /* Room for the knob at either end, so it never sits on its label or past the track. */
 .mv-mix-row .rz-slider { margin: 0 0.65rem; width: auto; }
+.mv-mix-slider { min-width: 0; }
 .mv-mix-value { font-size: 0.8rem; color: var(--rz-text-secondary-color); white-space: nowrap; }
 
 /* "More meme settings": a folded panel under the sliders, grouped Roast / Memes / Narrator. */

@@ -56,12 +56,12 @@ stay), and is refused while a Create Movie job runs. The Library shows both in `
 
 **Auth.** A fallback policy requires a signed-in user, so anonymous endpoints must opt out with `.AllowAnonymous()`.
 Modes: fake auth via `X-Fake-User` (Dev/Test), cookie-only (throws in Production), or cookie + Entra OIDC with
-`Auth:AllowedEmails`. `/dev-login?email=` (Dev/Test) creates `dev|{email}` users. JSON writes are protected only by
+`Auth:AllowedEmails`. `/dev-login?email=…&returnUrl=/path` (Dev/Test only; the route does not exist in Production, so it is a 404 there; it only returns to a site-relative path) creates `dev|{email}` users. It is the test sign-in for the E2E tiers and local runs; the sign-in page has no button for it (exactly one button, Microsoft's, everywhere). JSON writes are protected only by
 `RequireAntiforgeryValidation()` on route groups with the `X-CSRF-TOKEN` header; the client's
 `AntiforgeryTokenHandler` retry on 400 is load-bearing.
 
 **Shell (Po web standard, 2026-11-18).** Every page, signed in or out, has one header, `Layout/PoHeader` (`.po-header`, in
-`MainLayout` and in `BareLayout` above the sign-in card): the app name top-left (`.po-header__title`), the places to go
+`MainLayout`, the app's one layout, which also holds the sign-in card; navigation shows only when signed in): the app name top-left (`.po-header__title`), the places to go
 (`ShellNav`) on wide screens, and top-right the signed-in account's **email** (`.po-header__email`, from the email or
 preferred_username claim, `AccountMenu.Email`; the server serializes every claim to the client for this), which opens a
 small menu with Sign out (`.account-menu`), or one Sign in button (`po-link-btn filled small`, the sign-in page included)

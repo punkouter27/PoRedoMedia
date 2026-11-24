@@ -13,13 +13,15 @@ public sealed class LoginUiTests : UiTestBase
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "PoRedoMedia", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 30_000 });
 
         // The sign-in page is the app's name and the way in: no navigation, no second Sign in in the header.
+        // Exactly one button, Microsoft's, even in Test: the test sign-in is the /dev-login URL, not a button.
+        await Assertions.Expect(page.GetByRole(AriaRole.Button)).ToHaveCountAsync(1);
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Sign in with Microsoft" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Navigation)).ToHaveCountAsync(0);
         await Assertions.Expect(page.Locator(".po-header a.po-link-btn")).ToHaveCountAsync(0);
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Developer sign-in" }).ClickAsync();
+        await page.GotoAsync(BaseUrl + "/dev-login?email=dev%40localhost&returnUrl=%2F");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Create", Exact = true })).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        await Assertions.Expect(page.GetByText("dev@localhost")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".po-header__email")).ToHaveTextAsync("dev@localhost");
 
         // The header shows the email; Sign out is in the small menu it opens.
         await page.Locator(".account-menu summary").ClickAsync();

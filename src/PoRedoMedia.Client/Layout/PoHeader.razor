@@ -1,7 +1,8 @@
-@* The Po shell header, on every page signed in or out (MainLayout and BareLayout, so the sign-in page too): the app's
+@* The Po shell header, on every page signed in or out (MainLayout, the one layout, so the sign-in page too): the app's
    name top-left, then on wide screens the places to go, and top-right the signed-in email (or one Sign in button, the
    same on every page). There is no Settings gear (the owner's call, 2026-11-20: the switches are fixed in
    Services/AppSettings); Sign out is in a small menu under the email. *@
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject MediaApi Media
 
@@ -35,6 +36,14 @@
 
 @code {
     private bool _leaving;
+
+    // The sign-in page shares the one layout, so the header stays when the address changes (/ -> /login): draw again so
+    // the signed-out Sign in button hides on the sign-in page and shows elsewhere.
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 
     private bool OnSignInPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Equals("login", StringComparison.OrdinalIgnoreCase);
 

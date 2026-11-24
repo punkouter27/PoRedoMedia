@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FluentValidation;
 using PoRedoMedia.Api.Features.Publishing;
 using PoRedoMedia.Movie.Library;
 using PoRedoMedia.Movie.Pictures;
@@ -126,10 +127,10 @@ public static class MovieEndpoints
             await media.GetAsync(UserId.From(user), MediaId.From(mediaId), ct) is null ? Results.NotFound() : Results.Ok(await studios.For(UserId.From(user)).HeardAsync(mediaId, ct)));
         group.MapPost("/films/watch", async (Show show, MovieFilmDto film, ClaimsPrincipal user, MovieStudios studios, CancellationToken ct) =>
             await studios.For(UserId.From(user)).SuggestNoteAsync(film, show, ct));
-        group.MapPost("/write", (MovieLessonRequest request, ClaimsPrincipal user, MovieStudios studios) =>
-            Invalid.Check(LessonRules, request) ?? Started(studios.For(UserId.From(user)).WriteScript(request)));
-        group.MapPost("/make", async (MovieLessonRequest request, ClaimsPrincipal user, MovieStudios studios) =>
-            Invalid.Check(LessonRules, request) ?? Started(await studios.For(UserId.From(user)).MakeFromFilmsAsync(request)));
+        group.MapPost("/write", (MovieLessonRequest request, IValidator<MovieLessonRequest> rules, ClaimsPrincipal user, MovieStudios studios) =>
+            Invalid.Check(rules.Validate(request, Limits)) ?? Started(studios.For(UserId.From(user)).WriteScript(request)));
+        group.MapPost("/make", async (MovieLessonRequest request, IValidator<MovieLessonRequest> rules, ClaimsPrincipal user, MovieStudios studios) =>
+            Invalid.Check(rules.Validate(request, Limits)) ?? Started(await studios.For(UserId.From(user)).MakeFromFilmsAsync(request)));
     }
 
     // ---- One movie ----
@@ -201,11 +202,11 @@ public static class MovieEndpoints
         group.MapPost("/{id}/render", (string id, string? preset, ClaimsPrincipal user, MovieStudios studios) =>
             WithAsync(studios, user, id, async (studio, open) => (await studio.RenderAsync(open, preset), null)));
         // Publish to YouTube and TikTok in one go (Features/Publishing): checked by the dialog's own rules, then a job.
-        group.MapPost("/{id}/publish", async (string id, PublishRequest request, ClaimsPrincipal user, MovieStudios studios,
+        group.MapPost("/{id}/publish", async (string id, PublishRequest request, IValidator<PublishRequest> rules, ClaimsPrincipal user, MovieStudios studios,
             IYouTubePublisher youTube, ITikTokPublisher tikTok, PlatformTokenStore tokens, CancellationToken ct) =>
         {
             var status = await PublishingEndpoints.StatusAsync(UserId.From(user), youTube, tikTok, tokens, ct);
-            return Invalid.Check(new PublishRequestValidator(status), request)
+            return Invalid.Check(rules.Validate(request, status))
                 ?? With(studios, user, id, (studio, open) => (studio.Publish(open, request, new Publishers(youTube, tikTok, tokens)), null));
         });
         group.MapPost("/{id}/package", (string id, ClaimsPrincipal user, MovieStudios studios) => With(studios, user, id, (studio, open) => (studio.MakePackage(open), null)));
@@ -245,9 +246,9 @@ public static class MovieEndpoints
         group.MapPost("/{id}/clean", (string id, ClaimsPrincipal user, MovieStudios studios) =>
             With(studios, user, id, (studio, open) => studio.IsWorking ? (MovieStudio.Busy, null) : (null, studio.CleanMedia(open))));
 
-        group.MapPost("/{id}/youtube", (string id, MovieUploadRequest upload, HttpRequest request, ClaimsPrincipal user, MovieStudios studios) =>
+        group.MapPost("/{id}/youtube", (string id, MovieUploadRequest upload, IValidator<MovieUploadRequest> uploadRules, HttpRequest request, ClaimsPrincipal user, MovieStudios studios) =>
         {
-            if (Invalid.Check(UploadRules, upload) is { } invalid) return invalid;
+            if (Invalid.Check(uploadRules, upload) is { } invalid) return invalid;
             var studio = studios.For(UserId.From(user));
             if (studio.Open(id) is not { } open) return Results.NotFound();
             var (url, problem) = studio.BeginUpload(open, upload, $"{request.Scheme}://{request.Host}/api/movies/youtube/callback");
@@ -313,10 +314,8 @@ public static class MovieEndpoints
 
     // ---- Shapes the routes share ----
 
-    /// <summary>The same rules Create Movie's forms check before they send.</summary>
-    private static readonly MovieLessonRequestValidator LessonRules = new(MovieStudio.MostFilms, IScriptWriter.MaxTopicLength);
-
-    private static readonly MovieUploadRequestValidator UploadRules = new();
+    /// <summary>This server's limits, which Create Movie's form checks with too (MovieConfigDto).</summary>
+    private static readonly MovieLimits Limits = new(MovieStudio.MostFilms, IScriptWriter.MaxTopicLength);
 
     private static IResult Refused(string reason) => Results.Problem(detail: reason, statusCode: StatusCodes.Status400BadRequest);
 

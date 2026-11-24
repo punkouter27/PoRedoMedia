@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PoRedoMedia.Api.Configuration;
 using PoRedoMedia.Api.Features.Movies;
@@ -37,8 +38,10 @@ public static class HealthChecks
     {
         var quick = TimeSpan.FromSeconds(10);
         services.AddServiceProbes();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<HealthReportCache>();
         services.AddHealthChecks()
-            .AddCheck("server", () => HealthCheckResult.Healthy("Answering."))
+            .AddCheck("server", () => HealthCheckResult.Healthy("Answering."), timeout: quick)
             .AddCheck<StorageHealthCheck>("storage", HealthStatus.Unhealthy, timeout: quick)
             .AddCheck<MovieFilesHealthCheck>("movie-files", HealthStatus.Degraded, timeout: quick)
             .AddCheck<FfmpegHealthCheck>("ffmpeg", HealthStatus.Degraded, timeout: quick)

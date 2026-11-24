@@ -3,6 +3,7 @@
    server: no video is kept there); and the short upright teasers cut from it. *@
 @implements IAsyncDisposable
 @inject MovieStore Store
+@inject FluentValidation.IValidator<MovieUploadRequest> UploadRules
 @inject MovieApi Api
 @inject DialogService Dialogs
 @inject IJSRuntime JS
@@ -232,7 +233,6 @@ var publish = movie.Publish;
     private static readonly string[] Privacies = MovieUploadRequestValidator.Privacies;
 
     /// <summary>The same rules POST /api/movies/{id}/youtube runs.</summary>
-    private static readonly MovieUploadRequestValidator UploadRules = new();
 
     /// <summary>The upload form's messages from the last check, or null.</summary>
     private IDictionary<string, string[]>? _errors;

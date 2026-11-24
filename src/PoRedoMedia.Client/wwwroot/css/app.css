@@ -95,13 +95,6 @@ h2.rz-text-h6, h2.rz-text-subtitle1 {
     color: var(--po-accent);
 }
 
-/* The sign-in page (Layout/BareLayout): its card sits in the body under the header, clear of the screen's edges. */
-.po-bare-shell .shell-main {
-    max-width: var(--po-shell-max);
-    margin: 0 auto;
-    padding: 0.75rem 1rem calc(var(--po-space-6) + env(safe-area-inset-bottom));
-}
-
 /* The scrolling column is a flex column: the page fills it and the build stamp (Layout/BuildVersion) comes last,
    bottom-right, below the page and above the phone tab bar (a row of its own in the layout grid). */
 .rz-layout .rz-body {
@@ -112,19 +105,6 @@ h2.rz-text-h6, h2.rz-text-subtitle1 {
 }
 
 .rz-layout .rz-body > .shell-main {
-    flex: 1 0 auto;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-/* The sign-in page's column works the same way, at the height of the screen. */
-.po-bare-shell {
-    display: flex;
-    flex-direction: column;
-    min-height: 100dvh;
-}
-
-.po-bare-shell > .shell-main {
     flex: 1 0 auto;
     width: 100%;
     box-sizing: border-box;

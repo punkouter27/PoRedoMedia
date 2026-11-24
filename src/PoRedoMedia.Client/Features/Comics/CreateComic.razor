@@ -4,6 +4,7 @@
    two seconds until it ends. Both results land in the Library. *@
 @implements IDisposable
 @inject ComicApi Api
+@inject FluentValidation.IValidator<ComicRequest> Rules
 @inject AppConfigService AppConfig
 @inject DialogService Dialogs
 
@@ -117,7 +118,6 @@
     private MemeMix _mix = ComicRequest.DefaultMix;
     private NarratorChoice _narrator = NarratorChoice.Default;
     private bool _heckler = true;
-    private static readonly ComicRequestValidator Rules = new();
 
     /// <summary>The form's one typed field; the rest of the request comes from the switches and sliders.</summary>
     private sealed class ComicForm

@@ -1,4 +1,5 @@
 using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace PoRedoMedia.Api.Common;
@@ -15,7 +16,14 @@ public static class Invalid
     /// <returns>The validation problem when <paramref name="model"/> breaks a rule of <paramref name="validator"/>, else null.</returns>
     public static ValidationProblem? Check<T>(IValidator<T> validator, T model)
     {
-        var result = validator.Validate(model);
+        ArgumentNullException.ThrowIfNull(validator);
+        return Check(validator.Validate(model));
+    }
+
+    /// <returns>The validation problem for a failed <paramref name="result"/>, else null.</returns>
+    public static ValidationProblem? Check(ValidationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
         return result.IsValid ? null : TypedResults.ValidationProblem(result.ToDictionary(), detail: result.Errors[0].ErrorMessage);
     }
 }

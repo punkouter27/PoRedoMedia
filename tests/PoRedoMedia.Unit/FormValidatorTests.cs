@@ -20,15 +20,46 @@ public sealed class FormValidatorTests
     [Fact]
     public void A_movie_needs_films_within_the_servers_limits()
     {
-        var rules = new MovieLessonRequestValidator(maxFilms: 2, maxTopicLength: 10);
+        var rules = new MovieLessonRequestValidator();
+        var limits = new MovieLimits(MaxFilms: 2, MaxTopicLength: 10);
         MovieLessonRequest Request(int films, string topic = "", int number = 1) =>
             new("General", "", topic, "", number, [.. Enumerable.Range(0, films).Select(_ => new MovieFilmDto(Guid.NewGuid(), "", false))]);
 
-        Assert.True(rules.Validate(Request(1)).IsValid);
-        Assert.Equal("Add a film first.", Assert.Single(rules.Validate(Request(0)).Errors).ErrorMessage);
-        Assert.Contains("Remove 1", Assert.Single(rules.Validate(Request(3)).Errors).ErrorMessage);
-        Assert.Equal(nameof(MovieLessonRequest.Topic), Assert.Single(rules.Validate(Request(1, topic: "far too long a topic")).Errors).PropertyName);
-        Assert.Equal(nameof(MovieLessonRequest.Number), Assert.Single(rules.Validate(Request(1, number: 0)).Errors).PropertyName);
+        Assert.True(rules.Validate(Request(1), limits).IsValid);
+        Assert.Equal("Add a film first.", Assert.Single(rules.Validate(Request(0), limits).Errors).ErrorMessage);
+        Assert.Contains("Remove 1", Assert.Single(rules.Validate(Request(3), limits).Errors).ErrorMessage);
+        Assert.Equal(nameof(MovieLessonRequest.Topic), Assert.Single(rules.Validate(Request(1, topic: "far too long a topic"), limits).Errors).PropertyName);
+        Assert.Equal(nameof(MovieLessonRequest.Number), Assert.Single(rules.Validate(Request(1, number: 0), limits).Errors).PropertyName);
+    }
+
+    [Fact]
+    public void A_movie_check_without_the_servers_limits_says_what_is_missing()
+    {
+        var rules = new MovieLessonRequestValidator();
+
+        var missing = Assert.Throws<InvalidOperationException>(() =>
+            rules.Validate(new MovieLessonRequest("General", "", "", "", 1, [new MovieFilmDto(Guid.NewGuid(), "", false)])));
+        Assert.Contains(nameof(MovieLimits), missing.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_api_and_the_client_register_every_form_rule_by_type()
+    {
+        foreach (var source in new[] { "src/PoRedoMedia.Api/Program.cs", "src/PoRedoMedia.Client/Program.cs" })
+        {
+            var text = File.ReadAllText(Path.Combine(RepoRoot(), source));
+            foreach (var (model, validator) in new[] { ("ComicRequest", "ComicRequestValidator"), ("MovieLessonRequest", "MovieLessonRequestValidator"), ("MovieUploadRequest", "MovieUploadRequestValidator"), ("PublishRequest", "PublishRequestValidator") })
+                Assert.Contains($"AddScoped<IValidator<{model}>, {validator}>()", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("AddValidatorsFrom", text, StringComparison.Ordinal);
+        }
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "PoRedoMedia.slnx")))
+            dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("PoRedoMedia.slnx not found above the test output.");
     }
 
     [Fact]

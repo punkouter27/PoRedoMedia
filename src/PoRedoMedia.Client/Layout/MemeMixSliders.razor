@@ -128,8 +128,10 @@
                     </div>
                     <div class="mv-mix-row" title="How fast the narrator speaks. A film that keeps its own sound is not narrated.">
                         <RadzenLabel Text="Pace" Component="@($"{IdPrefix}-pace")" />
-                        <RadzenSlider Name="@($"{IdPrefix}-pace")" TValue="int" Value="@narrator.Pace" Min="0" Max="@(NarratorChoice.PaceNames.Length - 1)" Step="1" Disabled="Disabled"
-                                      Change="@(v => NarratorChanged.InvokeAsync(narrator with { Pace = v }))" aria-label="Pace" aria-valuetext="@NarratorChoice.PaceNames[narrator.Pace]" />
+                        <div role="group" aria-label="Pace" class="mv-mix-slider">
+                            <RadzenSlider Name="@($"{IdPrefix}-pace")" TValue="int" Value="@narrator.Pace" Min="0" Max="@(NarratorChoice.PaceNames.Length - 1)" Step="1" Disabled="Disabled"
+                                          Change="@(v => NarratorChanged.InvokeAsync(narrator with { Pace = v }))" />
+                        </div>
                         <span class="mv-mix-value">@NarratorChoice.PaceNames[narrator.Pace]</span>
                     </div>
                 </div>
@@ -213,8 +215,12 @@
         var id = $"{IdPrefix}-{label.Replace(' ', '-').ToLowerInvariant()}";
         <div class="mv-mix-row" title="@help">
             <RadzenLabel Text="@label" Component="@id" />
-            <RadzenSlider Name="@id" TValue="int" Value="@value" Min="0" Max="@(names.Length - 1)" Step="1" Disabled="@(Disabled || off)"
-                          Change="@(v => MixChanged.InvokeAsync(with(v)))" aria-label="@label" aria-valuetext="@names[value]" />
+            @* Radzen's slider names its handle itself, and aria-label/aria-valuetext on its outer div are not allowed there
+               (axe aria-allowed-attr), so the group carries the name; the value is the text beside it. *@
+            <div role="group" aria-label="@label" class="mv-mix-slider">
+                <RadzenSlider Name="@id" TValue="int" Value="@value" Min="0" Max="@(names.Length - 1)" Step="1" Disabled="@(Disabled || off)"
+                              Change="@(v => MixChanged.InvokeAsync(with(v)))" />
+            </div>
             <span class="mv-mix-value">@(off ? "—" : names[value])</span>
         </div>
     };

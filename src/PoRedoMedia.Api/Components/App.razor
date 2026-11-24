@@ -18,7 +18,9 @@
     <link rel="stylesheet" href="css/po-motion.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="css/movie.css" />
-    <link rel="stylesheet" href="PoRedoMedia.Api.styles.css" />
+    @* The client's component styles, linked directly: the host's PoRedoMedia.Api.styles.css only @imports this file,
+       and an @import after the app's CSS loads late and in a second round trip. *@
+    <link rel="stylesheet" href="PoRedoMedia.Client.bundle.scp.css" />
     <HeadOutlet @rendermode="NoPrerender" />
 </head>
 <body>

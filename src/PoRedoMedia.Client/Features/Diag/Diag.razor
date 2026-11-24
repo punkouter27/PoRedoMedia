@@ -10,7 +10,7 @@
 <div class="po-diag diag-page">
     <div class="diag-head">
         <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-m-0">System status</RadzenText>
-        <RadzenButton Text="@(_loading ? "Checking…" : "Refresh")" Icon="refresh" Variant="Variant.Outlined" Disabled="_loading" IsBusy="_loading" Click="LoadAsync" />
+        <RadzenButton Text="@(_loading ? "Checking…" : "Refresh")" Icon="refresh" Variant="Variant.Outlined" Disabled="_loading" IsBusy="_loading" BusyText="Checking…" Click="LoadAsync" />
     </div>
 
     @if (_report is null && _loading)

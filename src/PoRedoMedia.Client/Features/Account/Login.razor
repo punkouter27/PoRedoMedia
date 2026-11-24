@@ -1,8 +1,6 @@
 @page "/login"
 @attribute [AllowAnonymous]
-@layout BareLayout
 @inject NavigationManager Navigation
-@inject AppConfigService Config
 
 <PageTitle>Sign in · PoRedoMedia</PageTitle>
 
@@ -18,12 +16,9 @@
                     The sign-in did not finish, or this account is not allowed to use this app.
                 </RadzenAlert>
             }
+            @* Exactly one button, in every environment. Development and Test sign in without Microsoft by opening
+               /dev-login?email=…&returnUrl=/path (a server route that does not exist in Production; README). *@
             <RadzenButton Text="Sign in with Microsoft" Disabled="_leaving" Click="@(() => Go("challenge-microsoft"))" />
-            @if (_config?.DevLoginEnabled == true)
-            {
-                <RadzenButton Text="Developer sign-in" Variant="Variant.Outlined" Disabled="_leaving"
-                              Click="@(() => Go("dev-login?email=dev%40localhost"))" />
-            }
         </RadzenStack>
     </RadzenCard>
 </RadzenStack>
@@ -35,10 +30,7 @@
     /// <summary>Set by the server when Microsoft sign-in was refused or abandoned.</summary>
     [SupplyParameterFromQuery] public bool? Denied { get; set; }
 
-    private AppConfigDto? _config;
     private bool _leaving;
-
-    protected override async Task OnInitializedAsync() => _config = await Config.GetAsync();
 
     // These are server routes, so the browser must leave the app to reach them.
     private void Go(string path)

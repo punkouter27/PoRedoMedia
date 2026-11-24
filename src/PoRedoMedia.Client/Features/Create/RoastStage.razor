@@ -17,10 +17,9 @@
             <li><RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain roast-line" data-line="">@line</RadzenButton></li>
         }
     </ol>
-    <div class="roast-sync">
+    <div class="roast-sync" role="group" aria-label="Lyric timing">
         <RadzenLabel Text="Lyric timing" Component="roast-sync" />
-        <RadzenSlider Name="roast-sync" TValue="double" Min="-3" Max="3" Step="0.1" Value="@_offset" Change="SyncAsync"
-                      aria-label="Lyric timing" aria-valuetext="@SyncText" />
+        <RadzenSlider Name="roast-sync" TValue="double" Min="-3" Max="3" Step="0.1" Value="@_offset" Change="SyncAsync" />
         <output>@SyncText</output>
     </div>
     @if (Media.ParentId is not null)

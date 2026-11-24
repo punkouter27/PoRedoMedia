@@ -3,6 +3,7 @@
    the right, to open again. *@
 @implements IDisposable
 @inject MovieStore Store
+@inject FluentValidation.IValidator<MovieLessonRequest> LessonRules
 @inject MovieApi Api
 @inject MediaApi Media
 @inject DialogService Dialogs
@@ -326,7 +327,7 @@ var info = Store.ShowInfo;
     private bool Check()
     {
         var config = Store.Config!;
-        var result = new MovieLessonRequestValidator(config.MaxFilms, config.MaxTopicLength).Validate(Store.LessonRequest());
+        var result = LessonRules.Validate(Store.LessonRequest(), new MovieLimits(config.MaxFilms, config.MaxTopicLength));
         _errors = result.IsValid ? null : result.ToDictionary();
         return result.IsValid;
     }

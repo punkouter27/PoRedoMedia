@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -24,18 +23,29 @@ public static class HealthEndpoints
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
 
         // Readiness: every dependency check. Unhealthy (storage unreachable) is 503; Degraded (an optional service
-        // missing) is still 200, so the deploy gate fails only on what the app cannot run without.
-        app.MapHealthChecks("/health").AllowAnonymous();
+        // missing) is still 200, so the deploy gate fails only on what the app cannot run without. It reads the same
+        // cached report as /api/diag (HealthReportCache, at most one run a minute).
+        app.MapGet("/health", ReadinessAsync).AllowAnonymous();
 
         // The same checks in plain words for /diag, which anyone may open: nothing identifying goes out (DiagReportDto).
         app.MapGet("/api/diag", DiagAsync).AllowAnonymous();
         return app;
     }
 
-    private static async Task<Ok<DiagReportDto>> DiagAsync(HealthCheckService health, IHostEnvironment environment, CancellationToken ct)
+    private static async Task ReadinessAsync(HttpContext context, HealthReportCache cache)
     {
-        var started = Stopwatch.GetTimestamp();
-        var report = await health.CheckHealthAsync(ct);
+        var report = (await cache.GetAsync(context.RequestAborted)).Report;
+        context.Response.StatusCode = report.Status == HealthStatus.Unhealthy
+            ? StatusCodes.Status503ServiceUnavailable
+            : StatusCodes.Status200OK;
+        context.Response.Headers.CacheControl = "no-store, no-cache";
+        context.Response.ContentType = "text/plain";
+        await context.Response.WriteAsync(report.Status.ToString(), context.RequestAborted);
+    }
+
+    private static async Task<Ok<DiagReportDto>> DiagAsync(HealthReportCache cache, IHostEnvironment environment, CancellationToken ct)
+    {
+        var (report, checkedAt, checkedMs) = await cache.GetAsync(ct);
         var checks = report.Entries.Select(e =>
         {
             var about = HealthChecks.About.TryGetValue(e.Key, out var known) ? known : (Group: "service", Label: e.Key, Purpose: "");
@@ -47,7 +57,8 @@ public static class HealthEndpoints
                 detail, Math.Round(e.Value.Duration.TotalMilliseconds, 1),
                 e.Value.Status == HealthStatus.Healthy ? null : detail);
         }).ToArray();
+        // CheckedAt is when the cached report was made: two loads within a minute show the same time.
         return TypedResults.Ok(new DiagReportDto(report.Status.ToString(), environment.EnvironmentName, Version,
-            DateTimeOffset.UtcNow, Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1), checks));
+            checkedAt, checkedMs, checks));
     }
 }

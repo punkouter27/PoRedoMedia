@@ -1,7 +1,9 @@
 using FluentValidation;
+using FluentValidation.Internal;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using PoRedoMedia.Shared.Validation;
 
 namespace PoRedoMedia.Client.Layout;
 
@@ -20,6 +22,12 @@ public sealed class FluentValidationValidator<TModel> : ComponentBase, IDisposab
     [CascadingParameter] private EditContext? CurrentEditContext { get; set; }
 
     [Parameter, EditorRequired] public IValidator<TModel> Validator { get; set; } = default!;
+
+    /// <summary>
+    /// What the rules need from the moment (for example the <c>PublishStatusDto</c>), passed as root context data
+    /// (Shared/Validation/ContextData). Empty when the validator needs nothing.
+    /// </summary>
+    [Parameter] public object? ContextData { get; set; }
 
     /// <summary>What to check. Empty: the form's model, which must then be a <typeparamref name="TModel"/>.</summary>
     [Parameter] public Func<TModel>? Request { get; set; }
@@ -43,7 +51,7 @@ public sealed class FluentValidationValidator<TModel> : ComponentBase, IDisposab
             return;
 
         _messages.Clear();
-        foreach (ValidationFailure failure in Validator.Validate(model).Errors)
+        foreach (ValidationFailure failure in Check(model).Errors)
             _messages.Add(_subscribed.Field(failure.PropertyName), failure.ErrorMessage);
 
         _subscribed.NotifyValidationStateChanged();
@@ -55,12 +63,17 @@ public sealed class FluentValidationValidator<TModel> : ComponentBase, IDisposab
             return;
 
         _messages.Clear(e.FieldIdentifier);
-        var result = Validator.Validate(model, options => options.IncludeProperties(e.FieldIdentifier.FieldName));
+        var result = Check(model, options => options.IncludeProperties(e.FieldIdentifier.FieldName));
         foreach (ValidationFailure failure in result.Errors)
             _messages.Add(e.FieldIdentifier, failure.ErrorMessage);
 
         _subscribed.NotifyValidationStateChanged();
     }
+
+    private ValidationResult Check(TModel model, Action<ValidationStrategy<TModel>>? options = null) =>
+        ContextData is null
+            ? options is null ? Validator.Validate(model) : Validator.Validate(model, options)
+            : Validator.Validate(model, ContextData, options);
 
     public void Dispose()
     {

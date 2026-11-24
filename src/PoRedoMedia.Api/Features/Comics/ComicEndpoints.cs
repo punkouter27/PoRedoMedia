@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FluentValidation;
 using PoRedoMedia.Api.Common.Ai;
 using PoRedoMedia.Shared.Models;
 using PoRedoMedia.Shared.Validation;
@@ -8,8 +9,6 @@ namespace PoRedoMedia.Api.Features.Comics;
 /// <summary>Comic-ify over HTTP: what the server can do, start a comic, and how the user's comic is coming along.</summary>
 public static class ComicEndpoints
 {
-    /// <summary>The same rules the Comic-ify page checks before it sends.</summary>
-    private static readonly ComicRequestValidator Rules = new();
 
     public static IServiceCollection AddComics(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
@@ -31,9 +30,9 @@ public static class ComicEndpoints
         group.MapGet("/job", (ClaimsPrincipal user, ComicStudio studio) =>
             studio.Job(UserId.From(user)) is { } job ? Results.Ok(job) : Results.NoContent());
 
-        group.MapPost("/", async (ComicRequest request, ClaimsPrincipal user, ComicStudio studio, CancellationToken ct) =>
+        group.MapPost("/", async (ComicRequest request, IValidator<ComicRequest> rules, ClaimsPrincipal user, ComicStudio studio, CancellationToken ct) =>
         {
-            if (Invalid.Check(Rules, request) is { } invalid)
+            if (Invalid.Check(rules, request) is { } invalid)
                 return invalid;
             var (job, error, status) = await studio.StartAsync(UserId.From(user), request, ct);
             return job is not null ? Results.Ok(job) : Results.Problem(detail: error, statusCode: status);

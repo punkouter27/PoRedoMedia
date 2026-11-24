@@ -35,15 +35,16 @@
             {
                 <div class="trim" role="group" aria-label="Trim">
                     <span>Trim · @Seconds(TrimStart) – @Seconds(TrimEnd) (@Seconds(TrimEnd - TrimStart))</span>
-                    <div class="trim-row">
+                    @* The row names the slider: Radzen's own div may not carry aria-label (axe aria-allowed-attr). *@
+                    <div class="trim-row" role="group" aria-label="Trim start">
                         <RadzenLabel Text="Start" Component="trim-start" />
                         <RadzenSlider Name="trim-start" TValue="double" Min="0" Max="@((decimal)Duration.Value)" Step="0.5" Value="@TrimStart"
-                                      Change="@(v => SetTrim(v, TrimEnd, movedStart: true))" aria-label="Trim start" aria-valuetext="@Seconds(TrimStart)" />
+                                      Change="@(v => SetTrim(v, TrimEnd, movedStart: true))" />
                     </div>
-                    <div class="trim-row">
+                    <div class="trim-row" role="group" aria-label="Trim end">
                         <RadzenLabel Text="End" Component="trim-end" />
                         <RadzenSlider Name="trim-end" TValue="double" Min="0" Max="@((decimal)Duration.Value)" Step="0.5" Value="@TrimEnd"
-                                      Change="@(v => SetTrim(TrimStart, v, movedStart: false))" aria-label="Trim end" aria-valuetext="@Seconds(TrimEnd)" />
+                                      Change="@(v => SetTrim(TrimStart, v, movedStart: false))" />
                     </div>
                 </div>
             }
