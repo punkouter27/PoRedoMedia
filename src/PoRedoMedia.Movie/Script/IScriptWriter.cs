@@ -14,7 +14,31 @@ public sealed record SaferPicture(string Diagram, string SearchWords);
 /// <param name="Timeline">What happens, a line to each stretch, each line starting with its seconds.</param>
 /// <param name="Note">One line on what the film shows, as the owner might label it.</param>
 /// <param name="Highlight">The second of the most telling moment: a fall, a catch, a success.</param>
-public sealed record FootageSeen(string Timeline, string Note, double Highlight);
+/// <param name="Stretches">The stretches worth keeping in a video, in time order; null when not asked for (watched before there were any).</param>
+/// <param name="SubjectX">Where across the frame the main subject usually is: 0 the left edge, 0.5 the middle, 1 the right edge.</param>
+public sealed record FootageSeen(string Timeline, string Note, double Highlight, IReadOnlyList<Stretch>? Stretches = null, double SubjectX = 0.5);
+
+/// <summary>A stretch of a film worth keeping, as the model that watched it saw it.</summary>
+/// <param name="Score">1 to 10: 10 is the best moment of the film.</param>
+/// <param name="Shaky">The camera shakes hard in it.</param>
+public sealed record Stretch(double Start, double End, int Score, bool Shaky);
+
+/// <summary>One film, as the model that decides what kind of video the films make is told of it.</summary>
+public sealed record FilmBrief(string Note, string Timeline, double Seconds, bool Talking, bool Portrait);
+
+/// <summary>What kind of video a set of films makes, and how it is best told, as a model decided after reading about them.</summary>
+/// <param name="Kind">A <see cref="Library.VideoKind"/>'s name.</param>
+/// <param name="Pace">A <see cref="Library.Pace"/>'s name.</param>
+/// <param name="Mood">The music bed's mood (see <see cref="Library.VideoKinds.Moods"/>).</param>
+/// <param name="Narrator">A narrator style's id (warm, excited, deadpan, sports).</param>
+/// <param name="Roast">How hard the roast goes, 0 (off) to 4.</param>
+/// <param name="Line">One line saying what the video is, in a few words.</param>
+public sealed record VideoPlan(string Kind, string Pace, string Mood, string Narrator, int Roast, string Line);
+
+/// <summary>A clip a look at the finished clips found unusable.</summary>
+/// <param name="Clip">Its place in the running order, counting from 1.</param>
+/// <param name="Problem">What is wrong, in a few plain words.</param>
+public sealed record ShotFault(int Clip, string Problem);
 
 /// <summary>One frame taken from a film or a scene, and when in it.</summary>
 public sealed record Frame(TimeSpan At, string Path);
@@ -72,6 +96,19 @@ public interface IScriptWriter
     /// <param name="note">The owner's own line on it, when they wrote one.</param>
     /// <param name="show">The series the film is for, which says what to look for in it.</param>
     Task<FootageSeen?> WatchAsync(IReadOnlyList<Frame> frames, string note, Show show, CancellationToken ct);
+
+    /// <summary>
+    /// Decides what kind of video the owner's films make (kids, a trip, a party…) and how it is best told, from what
+    /// was seen and heard in them. Null when nothing here can decide, and the usual choices are made.
+    /// </summary>
+    Task<VideoPlan?> PlanVideoAsync(IReadOnlyList<FilmBrief> films, CancellationToken ct) => Task.FromResult<VideoPlan?>(null);
+
+    /// <summary>
+    /// Looks at one frame from the middle of each finished clip, each labelled with its clip's number, for a clip
+    /// that is plainly unusable: black, the lens covered, the floor or a pocket. None when nothing here can see.
+    /// </summary>
+    Task<IReadOnlyList<ShotFault>> CheckClipsAsync(IReadOnlyList<(int Clip, string Path)> frames, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<ShotFault>>([]);
 
     /// <summary>Looks at a scene's frame once it has built, for labels cut off, overlapping or under the captions.</summary>
     Task<SceneVerdict> CheckSceneAsync(string framePath, CancellationToken ct);

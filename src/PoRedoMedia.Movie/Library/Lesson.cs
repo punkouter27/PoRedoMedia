@@ -19,6 +19,9 @@ public sealed record Lesson(string Taught, string WentWrong, BeatStructure Struc
 
     /// <summary>The series so far, a line to each episode ("#3 · Standing up: …"), so this one can build on them.</summary>
     public IReadOnlyList<string> Earlier { get; init; } = [];
+
+    /// <summary>The footage is listed in the order it is shown, which the script keeps: footage 1 first.</summary>
+    public bool InOrder { get; init; }
 }
 
 /// <summary>One shot to film for a beat, from the list asked for before filming; ticked once it is filmed.</summary>
@@ -34,4 +37,23 @@ public sealed record FootageNote(string Path, string Note, bool OwnSound, TimeSp
 
     /// <summary>What is said in the film, with when each word is said; null when it was not listened to.</summary>
     public IReadOnlyList<WordTiming>? Heard { get; init; }
+
+    /// <summary>
+    /// How much of the film the narrator speaks over, 0 to 1: a half when a roast takes turns with it, and the pauses
+    /// between the narrator's lines are the roast's. 1 (all of it) otherwise.
+    /// </summary>
+    public double Share { get; init; } = 1;
+
+    /// <summary>The scene of the movie the film belongs to (see <see cref="Clip.Scene"/>); null when not known.</summary>
+    public int? Scene { get; init; }
+
+    /// <summary>How good the model that watched it thought it, 1 to 10; 0 when it was not scored.</summary>
+    public int Score { get; init; }
+
+    /// <summary>
+    /// How long the narration over this film runs: its share of the film, but never under the shortest narration that
+    /// can be fitted (<see cref="Script.Conformance.MinFootage"/>), so a short film is narrated as before.
+    /// </summary>
+    public TimeSpan Narrated => Share >= 1 ? Length
+        : TimeSpan.FromTicks(Math.Max((long)(Length.Ticks * Math.Max(Share, 0.1)), Math.Min(Length.Ticks, Script.Conformance.MinFootage.Ticks)));
 }

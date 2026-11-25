@@ -70,8 +70,7 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
     }
 
     /// <summary>
-    /// A stretch of a film, labelled in the corner, as a film of its own with its sound: the cold open ("COMING UP") or
-    /// the replay (slowed by <paramref name="slowdown"/>) of a movie's best moment. Kept until the film changes.
+    /// A stretch of a film, labelled in the corner, as a film of its own with its sound: the replay (slowed by <paramref name="slowdown"/>) of a movie's best moment. Kept until the film changes.
     /// </summary>
     /// <returns>The cut's path: <paramref name="output"/>.</returns>
     public async Task<string> MomentAsync(string film, TimeSpan start, TimeSpan length, string label, double slowdown, string output, CancellationToken ct)
@@ -92,6 +91,24 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
         {
             DeleteScratch(work);
         }
+    }
+
+    /// <summary>
+    /// The narration spread across <paramref name="film"/> with pauses after its sentences, for the roast to answer in
+    /// (see <see cref="Pauses"/>); the narration as it is when there is too little spare time or nowhere to break.
+    /// </summary>
+    public async Task<Narration> PausedAsync(Narration narration, TimeSpan film, CancellationToken ct)
+    {
+        var pauses = Pauses.Plan(narration.Words, narration.Duration, film);
+        if (pauses.Count == 0) return narration;
+        var output = Path.ChangeExtension(narration.AudioPath, FormattableString.Invariant($".paused{(long)film.TotalMilliseconds}.wav"));
+        if (!File.Exists(output))
+        {
+            var scratch = Files.NewScratchFile(".wav");
+            await ffmpeg.RunAsync(Pauses.Args(narration.AudioPath, pauses, film, scratch), Path.GetDirectoryName(scratch)!, film, null, ct);
+            File.Move(scratch, output, overwrite: true);
+        }
+        return new Narration(output, WavInfo.Duration(output), Pauses.Shift(narration.Words, pauses));
     }
 
     /// <summary>The seconds into a film of its most sudden actions (see <see cref="Motion"/>); empty when none stand out.</summary>
@@ -214,48 +231,41 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
             // timeline, the join and the levelling treat them like clips. A kit that names no channel has no bookends.
             var ends = Bookends(brand);
             var first = ends is null ? 0 : 1;
-            // A cold open: the first few clips play before the intro (only a movie made of films has one).
-            var opening = ends is null ? 0 : Math.Clamp(episode.Opening, 0, count);
-            int SlotOf(int clip) => clip < opening ? clip : clip + first;
             List<Narration> sounds = ends is null ? [.. narrations]
-                : [.. narrations.Take(opening), await BookendSoundAsync(true, ends, null, work, cache, ct), .. narrations.Skip(opening),
-                    await BookendSoundAsync(false, ends, episode.MusicPath, work, cache, ct)];
+                : [await BookendSoundAsync(true, ends, null, work, cache, ct), .. narrations, await BookendSoundAsync(false, ends, episode.MusicPath, work, cache, ct)];
             var slots = FfmpegArgs.Timeline([.. sounds.Select(n => n.Duration)]);
 
             CopyTitleFont(work);
-            var pictures = await DrawClipsAsync(episode, i => slots[SlotOf(i)], preset, straps, brand, [.. Enumerable.Range(0, count)], work, cache,
+            var pictures = await DrawClipsAsync(episode, i => slots[i + first], preset, straps, brand, [.. Enumerable.Range(0, count)], work, cache,
                 (activity, fraction, clips) => progress?.Report(new RenderProgress(activity, VoiceShare + DrawShare * fraction, clips)), ct);
 
             // The bookends' pictures run exactly their slots, which the crossfade into the next clip shortens a little.
-            List<string> drawn = [.. pictures.OfType<string>()];
-            List<string> joined = ends is null ? drawn
-                : [.. drawn.Take(opening), await BookendPictureAsync(true, ends, episode, preset, slots[opening].VideoLength, work, cache, ct), .. drawn.Skip(opening),
+            List<string> joined = ends is null ? [.. pictures.OfType<string>()]
+                : [await BookendPictureAsync(true, ends, episode, preset, slots[0].VideoLength, work, cache, ct), .. pictures.OfType<string>(),
                     await BookendPictureAsync(false, ends, episode, preset, slots[^1].VideoLength, work, cache, ct)];
             await File.WriteAllTextAsync(Path.Combine(work, "clips.txt"), FfmpegArgs.ClipList(joined), ct);
             var total = slots[^1].Start + slots[^1].VideoLength;
             const string Joining = "Joining the clips and levelling the sound";
             var joinProgress = progress is null ? null : new Relay<double>(p => progress.Report(new RenderProgress(Joining, VoiceShare + DrawShare + (1 - VoiceShare - DrawShare) * p)));
             // A rush of air carries the viewer into each new beat (or every cut, for a movie made of films), loudest on
-            // the cut. The clip after the intro has the intro's sting instead; a cold open whooshes into the intro.
+            // the cut. The first clip has the intro's sting instead.
             List<TimeSpan> cuts = [.. Enumerable.Range(1, Math.Max(0, count - 1))
-                .Where(i => !(ends is not null && i == opening) && (episode.EveryCut || episode.Clips[i].Beat is { } beat && beat != episode.Clips[i - 1].Beat))
-                .Select(i => slots[SlotOf(i)].Start)];
-            if (opening > 0)
-                cuts.Insert(0, slots[opening].Start);
+                .Where(i => episode.EveryCut || NewScene(episode, i) || episode.Clips[i].Beat is { } beat && beat != episode.Clips[i - 1].Beat)
+                .Select(i => slots[i + first].Start)];
             if (cuts.Count > 0)
                 await File.WriteAllBytesAsync(Path.Combine(work, "whoosh.wav"), Synth.Whoosh(), ct);
-            // The music bed runs under the clips after the intro, to the last clip's end.
-            (TimeSpan, TimeSpan)? bedSpan = episode.BedPath is { } bed && File.Exists(bed) && opening < count
-                ? (slots[SlotOf(opening)].Start, slots[SlotOf(count - 1)].Start + slots[SlotOf(count - 1)].VideoLength) : null;
+            // The music bed runs under the clips alone: from the first clip's start to the last clip's end.
+            (TimeSpan, TimeSpan)? bedSpan = episode.BedPath is { } bed && File.Exists(bed) && count > 0
+                ? (slots[first].Start, slots[count - 1 + first].Start + slots[count - 1 + first].VideoLength) : null;
             await ffmpeg.RunAsync(FfmpegArgs.Join("clips.txt", [.. sounds.Select(n => n.AudioPath)], partial, cuts.Count > 0 ? "whoosh.wav" : null, cuts,
                 bedSpan is null ? null : episode.BedPath, bedSpan), work, total, joinProgress, ct);
 
             Files.ReplaceInUse(partial, output); // the last copy may be playing in the preview
             progress?.Report(new RenderProgress("Done", 1));
-            var marks = narrations.Select((n, i) => new ClipMark(episode.Clips[i].Title, slots[SlotOf(i)].Start, n.AudioPath, Clip: i)).ToList();
+            var marks = narrations.Select((n, i) => new ClipMark(episode.Clips[i].Title, slots[i + first].Start, n.AudioPath, Clip: i)).ToList();
             if (ends is not null)
             {
-                marks.Insert(opening, new ClipMark("Intro", slots[opening].Start, sounds[opening].AudioPath, Bookend: true));
+                marks.Insert(0, new ClipMark("Intro", TimeSpan.Zero, sounds[0].AudioPath, Bookend: true));
                 marks.Add(new ClipMark("Outro", slots[^1].Start, sounds[^1].AudioPath, Bookend: true));
             }
             return (marks, total);
@@ -317,7 +327,7 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
             // The first clip of each beat (but the very first, which the intro carries in) opens with a streak of light,
             // and names the beat with a strap on frosted glass, so the viewer sees where the episode has got to.
             var newBeat = clip.Beat is { } beat && (i == 0 || episode.Clips[i - 1].Beat != beat) ? beat : null;
-            var polish = new Polish(brand?.Kit.Captions.AccentColor ?? new CaptionStyle().AccentColor, brand?.Kit.Grain == true, NewBeat: (newBeat is not null || episode.EveryCut) && i > 0);
+            var polish = new Polish(brand?.Kit.Captions.AccentColor ?? new CaptionStyle().AccentColor, brand?.Kit.Grain == true, NewBeat: (newBeat is not null || episode.EveryCut || NewScene(episode, i)) && i > 0);
             // No captions of what is said are drawn (removed 2026-11-17); the strap is the only text burned in here.
             string? strapFile = null;
             if (straps && newBeat is not null)
@@ -343,6 +353,13 @@ public sealed partial class EpisodeBuilder(INarrator narrator, FfmpegRunner ffmp
         });
         return pictures;
     }
+
+    /// <summary>
+    /// The clip at <paramref name="index"/> opens a new scene (see <see cref="Clip.Scene"/>): the cut into it gets the
+    /// rush of air and the streak of light, where a cut within a scene is a hard cut.
+    /// </summary>
+    public static bool NewScene(Episode episode, int index) =>
+        index > 0 && episode.Clips[index].Scene is { } scene && episode.Clips[index - 1].Scene is { } before && scene != before;
 
     /// <summary>A file's identity for the clip cache: replacing or editing it makes the clip that reads it draw again.</summary>
     private static string Stamp(string path)

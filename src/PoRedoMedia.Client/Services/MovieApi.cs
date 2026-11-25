@@ -132,8 +132,6 @@ public sealed class MovieApi(HttpClient http)
     public Task<MovieReply> DialogueAsync(string id, Guid clip, string words) =>
         PostAsync($"api/movies/{id}/clips/{clip}/dialogue", new MovieEdit("dialogue", Text: words), WireJson.Default.MovieEdit);
 
-    public Task<MovieReply> TeasersAsync(string id, MovieTeaserDto[] teasers) => SendAsync(HttpMethod.Put, $"api/movies/{id}/teasers", new MovieTeasersUpdate(teasers), WireJson.Default.MovieTeasersUpdate);
-
     public Task<MovieReply> UploadAsync(string id, MovieUploadRequest request) => PostAsync($"api/movies/{id}/youtube", request, WireJson.Default.MovieUploadRequest);
 
     public async Task<MovieReply> MusicAsync(string id, IBrowserFile file)

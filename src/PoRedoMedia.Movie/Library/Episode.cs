@@ -81,8 +81,20 @@ public sealed record Clip(
     /// <summary>Seconds into the owner's film of its best moment, as the model that watched it saw it; null when not watched.</summary>
     public double? Highlight { get; init; }
 
-    /// <summary>The film the story builds to: its best moment opens the movie as a teaser and is shown again as a replay.</summary>
+    /// <summary>The film the story builds to: its best moment is shown again as a slow replay after it.</summary>
     public bool Payoff { get; init; }
+
+    /// <summary>
+    /// The narrator takes turns with a roast over this film: its words were written for part of the film, and they are
+    /// spread across all of it with pauses after its sentences, for the roast to answer in.
+    /// </summary>
+    public bool TakesTurns { get; init; }
+
+    /// <summary>
+    /// Which scene of a movie made from films the clip's film belongs to (films filmed close together in time and place
+    /// are one): a cut between scenes gets a whip, a cut within one is a hard cut. Null when not known.
+    /// </summary>
+    public int? Scene { get; init; }
 
     /// <summary>
     /// The narrator chosen for the movie, as "style@rate" (e.g. "deadpan@1.08"); null is the usual narrator at the usual
@@ -147,11 +159,17 @@ public sealed record Episode(
     /// <summary>The shots planned for filming the lesson, as ticked off; empty when none were asked for.</summary>
     public IReadOnlyList<Shot> Shots { get; init; } = Shots ?? [];
 
-    // The three below are set only on the copy of a movie made from films that is rendered (see MovieStudio's
-    // showtime), never on a saved episode.
+    /// <summary>The music bed's mood (see <see cref="VideoKinds.Moods"/>), picked for the kind of video; null for the series' usual.</summary>
+    public string? Mood { get; init; }
 
-    /// <summary>How many clips play before the intro: a cold open, the best moment teased before the series' intro.</summary>
-    public int Opening { get; init; }
+    /// <summary>
+    /// The movie was put together from the owner's films by the app (its parts chosen, ordered and made to match): its
+    /// cuts are moved onto the music's beats and its finished clips are looked over before the final render.
+    /// </summary>
+    public bool AutoEdit { get; init; }
+
+    // The two below are set only on the copy of a movie made from films that is rendered (see MovieStudio's
+    // showtime), never on a saved episode.
 
     /// <summary>Every cut, not only a new beat's, gets the rush of air and the streak of light.</summary>
     public bool EveryCut { get; init; }

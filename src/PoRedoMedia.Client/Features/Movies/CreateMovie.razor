@@ -1,7 +1,7 @@
 @page "/movie"
 @* Create Movie, on one page: the user's own films become a whole video in one go, narrated, meme-ified
    and wrapped in a series' intro and outro. The channel's look folds away at the top; the films and
-   the Make button come next; the finished video, with its downloads, upload and teasers, follows once
+   the Make button come next; the finished video, with its downloads and upload, follows once
    a movie is open. The state is in Services/MovieStore. *@
 @implements IDisposable
 @inject MovieStore Store
@@ -116,16 +116,6 @@
         <MovieSettingsPanel Close="@(() => _settings = false)" />
     }
 
-    @if (Store.Playing is var (url, upright))
-    {
-        @* A teaser watched on its own. Closing it lets go of the file. *@
-        <div class="mv-player-shade" @onclick="ClosePlayer">
-            <div class="mv-player @(upright ? "upright" : null)" @onclick:stopPropagation="true">
-                <video src="@url" controls autoplay playsinline aria-label="Playing"></video>
-                <RadzenButton Icon="close" Variant="Variant.Text" Click="ClosePlayer" aria-label="Close the player" class="mv-player-close" />
-            </div>
-        </div>
-    }
 </div>
 </PageBoundary>
 
@@ -148,12 +138,10 @@
         if (ConnectError is { Length: > 0 } problem)
             Store.Say(null, problem);
         else if (Connected is { Length: > 0 } site)
-            Store.Say($"{site} is connected. Press Publish under the finished video to send it there.");
+            Store.Say($"{site} is connected. Use Upload to YouTube under the finished video to send it there.");
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
-
-    private void ClosePlayer() => Store.Playing = null;
 
     // ---- The … menu ----
 

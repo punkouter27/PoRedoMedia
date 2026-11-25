@@ -1,13 +1,15 @@
 using PoRedoMedia.Api.Features.Movies;
 using PoRedoMedia.Api.Features.Video;
 using PoRedoMedia.Movie.Library;
+using PoRedoMedia.Api.Features.Render;
 using PoRedoMedia.Movie.Render;
+using PoRedoMedia.Movie.Voice;
 using ApiArgs = PoRedoMedia.Api.Features.Render.FFmpegArgs;
 using MovieArgs = PoRedoMedia.Movie.Render.FfmpegArgs;
 
 namespace PoRedoMedia.UnitTests;
 
-/// <summary>What makes a movie made of films more than its films end to end: the cold open, the replay, the bed, the cuts, the timing.</summary>
+/// <summary>What makes a movie made of films more than its films end to end: the replay, the bed, the cuts, the timing.</summary>
 public sealed class ShowtimeTests
 {
     [Fact]
@@ -109,8 +111,44 @@ public sealed class ShowtimeTests
     {
         Assert.Equal([new AudioOnset(1200, VideoStep.ImpactStrength), new AudioOnset(4000, VideoStep.ImpactStrength)], VideoStep.Impacts("1200, 4000,x,-5"));
         Assert.Empty(VideoStep.Impacts(null));
-        // A zoom and a shake stay inside their window, at the frame's own size, like the other effects.
+        // A zoom stays inside its window, at the frame's own size, like the other effects; there is no shake.
         Assert.Contains("crop=", ApiArgs.ResolveWindowedEffectFilter("Zoom"));
-        Assert.Contains("sin(t", ApiArgs.ResolveWindowedEffectFilter("Shake"));
+        Assert.Null(ApiArgs.ResolveWindowedEffectFilter("Shake"));
+    }
+
+    [Fact]
+    public void The_narrator_pauses_after_its_sentences_so_the_roast_takes_turns_and_is_heard()
+    {
+        // Seven seconds of narration for a fourteen-second film (the narrator's half): three sentences.
+        WordTiming W(string text, double at, double length = 0.4) => new(text, TimeSpan.FromSeconds(at), TimeSpan.FromSeconds(length));
+        List<WordTiming> words = [W("The", 0), W("bottle", 0.5), W("slips.", 1.0), W("It", 2.0), W("grabs", 2.5), W("it!", 3.0), W("Then", 4.0), W("bills", 4.5), W("rain", 5.0), W("down.", 6.5)];
+        var pauses = Pauses.Plan(words, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(14));
+        // Seven spare seconds: one pause mid-way and the other half left after the last word, 3.5 s each.
+        Assert.Single(pauses);
+        Assert.Equal(3.5, pauses[0].Seconds, 3);
+        Assert.True(Math.Round(pauses[0].At, 2) is 1.7 or 3.7, $"{pauses[0].At}"); // between two sentences, never inside one
+        var shifted = Pauses.Shift(words, pauses);
+        Assert.Equal(words[0].Start, shifted[0].Start);
+        Assert.Equal(words[^1].Start + TimeSpan.FromSeconds(3.5), shifted[^1].Start);
+        Assert.Empty(Pauses.Plan(words, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(8))); // too little spare time to pause
+        var args = string.Join(' ', Pauses.Args("narration.wav", pauses, TimeSpan.FromSeconds(14), "out.wav"));
+        Assert.Contains("aevalsrc=0:c=stereo:s=48000:d=3.5", args);
+        Assert.Contains("-t 14", args);
+
+        // The roast's lines then fit those pauses: before, a narrator who never stopped left them nowhere to go.
+        var lines = shifted.Chunk(3).Select(c => ((long)(c[0].Start.TotalMilliseconds), (long)((c[^1].Start + c[^1].Duration).TotalMilliseconds))).ToList();
+        RenderVisualEntry Joke(long at) => new(at, "joke.mp3", null, null, null, Voice: true, DurationMs: 3000);
+        var turns = TurnTaking.Arrange([Joke(1400), Joke(10_900)], 14_000, lines);
+        Assert.Equal(2, turns.Cues.Count(c => c.Voice));
+        Assert.Equal(0, turns.JokesDropped);
+        Assert.All(turns.Cues, j => Assert.DoesNotContain(lines, l => l.Item1 < j.TimestampMs + j.DurationMs && l.Item2 > j.TimestampMs));
+
+        // The narrator is given half of each film to speak over.
+        var note = new FootageNote("film.mp4", "", false, TimeSpan.FromSeconds(14)) { Share = MovieStudio.NarratorShareWithRoast };
+        Assert.Equal(TimeSpan.FromSeconds(7), note.Narrated);
+        Assert.Equal(TimeSpan.FromSeconds(14), (note with { Share = 1 }).Narrated);
+        // Never under the shortest narration that can be fitted: a short film is narrated as before.
+        Assert.Equal(TimeSpan.FromSeconds(5), (note with { Length = TimeSpan.FromSeconds(6) }).Narrated);
+        Assert.Equal(TimeSpan.FromSeconds(4), (note with { Length = TimeSpan.FromSeconds(4) }).Narrated);
     }
 }

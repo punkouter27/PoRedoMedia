@@ -121,6 +121,7 @@ public static class BeatPlan
         HostVisible = false,
         FootageSeen = note.Seen?.Timeline ?? clip.FootageSeen,
         Highlight = note.Seen?.Highlight ?? clip.Highlight,
+        Scene = note.Scene ?? clip.Scene,
         Scripts = note.OwnSound ? clip.Scripts.ToDictionary(s => s.Key, s => s.Value with { Dialogue = "" }) : clip.Scripts,
     };
 

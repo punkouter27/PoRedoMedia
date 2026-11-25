@@ -130,6 +130,27 @@ public sealed partial class ChatScriptWriter
         return seen with { Highlight = Math.Clamp(seen.Highlight, 0, frames[^1].At.TotalSeconds + 1) };
     }
 
+    public async Task<VideoPlan?> PlanVideoAsync(IReadOnlyList<FilmBrief> films, CancellationToken ct)
+    {
+        if (films.Count == 0) return null;
+        var request = new StringBuilder();
+        foreach (var (film, i) in films.Select((f, i) => (f, i)))
+            request.Append(Fenced("existing", FormattableString.Invariant($" what=\"film {i + 1}: {film.Seconds:0} seconds, {(film.Talking ? "people talk in it" : "little or no talking")}, filmed {(film.Portrait ? "upright" : "wide")}\""),
+                $"{film.Note}\n{film.Timeline}"));
+        var plan = await Ask<VideoPlan>(settings.FastChatDeployment, ScriptSchemas.PlanSystem, request.ToString(), "plan", ScriptSchemas.Plan, ct);
+        return plan with { Roast = Math.Clamp(plan.Roast, 0, 4), Line = plan.Line.Trim() };
+    }
+
+    public async Task<IReadOnlyList<ShotFault>> CheckClipsAsync(IReadOnlyList<(int Clip, string Path)> frames, CancellationToken ct)
+    {
+        if (See is null || frames.Count == 0) return [];
+        var reply = Read<ClipCheckDto>(await See(settings.VisionDeployment ?? settings.FastChatDeployment, ScriptSchemas.ClipCheckSystem, "The clips, in order:",
+            [.. frames.Select(f => ($"Clip {f.Clip}:", f.Path))], "clipcheck", ScriptSchemas.ClipCheck, ct));
+        // Only clips that were shown, each once, and each with something said about it.
+        var shown = frames.Select(f => f.Clip).ToHashSet();
+        return [.. reply.Faults.Where(f => f is not null && shown.Contains(f.Clip) && !string.IsNullOrWhiteSpace(f.Problem)).DistinctBy(f => f.Clip)];
+    }
+
     public async Task<string?> CheckLetteringAsync(string picturePath, CancellationToken ct)
     {
         if (See is null) return null;

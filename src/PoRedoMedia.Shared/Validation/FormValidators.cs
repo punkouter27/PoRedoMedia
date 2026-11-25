@@ -57,6 +57,10 @@ public sealed class MovieLessonRequestValidator : AbstractValidator<MovieLessonR
                 context.AddFailure($"Say what it is about in up to {most:N0} characters.");
         });
         RuleFor(r => r.Second).MaximumLength(MaxSecond).WithMessage($"Keep this to {MaxSecond:N0} characters.");
+        RuleFor(r => r.Cut).Must(cut => cut is null or MovieLessonRequest.BestParts or MovieLessonRequest.WholeFilms)
+            .WithMessage("Choose the best parts or whole films.");
+        RuleFor(r => r.Format).Must(format => format is null or MovieLessonRequest.AutoFormat or MovieLessonRequest.FullFormat or MovieLessonRequest.ShortFormat)
+            .WithMessage("Choose a full video, a Short, or let the app pick.");
     }
 }
 

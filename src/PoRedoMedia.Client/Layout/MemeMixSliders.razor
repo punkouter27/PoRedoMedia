@@ -3,7 +3,16 @@
    shown: what the roast picks on, turn-taking, style, chaos, laugh track and the narrator's voice. Used by Create (Meme-ify and Insult roast), Create Movie and Comic-ify (Comic hides what a comic has no use for). The finer levels
    (sound volume, famous sounds, caption size and place, pace) keep whatever the mix holds, its defaults unless set
    elsewhere. Everything starts at its default every time; nothing is remembered. *@
+@inject IJSRuntime JS
 <div class="mv-mix" role="group" aria-label="How much Meme-ify adds">
+    <RadzenSelectBar TValue="string" Value="@_preset" Change="ApplyPresetAsync" Size="ButtonSize.ExtraSmall" Disabled="Disabled" aria-label="Quick comedy vibes" class="rz-mb-2">
+        <Items>
+            <RadzenSelectBarItem Text="Clean Sitcom" Value="@("sitcom")" />
+            <RadzenSelectBarItem Text="Chaos Brainrot" Value="@("brainrot")" />
+            <RadzenSelectBarItem Text="Brutal Roast" Value="@("brutal")" />
+            <RadzenSelectBarItem Text="Balanced" Value="@("balanced")" />
+        </Items>
+    </RadzenSelectBar>
     @if (Roast)
     {
         @Slider("Roast", Mix.RoastLevel, MemeMix.MeannessNames, RoastOff, Mix.WithRoast,
@@ -16,7 +25,10 @@
                   : "How many meme sounds, captions, stickers and effects. Lots is the usual; Max asks for the most, with no gap over five seconds.")
     }
 
-    <div class="mv-mix-panel" id="@($"{IdPrefix}-panel")">
+    <RadzenAccordion class="rz-mt-1">
+        <Items>
+            <RadzenAccordionItem Text="Fine-tune mix" Icon="tune" Selected="true">
+                <div class="mv-mix-panel" id="@($"{IdPrefix}-panel")">
             @if (Roast && !Comic)
             {
                 <div class="mv-mix-row" title="What the roast picks on most. Everything leaves it to the comic.">
@@ -77,9 +89,16 @@
                 </div>
             }
 
-            <RadzenButton Text="Back to defaults" Icon="restart_alt" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="Disabled" Click="ResetAsync" class="mv-mix-reset"
-                          title="Put every setting back to how it starts" />
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton Text="Preview 3D mix" Icon="spatial_audio" Variant="Variant.Outlined" Size="ButtonSize.Small" Disabled="Disabled" Click="PreviewMixAsync"
+                              title="Hear a 3D spatialized preview of your roast and meme sound balance" />
+                <RadzenButton Text="Back to defaults" Icon="restart_alt" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="Disabled" Click="ResetAsync" class="mv-mix-reset"
+                              title="Put every setting back to how it starts" />
+            </RadzenStack>
         </div>
+            </RadzenAccordionItem>
+        </Items>
+    </RadzenAccordion>
 </div>
 
 @code {
@@ -98,6 +117,23 @@
     [Parameter] public bool RoastOff { get; set; }
 
     /// <summary>Show the meme sound, picture and look settings.</summary>
+    private string? _preset;
+
+    private async Task ApplyPresetAsync(string preset)
+    {
+        _preset = preset;
+        var next = preset switch
+        {
+            "sitcom" => Defaults.WithRoast(1).WithMemes(1) with { Chaos = 1, Laughs = 1 },
+            "brainrot" => Defaults.WithRoast(2).WithMemes(3) with { Chaos = 3, Laughs = 2 },
+            "brutal" => Defaults.WithRoast(3).WithMemes(2) with { Chaos = 2, Laughs = 1 },
+            _ => Defaults,
+        };
+        await Set(next);
+    }
+
+    private Task PreviewMixAsync() =>
+        JS.InvokeVoidAsync("poAudioMix.previewMix", Mix.RoastLevel, Mix.MemeLevel, Roast && !RoastOff).AsTask();
     [Parameter] public bool Memes { get; set; } = true;
 
     /// <summary>Show the style picker (Create has its own, beside Meme-ify).</summary>

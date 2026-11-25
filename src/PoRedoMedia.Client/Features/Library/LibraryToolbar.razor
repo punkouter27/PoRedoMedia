@@ -34,8 +34,19 @@ else
                 <RadzenSelectBarItem Text="Audio" Value="@("Audio")" />
             </Items>
         </RadzenSelectBar>
+        <RadzenSelectBar Value="Facet" TValue="string" Change="@(v => FacetChanged.InvokeAsync(v))" Size="ButtonSize.ExtraSmall" aria-label="Quick facet filter">
+            <Items>
+                <RadzenSelectBarItem Text="Any" Value="@("Any")" />
+                <RadzenSelectBarItem Text="Pinned" Value="@("Pinned")" />
+                <RadzenSelectBarItem Text="Shared" Value="@("Shared")" />
+                <RadzenSelectBarItem Text="Expiring" Value="@("Expiring")" />
+            </Items>
+        </RadzenSelectBar>
         <RadzenButton Icon="sort" Text="@Sort" Variant="Variant.Text" ButtonStyle="ButtonStyle.Base" aria-label="@($"Sort: {Sort}")" title="Sort"
                       aria-haspopup="menu" Click="OpenSortMenu" class="library-sort" />
+        <RadzenButton Icon="vertical_split" Variant="@(SplitView ? Variant.Filled : Variant.Text)" ButtonStyle="ButtonStyle.Base"
+                      aria-label="Toggle split inspector" title="Side-by-side split view" aria-pressed="@(SplitView ? "true" : "false")"
+                      Click="@(() => SplitViewChanged.InvokeAsync(!SplitView))" />
         <RadzenButton Text="Add media" Icon="add" Click="Add" title="Add media (U)" class="library-add po-phone-hide-text" />
     </div>
 }
@@ -45,10 +56,14 @@ else
 
     [Parameter] public string Search { get; set; } = "";
     [Parameter] public string Kind { get; set; } = "All";
+    [Parameter] public string Facet { get; set; } = "Any";
     [Parameter] public string Sort { get; set; } = "Newest";
     [Parameter] public EventCallback<string> SearchChanged { get; set; }
     [Parameter] public EventCallback<string> KindChanged { get; set; }
+    [Parameter] public EventCallback<string> FacetChanged { get; set; }
     [Parameter] public EventCallback<string> SortChanged { get; set; }
+    [Parameter] public bool SplitView { get; set; }
+    [Parameter] public EventCallback<bool> SplitViewChanged { get; set; }
     [Parameter] public EventCallback Add { get; set; }
 
     /// <summary>How many items are ticked. Above zero the bar shows the bulk actions.</summary>

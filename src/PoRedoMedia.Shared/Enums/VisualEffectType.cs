@@ -19,6 +19,12 @@ public enum VisualEffectType
     /// <summary>A punch-in on the middle of the picture, for a reaction.</summary>
     Zoom,
 
-    /// <summary>The picture shaken, for an impact: a crash, a fall, a slam.</summary>
-    Shake,
+    /// <summary>Retro VHS chroma bleed, scan wobble and tape noise.</summary>
+    Vhs,
+
+    /// <summary>High-contrast comic-book ink & halftone look.</summary>
+    ComicHalftone,
+
+    /// <summary>Scanline CRT monitor glow and vignette.</summary>
+    Crt,
 }

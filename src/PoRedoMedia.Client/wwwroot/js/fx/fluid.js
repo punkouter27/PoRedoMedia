@@ -67,15 +67,33 @@ window.poFluid = (() => {
             return vec4f(min(c, vec3f(1.0)), 1.0);
         }
 
-        // The page: its own background, tinted by the dye. Normalising the dye keeps its hue and
-        // uses its amount as the strength, so it reads the same on a light page and a dark one.
+        // The page: its own background, tinted by the dye, plus WebGPU post-processing
+        // (5-tap luminance bloom on dye peaks, adaptive vignette, and soft pointer spotlight).
         @fragment
         fn show(v: V) -> @location(0) vec4f {
             let d = textureSampleLevel(dye, smp, v.uv, 0.0).rgb;
-            let strength = clamp(max(d.r, max(d.g, d.b)), 0.0, 1.0);
-            let hue = d / max(strength, 0.001);
+            let texel = vec2f(2.0 / max(1.0, u.sim.x), 2.0 / max(1.0, u.sim.y));
+            let bloom = (
+                textureSampleLevel(dye, smp, v.uv + vec2f(texel.x, 0.0), 0.0).rgb +
+                textureSampleLevel(dye, smp, v.uv - vec2f(texel.x, 0.0), 0.0).rgb +
+                textureSampleLevel(dye, smp, v.uv + vec2f(0.0, texel.y), 0.0).rgb +
+                textureSampleLevel(dye, smp, v.uv - vec2f(0.0, texel.y), 0.0).rgb
+            ) * 0.25;
+            let peak = max(bloom - vec3f(0.32), vec3f(0.0)) * (0.45 + u.energy * 0.35);
+            let combined = min(d + peak, vec3f(1.0));
+            let strength = clamp(max(combined.r, max(combined.g, combined.b)), 0.0, 1.0);
+            let hue = combined / max(strength, 0.001);
             let rest = mix(u.base.rgb, mix(u.a.rgb, u.b.rgb, v.uv.x), 0.06);
-            return vec4f(mix(rest, hue, strength * (0.22 + u.energy * 0.2 + u.base.w * 0.08)), 1.0);
+            var color = mix(rest, hue, strength * (0.22 + u.energy * 0.2 + u.base.w * 0.08));
+
+            // Dynamic pointer spotlight + subtle adaptive vignette
+            let aspect = u.sim.x / max(1.0, u.sim.y);
+            let pd = (v.uv - u.pointer) * vec2f(aspect, 1.0);
+            let spot = exp(-dot(pd, pd) / 0.06) * (0.04 + u.base.w * 0.05);
+            color += mix(u.a.rgb, u.b.rgb, 0.5) * spot;
+            let centered = v.uv - vec2f(0.5);
+            let vig = 1.0 - dot(centered, centered) * (0.12 + u.base.w * 0.16);
+            return vec4f(clamp(color * vig, vec3f(0.0), vec3f(1.0)), 1.0);
         }`;
 
     let device = null, context = null, canvas = null, format = null;

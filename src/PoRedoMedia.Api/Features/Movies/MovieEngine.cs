@@ -28,7 +28,7 @@ public sealed class MovieEngine
     private readonly (JsonChat Chat, SeeingChat See)? _chats;
     private readonly ImageMaker? _pictures;
     private readonly Func<string, string, CancellationToken, Task>? _footage;
-    private readonly PexelsStock? _stock;
+    private readonly Func<string, int, string, CancellationToken, Task>? _stock;
     private readonly SceneRenderer? _scenes;
     private readonly (string Id, string Secret)? _youTube;
     private readonly IHttpClientFactory _http;
@@ -112,8 +112,27 @@ public sealed class MovieEngine
             CostEstimate.HostPicturePrice = config.GetValue<decimal?>("AiPricing:ImageUsd");
             CostEstimate.VideoPrice = (config.GetValue<decimal?>("AiPricing:VideoUsd") ?? 0.80m) + (CostEstimate.HostPicturePrice ?? 0);
         }
-        if (!mock && AiFoundryClient.Setting(config, MovieKeys.PexelsKey) is { } pexels)
-            _stock = new PexelsStock(pexels, http.CreateClient(MovieAi.HttpClientName));
+        if (!mock)
+        {
+            var stockHttp = http.CreateClient(MovieAi.HttpClientName);
+            var pexels = AiFoundryClient.Setting(config, MovieKeys.PexelsKey) is { } pKey ? new PexelsStock(pKey, stockHttp) : null;
+            var tenor = AiFoundryClient.Setting(config, MovieKeys.TenorKey) is { } tKey ? new TenorStock(tKey, stockHttp) : null;
+            var wikimedia = new WikimediaStock(stockHttp);
+            _stock = async (words, take, outputPath, ct) =>
+            {
+                if (pexels is not null)
+                {
+                    try { await pexels.FindAsync(words, take, outputPath, ct); return; }
+                    catch (InvalidOperationException) { }
+                }
+                if (tenor is not null)
+                {
+                    try { await tenor.FindAsync(words, take, outputPath, ct); return; }
+                    catch (InvalidOperationException) { }
+                }
+                await wikimedia.FindAsync(words, take, outputPath, ct);
+            };
+        }
         if (FfmpegAvailable && SceneRenderer.Locate(AiFoundryClient.Setting(config, MovieKeys.Browser)) is { } browser)
             _scenes = new SceneRenderer(browser, Runner);
         if (AiFoundryClient.Setting(config, MovieKeys.YouTubeClientId) is { } id && AiFoundryClient.Setting(config, MovieKeys.YouTubeClientSecret) is { } secret)
@@ -198,7 +217,7 @@ public sealed class MovieEngine
             Subjects = new MediaCache(Path.Combine(folder, "subject")),
             PictureMade = CostEstimate.PriceOf(ImageModel, quality) is { } dollars ? () => SpendLog.Add(folder, SpendLog.Picture, dollars) : null,
             VideoMade = () => SpendLog.Add(folder, SpendLog.AiVideo, CostEstimate.VideoPrice - (CostEstimate.HostPicturePrice ?? 0)),
-            Stock = _stock is null ? null : _stock.FindAsync,
+            Stock = _stock,
             Video = _footage is null ? null : async (shot, output, ct) =>
             {
                 await _footage(shot, output, ct);
@@ -285,6 +304,9 @@ public static class MovieKeys
 
     /// <summary>A Pexels key: stock photos are offered when it is set.</summary>
     public const string PexelsKey = "Pexels:ApiKey";
+
+    /// <summary>A Tenor v2 key: reaction GIFs are offered when it is set.</summary>
+    public const string TenorKey = "Tenor:ApiKey";
 
     /// <summary>A Chromium-family browser for code-drawn scenes. Empty = Edge or Chromium where the system keeps it.</summary>
     public const string Browser = "Movie:BrowserPath";

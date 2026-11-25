@@ -6,6 +6,7 @@ namespace PoRedoMedia.Shared.Models;
 /// <summary>Source-generated JSON for every wire type, so the browser needs no reflection.</summary>
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(AppConfigDto))]
+[JsonSerializable(typeof(YouTubeEventDto[]))] // also the YouTube history file kept beside a movie
 [JsonSerializable(typeof(DiagReportDto))]
 [JsonSerializable(typeof(PublishStatusDto))]
 [JsonSerializable(typeof(PublishRequest))]
@@ -47,4 +48,6 @@ namespace PoRedoMedia.Shared.Models;
 [JsonSerializable(typeof(ComicConfigDto))]
 [JsonSerializable(typeof(ComicRequest))]
 [JsonSerializable(typeof(ComicJobDto))]
+[JsonSerializable(typeof(VisionBoxDto[]))]
+[JsonSerializable(typeof(LocalDirectorDraftDto))]
 public sealed partial class WireJson : JsonSerializerContext;

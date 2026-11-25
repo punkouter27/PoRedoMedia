@@ -42,41 +42,55 @@ else if (Tracker.Runs.Count == 0)
 }
 else
 {
-    @* One card per run: what it did and how it went on top, its buttons under that, so nothing
-       is wider than a phone. *@
-    <ul class="runs-list">
-        @foreach (var item in Tracker.Runs)
-        {
-            var run = item;
-            var what = string.Join(" + ", run.Run.Functions.Select(FunctionStack.Label));
-            <li @key="run.Run.Id" class="runs-card">
-                <RadzenIcon Icon="@Icon(run)" class="@($"runs-{run.Status.ToString().ToLowerInvariant()}")" aria-hidden="true" />
-                <span class="runs-text">
-                    <strong>@what</strong>
-                    <span>@State(run) · @run.Run.CreatedAt.LocalDateTime.ToString("d MMM HH:mm")</span>
-                    @if (!run.Finished)
-                    {
-                        <RadzenProgressBar Value="run.Percent" Mode="@(run.Percent == 0 ? ProgressBarMode.Indeterminate : ProgressBarMode.Determinate)"
-                                           ShowValue="false" aria-label="@($"Progress of {what}")" class="runs-progress" />
-                    }
-                </span>
-                <span class="runs-actions">
-                    <RadzenButton Text="View" Size="ButtonSize.Small" Variant="Variant.Text" aria-label="@($"View the run from {run.Run.CreatedAt.LocalDateTime:HH:mm}")"
-                                  Click="@(() => View(run))" />
-                    @if (run.Finished)
-                    {
-                        <RadzenButton Text="@(run.Status == RunStatus.Failed ? "Retry" : "Again")" Size="ButtonSize.Small" Variant="Variant.Outlined"
-                                      Disabled="_starting" aria-label="@($"Run it again: {what}")" Click="@(() => AgainAsync(run))" />
-                    }
-                    else
-                    {
-                        <RadzenButton Icon="cancel" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
-                                      Disabled="@(_cancelling.Contains(run.Run.Id))" aria-label="@($"Cancel {what}")" title="Cancel the run" Click="@(() => CancelAsync(run))" />
-                    }
-                </span>
-            </li>
-        }
-    </ul>
+    <RadzenTimeline Orientation="Orientation.Vertical" LinePosition="LinePosition.Start" class="runs-timeline">
+        <Items>
+            @foreach (var item in Tracker.Runs)
+            {
+                var run = item;
+                var what = string.Join(" + ", run.Run.Functions.Select(FunctionStack.Label));
+                var pointStyle = run.Status switch
+                {
+                    RunStatus.Complete => PointStyle.Success,
+                    RunStatus.Failed => PointStyle.Danger,
+                    RunStatus.Queued => PointStyle.Base,
+                    _ => PointStyle.Info,
+                };
+                <RadzenTimelineItem @key="run.Run.Id" PointStyle="pointStyle">
+                    <LabelContent>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">@run.Run.CreatedAt.LocalDateTime.ToString("HH:mm")</RadzenText>
+                    </LabelContent>
+                    <ChildContent>
+                        <div class="runs-card">
+                            <RadzenIcon Icon="@Icon(run)" class="@($"runs-{run.Status.ToString().ToLowerInvariant()}")" aria-hidden="true" />
+                            <span class="runs-text">
+                                <strong>@what</strong>
+                                <span>@State(run) · @run.Run.CreatedAt.LocalDateTime.ToString("d MMM HH:mm")</span>
+                                @if (!run.Finished)
+                                {
+                                    <RadzenProgressBar Value="run.Percent" Mode="@(run.Percent == 0 ? ProgressBarMode.Indeterminate : ProgressBarMode.Determinate)"
+                                                       ShowValue="false" aria-label="@($"Progress of {what}")" class="runs-progress" />
+                                }
+                            </span>
+                            <span class="runs-actions">
+                                <RadzenButton Text="View" Size="ButtonSize.Small" Variant="Variant.Text" aria-label="@($"View the run from {run.Run.CreatedAt.LocalDateTime:HH:mm}")"
+                                              Click="@(() => View(run))" />
+                                @if (run.Finished)
+                                {
+                                    <RadzenButton Text="@(run.Status == RunStatus.Failed ? "Retry" : "Again")" Size="ButtonSize.Small" Variant="Variant.Outlined"
+                                                  Disabled="_starting" aria-label="@($"Run it again: {what}")" Click="@(() => AgainAsync(run))" />
+                                }
+                                else
+                                {
+                                    <RadzenButton Icon="cancel" Size="ButtonSize.Small" Variant="Variant.Text" ButtonStyle="ButtonStyle.Danger"
+                                                  Disabled="@(_cancelling.Contains(run.Run.Id))" aria-label="@($"Cancel {what}")" title="Cancel the run" Click="@(() => CancelAsync(run))" />
+                                }
+                            </span>
+                        </div>
+                    </ChildContent>
+                </RadzenTimelineItem>
+            }
+        </Items>
+    </RadzenTimeline>
 }
 
 @code {

@@ -4,7 +4,12 @@ namespace PoRedoMedia.Api.Common;
 public static class DirectorScripts
 {
     /// <summary>Sticker overlays the renderer ships (<c>Assets/overlays/{id}.png</c>).</summary>
-    public static readonly string[] Stickers = ["deal-with-it", "laser-eyes", "thug-life", "red-circle", "clown-wig", "explosion"];
+    public static readonly string[] Stickers =
+    [
+        "deal-with-it", "laser-eyes", "thug-life", "red-circle", "clown-wig", "explosion",
+        "skull", "fire", "crown", "mind-blown", "stonks-up", "warning-sign",
+        "popcorn", "trophy", "crying-laugh", "verified-check", "speech-pow", "target-lock",
+    ];
 
     /// <summary>Most cues one video gets: every cue is one more ffmpeg input and filter pass.</summary>
     public const int MaxCues = 40;

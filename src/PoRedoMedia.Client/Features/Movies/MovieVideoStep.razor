@@ -1,6 +1,6 @@
 @* The open movie's result: the finished video (render it again after changing the roast), with its
    chapters, thumbnail and upload details, send it to YouTube or download it (which removes the movie from the
-   server: no video is kept there); and the short upright teasers cut from it. *@
+   server: no video is kept there). *@
 @implements IAsyncDisposable
 @inject MovieStore Store
 @inject FluentValidation.IValidator<MovieUploadRequest> UploadRules
@@ -12,99 +12,9 @@
 @if (Store.Movie is { } movie && Store.Config is { } config)
 {
 var publish = movie.Publish;
-<div class="mv-two mv-video">
-    <div class="mv-main">
-        <h2 class="mv-section">Teasers</h2>
-        <p class="mv-quiet">Optional: three ten-second upright cuts of this movie for other video sites. Suggest them, change a hook, untick the ones you do not want, then render the rest.</p>
-        <div class="mv-row">
-            <RadzenButton Text="Suggest teasers" Icon="lightbulb" Variant="Variant.Outlined" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="@(() => Store.DoAsync("teasers/suggest", job: true))"
-                          title="Three ten-second upright cuts of this movie for other video sites, each a hook over one to three moments. One quick request to the script service." />
-            @if (movie.Teasers.Length > 0)
-            {
-                var kept = movie.Teasers.Count(t => t.Keep);
-                <RadzenButton Text="@(kept == 1 ? "Render 1 teaser" : $"Render {kept} teasers")" Disabled="@(Store.IsWorking || kept == 0)" Click="@(() => Store.DoAsync("teasers/render", job: true))"
-                              title="Builds each kept teaser as a 1080 by 1920 video, from the clips already made. Nothing new is paid for." />
-                <span title="Send each rendered teaser to your channel as a YouTube Short, titled with its hook and #Shorts, as private, unlisted or public as chosen for the finished video. Free.">
-                    <RadzenButton Text="Upload as Shorts" Variant="Variant.Outlined" Disabled="@(_uploading || Store.IsWorking || !config.YouTube || publish.TeaserUrls.Length == 0)" Click="@(() => UploadAsync(shorts: true))" />
-                </span>
-            }
-        </div>
-        <div class="mv-teasers">
-            @for (var i = 0; i < movie.Teasers.Length; i++)
-            {
-                var (index, teaser) = (i, movie.Teasers[i]);
-                var poster = teaser.Moments.FirstOrDefault() is { Clip: >= 1 } first && first.Clip <= movie.Clips.Length ? movie.Clips[first.Clip - 1].ThumbUrl : null;
-                <div class="mv-teaser">
-                    <div class="mv-teaser-poster">
-                        @if (poster is not null)
-                        {
-                            <img src="@poster" alt="" />
-                        }
-                        <span class="mv-teaser-hook">@teaser.Hook</span>
-                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain mv-card-play shown" Click="@(() => PlayTeaserAsync(index))" Disabled="@(Store.IsWorking || _playing is not null)"
-                                title="Watch this teaser as it stands, small and quick, before rendering it. Costs nothing." aria-label="@($"Play teaser {index + 1}")">
-                            <RadzenIcon Icon="play_arrow" />
-                        </RadzenButton>
-                        @if (_playing == index)
-                        {
-                            <span class="mv-card-busy"><RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" /></span>
-                        }
-                    </div>
-                    <div class="mv-teaser-body">
-                        <RadzenTextArea Value="@teaser.Hook" MaxLength="80" Rows="2" Placeholder="Hook" Change="@(v => TeaserAsync(index, teaser with { Hook = v }))" aria-label="Hook"
-                                        title="Shown across the top of the teaser. Eight words at most; any more are left off." />
-                        @if (Store.Advanced)
-                        {
-                            @for (var m = 0; m < teaser.Moments.Length; m++)
-                            {
-                                var (at, moment) = (m, teaser.Moments[m]);
-                                var latest = moment.Clip >= 1 && moment.Clip <= movie.Clips.Length ? Math.Max(0, movie.Clips[moment.Clip - 1].Seconds - moment.Length) : 0;
-                                <div class="mv-moment">
-                                    <RadzenDropDown TValue="int" Data="@movie.Clips" TextProperty="Title" ValueProperty="Number" Value="@moment.Clip" Change="@(v => MomentAsync(index, at, moment with { Clip = v is int clip ? clip : moment.Clip, Start = 0 }))"
-                                                    title="The clip this moment is cut from. Pick another to swap the moment, then drag the slider to choose where it starts." aria-label="Clip" />
-                                    <RadzenSlider TValue="double" Min="0" Max="@((decimal)Math.Max(0.5, latest))" Step="0.5" Value="@Math.Min(moment.Start, latest)" Change="@(v => MomentAsync(index, at, moment with { Start = v }))"
-                                                  title="Where in its clip this moment starts, in seconds: left is the clip's start. Drag it, then watch the teaser to check." />
-                                    <span class="mv-quiet">@($"{moment.Length:0.0} s")</span>
-                                </div>
-                            }
-                            <div class="mv-row">
-                                <RadzenCheckBox TValue="bool" Name="@($"mv-fill-{index}")" Value="@teaser.Fill" Change="@(v => TeaserAsync(index, teaser with { Fill = v }))" />
-                                <RadzenLabel Text="Fill" Component="@($"mv-fill-{index}")" title="Crop the picture to fill the upright frame, instead of showing it whole over a blurred copy of itself. Fuller, but the sides are lost: watch it to check." />
-                            </div>
-                        }
-                        <div class="mv-row">
-                            <RadzenCheckBox TValue="bool" Name="@($"mv-keep-{index}")" Value="@teaser.Keep" Change="@(v => TeaserAsync(index, teaser with { Keep = v }))" />
-                            <RadzenLabel Text="Keep" Component="@($"mv-keep-{index}")" title="Ticked teasers are rendered when you press Render teasers. Untick one to leave it out." />
-                        </div>
-                    </div>
-                </div>
-            }
-        </div>
-        @if (publish.TeaserUrls.Length > 0)
-        {
-            <h3 class="mv-section">Rendered teasers</h3>
-            <div class="mv-row mv-wrap">
-                @for (var i = 0; i < publish.TeaserUrls.Length; i++)
-                {
-                    var url = publish.TeaserUrls[i];
-                    <span class="mv-row">
-                        <RadzenButton Text="@($"Teaser {i + 1}")" Icon="play_arrow" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => { Store.Playing = (url, true); Store.Notify(); })" />
-                        <RadzenButton Icon="download" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => JS.InvokeVoidAsync("poMedia.download", url))" aria-label="@($"Download teaser {i + 1}")" title="Download this teaser." />
-                    </span>
-                }
-            </div>
-        }
-    </div>
-
+<div class="mv-video">
     <div class="mv-side">
         <strong>Finished video</strong>
-        <p class="mv-quiet">The whole movie at @(config.ExportPresets.FirstOrDefault(p => p.Value == Store.Prefs.ExportPreset)?.Label ?? "1080p, 30 fps"), wrapped in the intro and outro, with a chapter list, subtitles, a thumbnail and an upload description beside it.@(config.Memes ? $" Every film and AI video clip goes through Meme-ify first ({(string.Equals(movie.RoastVoice, "Off", StringComparison.OrdinalIgnoreCase) || config.RoastVoices is not { Length: > 0 } ? "sounds, stickers, text and effects; roast off" : $"sounds, stickers, text, effects and a {(movie.CrudeRoast ? "crude " : "")}{(string.Equals(movie.RoastVoice, "Rap", StringComparison.OrdinalIgnoreCase) ? "rap roast" : "spoken roast")}")})," : " Meme-ify is not set up on this server, so the clips are joined as they are,") and you download it. Downloading removes the movie and all its files, teasers too, from the server, so do anything else with it first.</p>
-        @if (config.Memes)
-        {
-            <MovieRoastOptions Voices="config.RoastVoices" Voice="@movie.RoastVoice" VoiceChanged="@(v => Store.EditAsync(new MovieEdit("roastVoice", Text: v)))"
-                               Mix="@(MemeMix.Parse(movie.Mix) ?? MemeMix.FromCrude(movie.CrudeRoast))" MixChanged="@(mix => Store.EditAsync(new MovieEdit("memeMix", Text: mix.Encode())))" Defaults="@MemeMix.For(movie.Show)"
-                               Narrator="@NarratorChoice.Parse(movie.Narrator)" NarratorChanged="@(n => Store.EditAsync(new MovieEdit("narrator", Text: n.Encode())))" Disabled="Store.IsWorking" IdPrefix="mv-video-roast" />
-        }
         <RadzenButton Text="@(publish.MasterUrl is null ? "Render finished video" : "Render again")" Icon="movie" Variant="@(publish.MasterUrl is null ? Variant.Filled : Variant.Outlined)" Disabled="@(Store.IsWorking || !config.Ffmpeg)" Click="RenderAsync" class="mv-wide"
                       title="@($"Build the finished video file with voice and pictures (no captions are drawn on it), plus a chapter list, a thumbnail and an upload description.{(config.Memes ? " Every film and AI video clip goes through Meme-ify first; you are shown what that costs and asked." : "")} A movie can be up to 10 minutes, each clip under one.")" />
         @if (publish.MasterUrl is { } master)
@@ -112,8 +22,6 @@ var publish = movie.Publish;
             <video @ref="_masterVideo" class="mv-master" src="@master" controls preload="metadata" playsinline aria-label="The finished video"></video>
             <span class="mv-quiet">@publish.MasterName · @publish.MasterSize</span>
             <div class="mv-row mv-equal">
-                <RadzenButton Text="Publish" Icon="publish" Variant="Variant.Filled" ButtonStyle="ButtonStyle.Primary" Disabled="@(_packing || Store.IsWorking)" Click="OpenPublishAsync" class="mv-wide"
-                              title="Send it to YouTube (with its thumbnail, title, description and tags) and the upright copy to TikTok in one go, from accounts you connect once. Free." />
                 <RadzenButton Text="@(_packing ? "Packing the download…" : "Download for YouTube & TikTok (.zip)")" Icon="download" Variant="Variant.Filled"
                               Disabled="@(_packing || Store.IsWorking)" IsBusy="_packing" Click="DownloadAsync" class="mv-wide"
                               title="One zip with everything to publish it: the video for YouTube, an upright 9:16 copy for TikTok, a YouTube thumbnail, the title, description, tags and caption for each site, and a README with the steps. Once the download finishes, the movie and all its files are removed from the server. Free." />
@@ -191,10 +99,7 @@ var publish = movie.Publish;
                                 title="Private: only you. Unlisted: anyone with the link. Public: everyone. Private is safest; change it on YouTube once you have watched it there." />
                 <FieldErrors Errors="_errors" For="Privacy" />
             </div>
-            @if (movie.Show == "Kids")
-            {
-                <p class="mv-quiet">Kids' video: uploaded as made for kids, as YouTube asks. Comments and personalised ads are off on it.</p>
-            }
+            <p class="mv-quiet">Uploaded as not made for kids, so comments and notifications stay on.</p>
             @if (Store.Advanced)
             {
                 <div class="mv-field">
@@ -216,12 +121,20 @@ var publish = movie.Publish;
                                       title="Delete the video at this link from your channel, for good, and upload nothing. A new tab opens to sign in to Google first." />
                     </div>
                     <FieldErrors Errors="_errors" For="Replace" />
+                    @if (YouTubeLinks.VideoId(_replace) is { } replacing)
+                    {
+                        var known = publish.YouTube?.LastOrDefault(e => e.Kind == "uploaded" && YouTubeLinks.VideoId(e.Link) == replacing);
+                        <span class="mv-quiet">
+                            @(known is null ? "A video on your channel." : $"This is “{known.Title}”, uploaded {known.At.ToLocalTime():d MMM, HH:mm}.")
+                            Upload to YouTube puts the new render up first, then deletes it. Delete from YouTube deletes it and uploads nothing.
+                        </span>
+                    }
                 </div>
             }
             <span title="@(config.YouTube
                 ? "Send the finished video to your YouTube channel with this title, description, tags and privacy, and the chosen thumbnail. A new tab opens to sign in to Google each time; nothing is kept. Free."
                 : "Uploading needs this server's Google sign-in: a Google Cloud OAuth client of the Web application kind, with the YouTube Data API on, set as YouTube:ClientId and YouTube:ClientSecret.")">
-                <RadzenButton Text="Upload to YouTube" Icon="upload" Disabled="@(_uploading || Store.IsWorking || !config.YouTube)" IsBusy="_uploading" Click="@(() => UploadAsync(shorts: false))" class="mv-wide" />
+                <RadzenButton Text="Upload to YouTube" Icon="upload" Disabled="@(_uploading || Store.IsWorking || !config.YouTube)" IsBusy="_uploading" Click="UploadAsync" class="mv-wide" />
             </span>
             @if (!config.YouTube)
             {
@@ -230,14 +143,57 @@ var publish = movie.Publish;
         }
         @if (_signIn is not null)
         {
-            <LinkButton Href="@_signIn" Text="Sign in to Google" Icon="login" target="_blank" rel="noopener" title="Opens Google in a new tab to sign in for this upload alone. Nothing is kept." />
+            <div class="mv-yt-step" role="status">
+                <strong><RadzenIcon Icon="login" /> Next: sign in to Google</strong>
+                <span>Google opens in a new tab. Choose the channel and allow PoRedoMedia @(_signInFor == "delete" ? "to delete the video" : "to upload"), then come back to this tab: @(_signInFor == "delete" ? "the video is deleted" : "the upload starts") by itself, and its progress shows at the bottom of the page.</span>
+                <div class="mv-row">
+                    <LinkButton Href="@_signIn" Text="Sign in to Google" Icon="open_in_new" target="_blank" rel="noopener" title="Opens Google in a new tab, for this alone. Nothing is kept." />
+                    <RadzenButton Text="Cancel" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => { _signIn = null; Store.Say("Cancelled. Nothing was sent to YouTube."); })" />
+                </div>
+                <span class="mv-quiet mv-row"><RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.ExtraSmall" /> Waiting for you to sign in…</span>
+            </div>
         }
-        @if (publish.VideoLink is { } links)
+        @if (publish.YouTube is { Length: > 0 } done)
         {
-            @foreach (var link in links.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            {
-                <a href="@link" target="_blank" rel="noopener" title="Open what was just uploaded on YouTube.">@link</a>
-            }
+            <h3 class="mv-section">On YouTube</h3>
+            <ul class="mv-yt-log" aria-label="What has been done on YouTube for this movie, newest first">
+                @foreach (var e in done.Reverse().Take(10))
+                {
+                    var item = e;
+                    var gone = item.Kind == "uploaded" && done.Any(d => d.Kind == "deleted" && d.At >= item.At && YouTubeLinks.VideoId(d.Link) == YouTubeLinks.VideoId(item.Link));
+                    <li class="mv-yt-item @item.Kind">
+                        <RadzenIcon Icon="@(item.Kind switch { "uploaded" => gone ? "cloud_off" : "cloud_done", "deleted" => "delete", _ => "error" })" />
+                        <div class="mv-yt-text">
+                            <strong>@(item.Kind switch { "uploaded" => item.Replaced is null ? "Uploaded" : "Uploaded, replacing a video", "deleted" => "Deleted", _ => "Did not work" })</strong>
+                            @if (item.Title.Length > 0)
+                            {
+                                <span>“@item.Title”</span>
+                            }
+                            <span class="mv-quiet">@item.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")@(item.Privacy.Length > 0 ? $" · {item.Privacy}" : "")@(gone ? " · deleted since" : "")</span>
+                            @if (item.Link.Length > 0)
+                            {
+                                <a href="@item.Link" target="_blank" rel="noopener" class="@(gone || item.Kind == "deleted" ? "mv-yt-gone" : null)">@item.Link</a>
+                            }
+                            @if (item.Replaced is { } replaced)
+                            {
+                                <span class="mv-quiet">Replaced @replaced, which was deleted.</span>
+                            }
+                            @if (item.Problem is { } trouble)
+                            {
+                                <span class="@(item.Kind == "failed" ? "po-field-error" : "mv-quiet")">@trouble</span>
+                            }
+                        </div>
+                        @if (item.Kind == "uploaded" && !gone)
+                        {
+                            <span class="mv-row">
+                                <RadzenButton Icon="content_copy" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => CopyAsync("Link", item.Link))" aria-label="Copy the link" title="Copy the video's link." />
+                                <RadzenButton Icon="swap_horiz" Variant="Variant.Text" Size="ButtonSize.Small" Click="@(() => { _replace = item.Link; })" aria-label="Replace it next time"
+                                              title="Put this video in Replaces on YouTube, so the next upload replaces it (or Delete from YouTube deletes it)." />
+                            </span>
+                        }
+                    </li>
+                }
+            </ul>
         }
     </div>
 </div>
@@ -261,8 +217,10 @@ var publish = movie.Publish;
     private string? _lastUploaded;
     private string? _seeded;
     private DateTime? _publishAt;
-    private int? _playing;
     private string? _signIn;
+
+    /// <summary>What the pending sign-in is for: "upload" or "delete".</summary>
+    private string _signInFor = "upload";
 
     protected override void OnInitialized() => Store.Changed += OnChanged;
 
@@ -314,7 +272,7 @@ var publish = movie.Publish;
         if (_packing || Store.Movie is not { } movie) return;
         _packError = null;
         if (!await MovieDialogs.ConfirmAsync(Dialogs, "Download for YouTube and TikTok?",
-                $"Packs one zip: {movie.Publish.MasterName} for YouTube, an upright copy for TikTok, a thumbnail, the text for both sites and a README. Making the upright copy takes a minute or two. When the download finishes, the movie and all its files are deleted from the server, so upload to YouTube from here or download teasers first. To make it again you render it again.",
+                $"Packs one zip: {movie.Publish.MasterName} for YouTube, an upright copy for TikTok, a thumbnail, the text for both sites and a README. Making the upright copy takes a minute or two. When the download finishes, the movie and all its files are deleted from the server, so upload to YouTube from here first. To make it again you render it again.",
                 "Download"))
             return;
         _packing = true;
@@ -326,13 +284,6 @@ var publish = movie.Publish;
         {
             _packing = false;
         }
-    }
-
-    private async Task OpenPublishAsync()
-    {
-        if (Store.Movie is not { } movie) return;
-        await Dialogs.OpenAsync<PublishDialog>("Publish", new Dictionary<string, object?> { ["Movie"] = movie },
-            new DialogOptions { Width = "min(560px, 96vw)", CloseDialogOnEsc = true });
     }
 
     private async Task ReleaseAsync()
@@ -353,44 +304,19 @@ var publish = movie.Publish;
         Store.Say($"{what} copied. Paste it into YouTube's upload page.");
     }
 
-    private async Task TeaserAsync(int index, MovieTeaserDto teaser)
-    {
-        if (Store.Movie is not { } movie) return;
-        var teasers = movie.Teasers.ToArray();
-        teasers[index] = teaser;
-        Store.Apply(await Api.TeasersAsync(movie.Id, teasers));
-    }
-
-    private Task MomentAsync(int index, int at, MovieTeaserMomentDto moment)
-    {
-        var teaser = Store.Movie!.Teasers[index];
-        var moments = teaser.Moments.ToArray();
-        moments[at] = moment;
-        return TeaserAsync(index, teaser with { Moments = moments });
-    }
-
-    private async Task PlayTeaserAsync(int index)
-    {
-        _playing = index;
-        var reply = await Store.DoAsync($"teasers/{index}/play");
-        _playing = null;
-        if (reply?.Url is { } url) Store.Playing = (url, true);
-        Store.Notify();
-    }
-
     /// <summary>Asks, then opens Google's sign-in in a new tab; the upload starts when Google sends that tab back.</summary>
-    private async Task UploadAsync(bool shorts)
+    private async Task UploadAsync()
     {
         if (_uploading || Store.Movie is not { } movie) return;
         var when = Store.Advanced && _publishAt is { } at ? new DateTimeOffset(at) : (DateTimeOffset?)null;
-        var upload = new MovieUploadRequest(_title, _description, _tags, _privacy, when, shorts, shorts ? null : NullIfBlank(_replace));
+        var upload = new MovieUploadRequest(_title, _description, _tags, _privacy, when, false, NullIfBlank(_replace));
         var checkedUpload = UploadRules.Validate(upload);
         _errors = checkedUpload.IsValid ? null : checkedUpload.ToDictionary();
         if (!checkedUpload.IsValid) return;
         _uploading = true;
         try
         {
-            await ConfirmAndUploadAsync(movie, upload, when, shorts);
+            await ConfirmAndUploadAsync(movie, upload, when);
         }
         finally
         {
@@ -398,16 +324,15 @@ var publish = movie.Publish;
         }
     }
 
-    private async Task ConfirmAndUploadAsync(MovieDto movie, MovieUploadRequest upload, DateTimeOffset? when, bool shorts)
+    private async Task ConfirmAndUploadAsync(MovieDto movie, MovieUploadRequest upload, DateTimeOffset? when)
     {
         var seen = when is { } then ? $"private until {then:d MMM yyyy, HH:mm}, then public" : _privacy.ToLowerInvariant();
-        var (title, message) = shorts
-            ? ($"Upload {movie.Publish.TeaserUrls.Length} teasers as YouTube Shorts?", $"Each goes to your channel as a Short, {seen}, titled with its hook and #Shorts. A new tab opens to sign in to Google first; that sign-in is used for these uploads only. It costs nothing.")
-            : upload.Replace is { } old
+        var (title, message) = upload.Replace is { } old
                 ? ("Replace the video on YouTube?", $"Uploads {movie.Publish.MasterName} to your channel as “{_title}”, {seen}{(movie.Publish.ThumbnailUrl is null ? "" : ", with the chosen thumbnail")}. Once it is up, {old} is deleted for good: its views, likes and comments go with it, and the new video has a new link. If the upload fails, the old video stays. A new tab opens to sign in to Google first, asking to upload and delete videos; that sign-in is used for this alone. It costs nothing.")
                 : ("Upload to YouTube?", $"Uploads {movie.Publish.MasterName} to your channel as “{_title}”, {seen}{(movie.Publish.ThumbnailUrl is null ? "" : ", with the chosen thumbnail")}. A new tab opens to sign in to Google first; that sign-in is used for this upload only. It costs nothing.");
-        if (!await MovieDialogs.ConfirmAsync(Dialogs, title, message, upload.Replace is null || shorts ? "Upload" : "Upload and replace")) return;
-        await SignInAsync(movie, upload, "Press Sign in to Google. The upload starts once you have signed in there.");
+        if (!await MovieDialogs.ConfirmAsync(Dialogs, title, message, upload.Replace is null ? "Upload" : "Upload and replace")) return;
+        _signInFor = "upload";
+        await SignInAsync(movie, upload, "Next, sign in to Google: the button is in the YouTube section.");
     }
 
     /// <summary>Asks, then opens Google's sign-in; the video is deleted when Google sends that tab back.</summary>
@@ -421,8 +346,9 @@ var publish = movie.Publish;
                     $"{YouTubeLinks.Watch(id)} is deleted from your channel for good, with its views, likes and comments. YouTube keeps no copy to bring back. A new tab opens to sign in to Google first, asking to upload and delete videos; that sign-in is used for this alone.",
                     "Delete it"))
                 return;
+            _signInFor = "delete";
             await SignInAsync(movie, new MovieUploadRequest("", "", "", _privacy, null, false, _replace.Trim(), DeleteOnly: true),
-                "Press Sign in to Google. The video is deleted once you have signed in there.");
+                "Next, sign in to Google: the button is in the YouTube section.");
         }
         finally
         {

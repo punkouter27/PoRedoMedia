@@ -179,3 +179,32 @@ public sealed class PexelsHealthCheck(IConfiguration configuration, IHostEnviron
             h => h.TryAddWithoutValidation("Authorization", key), anyAnswerIsHealthy: false, cancellationToken);
     }
 }
+
+/// <summary>Wikimedia Commons free stock photos for Create Movie: queries one public-domain search hit. No key required.</summary>
+public sealed class WikimediaHealthCheck(IConfiguration configuration, IHostEnvironment environment, IHttpClientFactory http) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        if (MockAi.IsEnabled(configuration, environment))
+            return ServiceProbe.Off("Not called: stand-in (mock) providers are in use.");
+
+        return await ServiceProbe.GetAsync(http, context,
+            new Uri("https://commons.wikimedia.org/w/api.php?action=query&meta=siteinfo&format=json"),
+            h => h.TryAddWithoutValidation("User-Agent", "PoRedoMedia/1.0"), anyAnswerIsHealthy: false, cancellationToken);
+    }
+}
+
+/// <summary>Tenor reaction GIFs for Create Movie: probes one featured query when configured. Optional.</summary>
+public sealed class TenorHealthCheck(IConfiguration configuration, IHostEnvironment environment, IHttpClientFactory http) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        if (MockAi.IsEnabled(configuration, environment))
+            return ServiceProbe.Off("Not called: stand-in (mock) providers are in use.");
+        if (ServiceProbe.Setting(configuration, Features.Movies.MovieKeys.TenorKey) is not { } key)
+            return ServiceProbe.Off("Not set up here, so not called: Wikimedia Commons handles free stock fallback.");
+
+        var url = new Uri($"https://tenor.googleapis.com/v2/featured?key={Uri.EscapeDataString(key)}&limit=1");
+        return await ServiceProbe.GetAsync(http, context, url, null, anyAnswerIsHealthy: false, cancellationToken);
+    }
+}

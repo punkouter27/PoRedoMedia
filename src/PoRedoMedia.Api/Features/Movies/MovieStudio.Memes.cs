@@ -16,7 +16,7 @@ namespace PoRedoMedia.Api.Features.Movies;
 public sealed partial class MovieStudio
 {
     /// <summary>Names a meme-ified clip on disk. Change it when what Meme-ify is asked for changes, so clips are made again.</summary>
-    private const string MemeVersion = "meme 11"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"; 6: the roast never talks over the narrator; 7: kids' roast and captions are meaner and sarcastic; 8: the meme mix levels; 9: jokes with no pause go after the narration, unused room is cut; 10: no captions are burned in later, so meme text goes where directed; 11: stronger vision and roast models, best-of-twice-as-many jokes, Zoom and Shake, cues snap to the film's action
+    private const string MemeVersion = "meme 13"; // 2: the roast answers the narrator; 3: the narrator stays on top of the meme sounds; 4: meme text keeps off the captions; 5: a kids' child is "it"; 6: the roast never talks over the narrator; 7: kids' roast and captions are meaner and sarcastic; 8: the meme mix levels; 9: jokes with no pause go after the narration, unused room is cut; 10: no captions are burned in later, so meme text goes where directed; 11: stronger vision and roast models, best-of-twice-as-many jokes, Zoom, cues snap to the film's action; 12: the roaster speaks in a voice of its own (verse), not the narrator's; 13: the narrator pauses after its sentences and the roast takes turns in the pauses
 
     private bool CanMeme => memes?.Handles.Contains(MediaFunction.Memeify) == true;
 
@@ -26,6 +26,18 @@ public sealed partial class MovieStudio
     /// </summary>
     private bool Roasts(Show show, string? roastVoice = null) =>
         MemeRun(show, memes?.Handles ?? new HashSet<MediaFunction>(), narrated: false, roastVoice).Functions.Contains(MediaFunction.VideoRoast);
+
+    /// <summary>How much of each film the narrator speaks over when a roast takes turns with it: the rest is the roast's.</summary>
+    internal const double NarratorShareWithRoast = 0.5;
+
+    /// <summary>
+    /// Whether the narrator and a spoken roast take turns: a roast that is on and spoken (a rap is a song over the
+    /// clip), and not set to interrupt the narrator.
+    /// </summary>
+    private bool TakesTurns(Show show, string? roastVoice, MemeMix? mix) =>
+        CanMeme && Roasts(show, NormalizeRoastVoice(roastVoice))
+        && !string.Equals(NormalizeRoastVoice(roastVoice), MediaRoast.Rap, StringComparison.OrdinalIgnoreCase)
+        && (mix ?? MemeMix.For(show.ToString())).Turns != "interrupt";
 
     internal static string? NormalizeRoastVoice(string? voice)
     {
@@ -227,9 +239,17 @@ public sealed partial class MovieStudio
                 await blobs.UploadAsync(MediaAnalysisPaths.SourceSpeech(source.Id.Value), JsonSerializer.SerializeToUtf8Bytes(speech, WebJson), "application/json", ct);
 
             var run = new Run { Owner = user, Id = RunId.New(), SourceId = source.Id, Functions = functions, Options = options, Status = RunStatus.Running, CreatedAt = DateTimeOffset.UtcNow };
+            // Everything Meme-ify says about the clip is kept beside it (what was seen, each sound and roast line and where
+            // it went), so a movie that sounds wrong can be looked into afterwards.
+            var notes = new List<string>();
             var context = new RunContext(run, source,
                 (item, _) => { made = item; return Task.CompletedTask; },
-                line => { if (!line.StartsWith("HIT", StringComparison.Ordinal) && !line.StartsWith("TURN", StringComparison.Ordinal)) job.Detail = $"{clip.Title}: {line}"; return Task.CompletedTask; });
+                line =>
+                {
+                    lock (notes) notes.Add(line);
+                    if (!line.StartsWith("HIT", StringComparison.Ordinal) && !line.StartsWith("TURN", StringComparison.Ordinal)) job.Detail = $"{clip.Title}: {line}";
+                    return Task.CompletedTask;
+                });
             await memes!.ExecuteAsync(context, ct);
             if (made is null)
                 throw new InvalidOperationException("Meme-ify made nothing for this clip.");
@@ -247,6 +267,7 @@ public sealed partial class MovieStudio
             }
             // The words said in it, at their times, become its subtitle file's lines, as the voice-over''s would have.
             JsonFile.Save(Clip.HeardFor(target), narration.Words.ToList());
+            lock (notes) File.WriteAllLines(Path.ChangeExtension(target, ".meme-log.txt"), notes);
             await engine.Builder.PosterAsync(target, ct);
         }
         finally

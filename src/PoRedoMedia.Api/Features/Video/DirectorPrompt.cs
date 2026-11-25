@@ -26,7 +26,7 @@ internal static class DirectorPrompt
     /// <summary>Longest title the director may give a video.</summary>
     public const int MaxTitleLength = 60;
 
-    private static readonly string[] Effects = ["None", "DeepFry", "MotionBlur", "Overlay", "Zoom", "Shake"];
+    private static readonly string[] Effects = ["None", "DeepFry", "MotionBlur", "Overlay", "Zoom"];
     private static readonly string[] CaptionPositions = ["Top", "Center", "Bottom"];
 
     /// <summary>Longest transcript excerpt sent to the model; long monologues are truncated.</summary>
@@ -65,7 +65,7 @@ internal static class DirectorPrompt
           lean towards "user favorite" sounds when they fit. Avoid repeating a sound.
         - Scale the effect to the energy: calm moments get visualEffect None and a light touch; high-energy moments earn an effect.
           Pick the one that fits what happens: Zoom punches in on a face or a reaction (a stare, a shocked look, a grin);
-          Shake is for an impact (a crash, a fall, a slam, a bump); DeepFry for chaos and absurdity; MotionBlur for speed.
+          DeepFry for chaos and absurdity; MotionBlur for speed.
         - Stickers: overlayAssetId is one of deal-with-it, laser-eyes, thug-life, red-circle, clown-wig, explosion, or null.
           Put stickers on the subject: overlayX/overlayY = the label's subject when it has one. overlayScale 0.5..2.
           Use stickers sparingly — at most one in three cues.
@@ -175,8 +175,8 @@ internal static class DirectorPrompt
         var effects = chaos switch
         {
             0 => "Effects: none. visualEffect is always None.\n",
-            1 => "Effects: light. Never DeepFry; one Zoom, Shake or MotionBlur only on the very biggest moment.\n",
-            >= 3 => "Effects: wild. Give most cues a visualEffect (Zoom, Shake, DeepFry or MotionBlur), not only the high-energy ones.\n",
+            1 => "Effects: light. Never DeepFry; one Zoom or MotionBlur only on the very biggest moment.\n",
+            >= 3 => "Effects: wild. Give most cues a visualEffect (Zoom, DeepFry or MotionBlur), not only the high-energy ones.\n",
             _ => "",
         };
 

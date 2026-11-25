@@ -15,7 +15,7 @@ status page.
 | `/` Create | Pick a photo or video (or a Library item), choose functions (meme caption, roast, restyle, photo to video, Meme-ify for video…) and run them; progress streams live over SignalR. |
 | `/gallery` Library | Everything you made: download, GIF and social-size exports, share links, delete; shows storage used. |
 | `/comic` Comic-ify | Paste a chat or email thread; get a lettered comic strip and a narrated video of it. |
-| `/movie` Create Movie | Your clips become a narrated movie with intro, outro and Meme-ify on every clip; download as a YouTube/TikTok package or publish directly. |
+| `/movie` Create Movie | Your clips become a narrated movie with intro, outro and Meme-ify on every clip; download as a YouTube/TikTok package or publish directly. **Just make it** needs nothing but the clips: the app watches and listens to them, decides what kind of video they make (kids, pets, trip, party, sport, how-to…) and from that the series, pace, music, narrator and roast; keeps each clip's best parts (or whole clips, if you choose); orders them by when and where they were filmed or as a story; frames mixed upright and wide footage to one shape, steadies shaky shots and evens out brightness; lets people who talk be heard and narrates the rest; cuts on the music's beat with a whip only where the scene changes; makes a full video or an upright Short; and leaves out black or unusable clips before the final render. |
 | `/diag` System status | Plain-words health of the server, storage and every AI or publishing service it uses. |
 
 A .NET MAUI phone app (`src/PoRedoMedia.Mobile`, Android/iOS) uploads from the camera roll with resumable uploads and

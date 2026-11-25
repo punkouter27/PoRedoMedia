@@ -30,6 +30,8 @@ public static class HealthChecks
             ["sign-in"] = ("service", "Microsoft sign-in", "Signs people in with their Microsoft account."),
             ["app-insights"] = ("service", "Application Insights", "Collects errors and timings from the server, when it is set up."),
             ["pexels"] = ("service", "Pexels stock photos", "Stock photographs for Create Movie, when it is set up."),
+            ["wikimedia"] = ("service", "Wikimedia Commons", "Free public-domain stock photo fallback for Create Movie."),
+            ["tenor"] = ("service", "Tenor reaction GIFs", "Reaction GIFs for Create Movie, when it is set up."),
             ["youtube"] = ("service", "YouTube publishing", "Publishes finished movies to a connected YouTube channel."),
             ["tiktok"] = ("service", "TikTok publishing", "Sends finished movies to a connected TikTok account."),
         };
@@ -52,6 +54,8 @@ public static class HealthChecks
             .AddCheck<SignInHealthCheck>("sign-in", HealthStatus.Degraded, timeout: quick)
             .AddCheck<AppInsightsHealthCheck>("app-insights", HealthStatus.Degraded, timeout: quick)
             .AddCheck<PexelsHealthCheck>("pexels", HealthStatus.Degraded, timeout: quick)
+            .AddCheck<WikimediaHealthCheck>("wikimedia", HealthStatus.Degraded, timeout: quick)
+            .AddCheck<TenorHealthCheck>("tenor", HealthStatus.Degraded, timeout: quick)
             .AddTypeActivatedCheck<PublishingHealthCheck>("youtube", HealthStatus.Degraded, [], quick, args: [PoRedoMedia.Api.Features.Publishing.Platform.YouTube])
             .AddTypeActivatedCheck<PublishingHealthCheck>("tiktok", HealthStatus.Degraded, [], quick, args: [PoRedoMedia.Api.Features.Publishing.Platform.TikTok]);
         return services;

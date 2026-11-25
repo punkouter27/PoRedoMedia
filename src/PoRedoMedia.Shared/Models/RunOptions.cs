@@ -12,6 +12,15 @@ public static class RunOptions
     /// </summary>
     public const string VisionDescription = "Vision.description";
 
+    /// <summary>
+    /// Normalized object/face bounding boxes (<see cref="VisionBoxDto"/>[]) detected on-device via Florence-2
+    /// (<c>&lt;OD&gt;</c> / phrase grounding) so sticker overlays aim at real subjects.
+    /// </summary>
+    public const string VisionBoxes = "Vision.boxes";
+
+    /// <summary>Optional client-previewed visual effect override (e.g. VHS, ComicHalftone, CRT).</summary>
+    public const string VideoPreviewEffect = "Video.previewEffect";
+
     /// <summary>Id of a recipe in <see cref="StyleRecipeCatalog"/>. Absent = recreate the picture as it is.</summary>
     public const string RestyleStyle = "Restyle.style";
 
@@ -83,3 +92,13 @@ public static class RunOptions
 
 /// <summary>A meme layout: where each line of text goes. The user's picture is the artwork.</summary>
 public sealed record MemeTemplateDto(string Id, string Name, string Description, int RequiredZoneCount, string[] ZoneLabels);
+
+/// <summary>Normalized (0..1) bounding box detected on-device by Florence-2 for sticker aiming.</summary>
+public sealed record VisionBoxDto(string Label, double X, double Y, double W, double H)
+{
+    public double CenterX => Math.Clamp(X + W / 2.0, 0.0, 1.0);
+    public double CenterY => Math.Clamp(Y + H / 2.0, 0.0, 1.0);
+}
+
+/// <summary>Structured comedy draft returned by the in-browser director LLM.</summary>
+public sealed record LocalDirectorDraftDto(string? TopText, string? BottomText, string? Persona, string? Reply);

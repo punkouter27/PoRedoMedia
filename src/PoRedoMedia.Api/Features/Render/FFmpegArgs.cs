@@ -319,11 +319,12 @@ internal static partial class FFmpegArgs
         {
             "deepfry" => "eq=saturation=3:contrast=1.5:brightness=0.05,unsharp=5:5:1.5:5:5:0.0",
             "motionblur" => "tblend=all_mode=average",
-            // Scaled up, then cut back to the frame's own size around its middle (for a shake, around a point that
-            // jumps about), so the branch stays full size for the overlay. Only inside the cue's window, unlike the
-            // retired SnapZoom, which cropped the whole video.
+            // Scaled up, then cut back to the frame's own size around its middle, so the branch stays full size for the
+            // overlay. Only inside the cue's window, unlike the retired SnapZoom, which cropped the whole video.
             "zoom" => "scale=trunc(iw*1.3/2)*2:trunc(ih*1.3/2)*2,crop=trunc(iw/1.3/2)*2:trunc(ih/1.3/2)*2",
-            "shake" => "scale=trunc(iw*1.08/2)*2:trunc(ih*1.08/2)*2,crop=trunc(iw/1.08/2)*2:trunc(ih/1.08/2)*2:(iw-ow)/2*(1+sin(t*47)):(ih-oh)/2*(1+cos(t*41))",
+            "vhs" => "rgbashift=rh=-4:bh=4,noise=alls=18:allf=t+u,eq=saturation=1.4:contrast=1.15",
+            "comichalftone" => "eq=contrast=1.7:saturation=1.8,unsharp=5:5:2.0:5:5:0.0",
+            "crt" => "vignette=PI/4,eq=contrast=1.25:saturation=1.2,noise=alls=8:allf=t",
             _ => null
         };
 

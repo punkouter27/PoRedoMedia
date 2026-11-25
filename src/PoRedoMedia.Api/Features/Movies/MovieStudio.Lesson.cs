@@ -117,7 +117,8 @@ public sealed partial class MovieStudio
     /// Watches a film, and listens to one that keeps its own sound, so the script can be written around what is in
     /// it. Neither is needed: a film that cannot be watched is placed by the owner's note alone.
     /// </summary>
-    private async Task<FootageNote> UnderstandAsync(FootageNote note, Show show, CancellationToken ct)
+    /// <param name="hearAll">Listen to every film, not only those that keep their own sound: what is said decides which parts are narrated.</param>
+    private async Task<FootageNote> UnderstandAsync(FootageNote note, Show show, CancellationToken ct, bool hearAll = false)
     {
         var name = Path.GetFileName(note.Path);
         try
@@ -128,9 +129,10 @@ public sealed partial class MovieStudio
         {
             Note($"A film could not be watched, so the script follows your note on it. {Plain(e)}");
         }
-        if (note.OwnSound && engine.Hear is null && await HeardOnDeviceAsync(note.Path, ct) is { Count: > 0 } onDevice)
+        var listen = note.OwnSound || hearAll;
+        if (listen && engine.Hear is null && await HeardOnDeviceAsync(note.Path, ct) is { Count: > 0 } onDevice)
             note = note with { Heard = onDevice };
-        else if (note.OwnSound && engine.Hear is { } hear && engine.FfmpegAvailable)
+        else if (listen && engine.Hear is { } hear && engine.FfmpegAvailable)
             try
             {
                 var kept = await FootageCache.GetOrCreateAsync(["heard", name], ".json", async scratch =>
@@ -181,41 +183,49 @@ public sealed partial class MovieStudio
     }
 
     /// <summary>
-    /// Makes the whole video from the films in one go: each is watched and given a voice-over that fits its length,
-    /// the voices are recorded, and the films are joined between the series' intro and outro and rendered. No
-    /// pictures are drawn: the script and the voices are what it costs.
+    /// Makes the whole video from the films in one go: each is watched and listened to, its best parts (or all of it)
+    /// are kept and put in order (see <see cref="PlanCutAsync"/>), each part is given a voice-over that fits its length
+    /// or keeps its own sound, the voices are recorded, and the parts are joined between the series' intro and outro
+    /// and rendered. No pictures are drawn: watching, the script and the voices are what it costs. In Auto the app also
+    /// decides what kind of video it is, and so the series, the pace, the music, the narrator and the roast.
     /// </summary>
     public async Task<string?> MakeFromFilmsAsync(MovieLessonRequest request)
     {
         if (request.Films.Length == 0) return "Add a film first.";
         if (request.Films.Length > MostFilms) return $"A movie can be made from up to {MostFilms} films. Remove {request.Films.Length - MostFilms} and try again.";
         if (!engine.FfmpegAvailable) return "FFmpeg is needed to make the video, and it was not found on this server.";
-        if (!TryStructure(request, out var structure)) return "Choose how the movie is told first.";
+        if (!request.Auto && !TryStructure(request, out _)) return "Choose how the movie is told first.";
         if (OverBudget(0) is { } refusal) return refusal;
-        var show = BeatPlan.ShowOf(structure);
-        var topic = request.Topic.Trim() is { Length: > 0 } typed ? typed : show switch
-        {
-            Show.Kids => "Whatever the little one gets up to in these films. Watch them and decide for yourself which moments are the funniest and most exciting, and make the most of them.",
-            Show.General => "Whatever happens in these films. Watch them and decide for yourself which moments are the most exciting and funniest, and make the most of them.",
-            _ => "Whatever the robot does in these films. Watch them and decide for yourself which moments are the most exciting and funniest, and make the most of them.",
-        };
         var preset = Preset(request.ExportPreset);
-        var films = request.Films.Length;
         // The number the movie gets is said in the job's title, so it is seen while the movie is made.
         return await StartRenderAsync($"Making episode #{Math.Clamp(request.Number, 1, 999)} from your films", null, Host, async (job, ct) =>
         {
-            job.Phase = (0, 0.35);
+            job.Phase = (0, 0.2);
+            var cut = await PlanCutAsync(job, request, ct);
+            var show = cut.Show;
+            var topic = request.Topic.Trim() is { Length: > 0 } typed ? typed : show switch
+            {
+                Show.Kids => "Whatever the little one gets up to in these films. Watch them and decide for yourself which moments are the funniest and most exciting, and make the most of them.",
+                Show.General => "Whatever happens in these films. Watch them and decide for yourself which moments are the most exciting and funniest, and make the most of them.",
+                _ => "Whatever the robot does in these films. Watch them and decide for yourself which moments are the most exciting and funniest, and make the most of them.",
+            };
+            job.Phase = (0.2, 0.2);
+            Report(job, cut.Line, 0);
+            var parts = cut.Parts.Count;
             // A kids' video made this way is always the highlights of the films; the others keep the series' shape.
-            var open = await WriteNowAsync(job, request, topic, new EpisodeLength(films, films), show == Show.Kids ? BeatStructure.Highlights : structure, ct);
+            var open = await WriteNowAsync(job, cut.Request, topic, new EpisodeLength(parts, parts), show == Show.Kids ? BeatStructure.Highlights : cut.Structure, ct, cut);
             SpendIn(open.Folder);
-            job.Phase = (0.35, 0.15);
+            job.Phase = (0.4, 0.1);
             await NarrateEveryClipAsync(job, open, ct);
             job.Phase = (0.5, 0.5);
-            await RenderMasterAsync(job, open, preset, ct);
+            await RenderMasterAsync(job, open, cut.Shape == Shape.Tall ? ExportPreset.Upright : preset, ct);
+            job.Message = $"{cut.Line} {job.Message}";
         }, "video");
     }
 
-    private async Task<OpenMovie> WriteNowAsync(Job job, MovieLessonRequest request, string topic, EpisodeLength length, BeatStructure structure, CancellationToken ct)
+    /// <param name="cut">The films' parts, already watched, cut and in order; null to fetch and watch the films in the request.</param>
+    private async Task<OpenMovie> WriteNowAsync(Job job, MovieLessonRequest request, string topic, EpisodeLength length, BeatStructure structure, CancellationToken ct,
+        CutPlan? cut = null)
     {
         var show = BeatPlan.ShowOf(structure);
         var number = Math.Clamp(request.Number, 1, 999);
@@ -228,18 +238,25 @@ public sealed partial class MovieStudio
         {
             job.Skeletons = [.. Enumerable.Repeat("", length.MaxClips)];
             Writer.Show = show;
-            Report(job, "Fetching your films", 0);
             var notes = new List<FootageNote>();
-            foreach (var film in request.Films.DistinctBy(f => f.MediaId))
-                notes.Add(await NoteAsync(film, ct));
+            // With a roast taking turns, the narrator speaks over half of each film and the roast answers in the pauses.
+            var share = TakesTurns(show, request.RoastVoice, MemeMix.Parse(request.Mix)) ? NarratorShareWithRoast : 1;
+            if (cut is not null)
+                notes = [.. cut.Parts.Select(n => n with { Share = share })];
+            else
+            {
+                Report(job, "Fetching your films", 0);
+                foreach (var film in request.Films.DistinctBy(f => f.MediaId))
+                    notes.Add(await NoteAsync(film, ct) with { Share = share });
+            }
             if (TimeSpan.FromTicks(notes.Sum(n => n.Length.Ticks)) is var films && films > Durations.MaxMovie)
                 throw new InvalidOperationException($"Your films run {films:m\\:ss} together; a movie can be up to 10 minutes. Leave some out and try again.");
-            if (notes.Count > 0)
+            if (notes.Count > 0 && cut is null)
             {
                 Report(job, "Watching your films", 0.01);
                 notes = [.. await Task.WhenAll(notes.Select(n => UnderstandAsync(n, show, ct)))];
             }
-            var lesson = new Lesson(topic, request.Second, structure, notes) { Earlier = ProjectStore.SeriesBefore(Episodes, number, show) };
+            var lesson = new Lesson(topic, request.Second, structure, notes) { Earlier = ProjectStore.SeriesBefore(Episodes, number, show), InOrder = cut is not null };
 
             Report(job, "Writing the script", 0.1);
             var written = new Sink<IReadOnlyList<string>>(titles =>
@@ -258,6 +275,9 @@ public sealed partial class MovieStudio
                 CrudeRoast = request.CrudeRoast,
                 MemeLevels = (MemeMix.Parse(request.Mix) ?? MemeMix.FromCrude(request.CrudeRoast)).Encode(),
             };
+            // Parts put in order are shown in that order, whatever order the script was written in.
+            if (cut is not null)
+                episode = SmartCut.InShowOrder(episode, notes) with { Mood = cut.Mood, AutoEdit = true };
             // The narrator chosen speaks every clip; the usual one is left unset, so its recordings keep their names.
             if (NarratorChoice.Parse(request.Narrator) is { } narrator && narrator != NarratorChoice.Default)
                 episode = episode with { Clips = [.. episode.Clips.Select(c => c with { Narrator = narrator.Encode() })] };
@@ -300,9 +320,16 @@ public sealed partial class MovieStudio
                 clip = BeatPlan.WithFootage(clip, note with { OwnSound = true });
                 Note($"“{clip.Title}” keeps its own sound: under 5 seconds is too short to narrate over.");
             }
-            var (copy, fit) = await ImportFootageAsync(clip, note.Path, note.Length, folder, ct);
+            // Fitted to the narrator's share of the film: with a roast taking turns, half of it, and the pauses are the roast's.
+            var (copy, fit) = await ImportFootageAsync(clip, note.Path, note.Narrated, folder, ct);
             episode = EpisodeEditor.AttachVideo(EpisodeEditor.ReplaceClip(episode, clip), clip.Id, copy, fit);
             clip = episode.Clips.First(c => c.Id == clip.Id);
+            // Marked once its words are fitted to the narrator's share: from now on its narration is spread with pauses.
+            if (note.Share < 1 && !clip.OwnSound)
+            {
+                clip = clip with { TakesTurns = true };
+                episode = EpisodeEditor.ReplaceClip(episode, clip);
+            }
             if (note.Heard is { Count: > 0 } heard)
             {
                 JsonFile.Save(Clip.HeardFor(copy), heard);

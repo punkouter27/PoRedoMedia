@@ -390,6 +390,7 @@ public sealed class VideoStep(
         }
 
         ApplySubjectDefaults(entries, plan.ApprovedLabels);
+        ApplyVisionBoxDefaults(entries, ParseVisionBoxes(context.Option(RunOptions.VisionBoxes)));
         entries = [.. entries.OrderBy(e => e.TimestampMs)];
         SnapToAudio(entries, plan.ApprovedLabels, sourceAudio, duration, Impacts(context.Option(RunOptions.VideoImpacts)),
             narrated: context.Option(RunOptions.VideoRoastNarrated) == "1");
@@ -461,6 +462,75 @@ public sealed class VideoStep(
                 .FirstOrDefault(l => Math.Abs(l.TimestampSeconds - at) < 1.5);
             entry.OverlayX ??= label?.SubjectX;
             entry.OverlayY ??= label?.SubjectY;
+        }
+    }
+
+    private static readonly HashSet<string> HeadStickers = new(StringComparer.OrdinalIgnoreCase)
+        { "clown-wig", "laser-eyes", "deal-with-it", "thug-life", "crown" };
+
+    /// <summary>Parses normalized on-device Florence-2 bounding boxes from <see cref="RunOptions.VisionBoxes"/>.</summary>
+    internal static IReadOnlyList<VisionBoxDto> ParseVisionBoxes(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return [];
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize(json, WireJson.Default.VisionBoxDtoArray) ?? [];
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Aims any still-unpositioned sticker onto on-device Florence-2 bounding boxes: head/face stickers
+    /// prefer detected face/head/person boxes (upper third for hats/eyes), while general stickers aim
+    /// at the primary detected subject.
+    /// </summary>
+    internal static void ApplyVisionBoxDefaults(IEnumerable<ScriptEntry> entries, IReadOnlyList<VisionBoxDto> boxes)
+    {
+        if (boxes.Count == 0)
+            return;
+
+        var faceBox = boxes.FirstOrDefault(b =>
+            b.Label.Contains("face", StringComparison.OrdinalIgnoreCase)
+            || b.Label.Contains("head", StringComparison.OrdinalIgnoreCase)
+            || b.Label.Contains("eye", StringComparison.OrdinalIgnoreCase))
+            ?? boxes.FirstOrDefault(b => b.Label.Contains("person", StringComparison.OrdinalIgnoreCase)
+                || b.Label.Contains("man", StringComparison.OrdinalIgnoreCase)
+                || b.Label.Contains("woman", StringComparison.OrdinalIgnoreCase));
+        var primary = boxes.OrderByDescending(b => b.W * b.H).First();
+        var influence = new TacticalAi.SpatialInfluenceMap();
+        influence.ApplyVisionBoxes(boxes, flankSubject: true);
+        var generalCount = 0;
+
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrEmpty(entry.OverlayAssetId) || (entry.OverlayX is not null && entry.OverlayY is not null))
+                continue;
+
+            var isHead = HeadStickers.Contains(entry.OverlayAssetId);
+            if (!isHead && generalCount++ > 0)
+            {
+                // Subsequent general stickers use the 2D Spatial Influence Map so they flank subjects cleanly without stacking.
+                var (ix, iy) = influence.PickAndReserve();
+                entry.OverlayX ??= ix;
+                entry.OverlayY ??= iy;
+                continue;
+            }
+
+            var target = isHead && faceBox is not null ? faceBox : primary;
+            entry.OverlayX ??= Math.Clamp(target.CenterX, 0.05, 0.95);
+            // Hats/crowns sit near the top of the head box; eyes sit in the upper third.
+            var y = entry.OverlayAssetId is "clown-wig" or "crown"
+                ? target.Y + target.H * 0.12
+                : entry.OverlayAssetId is "laser-eyes" or "deal-with-it"
+                    ? target.Y + target.H * 0.32
+                    : target.CenterY;
+            entry.OverlayY ??= Math.Clamp(y, 0.05, 0.95);
+            influence.Stamp(entry.OverlayX.Value, entry.OverlayY.Value, -0.9f, 0.18f);
         }
     }
 

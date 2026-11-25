@@ -39,6 +39,8 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
     [JsonSerializable(typeof(SceneVerdict))]
     [JsonSerializable(typeof(FootageSeen))]
     [JsonSerializable(typeof(PublishNotes))]
+    [JsonSerializable(typeof(VideoPlan))]
+    [JsonSerializable(typeof(ClipCheckDto))]
     private sealed partial class ReplyJson : JsonSerializerContext;
 
     private sealed record TierDto(string Dialogue, string VisualPrompt, string Pose);
@@ -57,6 +59,7 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
     private sealed record LetteringDto(bool Lettered, string Text);
     private sealed record ShotDto(string Beat, string Shot);
     private sealed record ShotsDto(List<ShotDto> Shots);
+    private sealed record ClipCheckDto(List<ShotFault> Faults);
 
     /// <summary>How many clips are written at once. More than this and the service starts turning requests away as too many.</summary>
     private const int ClipsAtOnce = 4;
@@ -132,11 +135,12 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
         var prompt = new StringBuilder()
             .AppendLine($"Number of clips: {length.InWords}, besides any more the footage needs.")
             .AppendLine($"Beats, in order: {string.Join(", ", beats.Select(b => b.Name))}. Real footage belongs in {string.Join(", ", beats.Where(b => b.ForFootage).Select(b => b.Name))}.")
-            .AppendLine(lesson.Footage.Count == 0 ? "Footage: none. Every clip has footage 0." : "Footage:");
+            .AppendLine(lesson.Footage.Count == 0 ? "Footage: none. Every clip has footage 0."
+                : lesson.InOrder ? "Footage, in the order it is shown (clip 1 shows footage 1, clip 2 footage 2, and so on; tell it in that order):" : "Footage:");
         // The owner's own notes, so not fenced: they say where each of their clips belongs. What a model saw in a
         // film, and what is said in it, did not come from the owner, so those are.
         foreach (var (note, i) in lesson.Footage.Select((n, i) => (n, i)))
-            prompt.AppendLine(FormattableString.Invariant($"{i + 1}. {note.Length.TotalSeconds:0} seconds, {(note.OwnSound ? "keeps its own sound" : $"narrated over in about {Durations.WordsFor(note.Length)} words")}: {note.Note.ReplaceLineEndings(" ")}"));
+            prompt.AppendLine(FormattableString.Invariant($"{i + 1}. {note.Length.TotalSeconds:0} seconds, {(note.OwnSound ? "keeps its own sound" : $"narrated over in about {Durations.WordsFor(note.Narrated)} words{(note.Share < 1 ? ", in short sentences: a heckler answers in the pauses between them" : "")}")}: {note.Note.ReplaceLineEndings(" ")}"));
         foreach (var (note, i) in lesson.Footage.Select((n, i) => (n, i)))
         {
             if (note.Seen is { } seen)
@@ -211,7 +215,7 @@ public sealed partial class ChatScriptWriter(AppSettings settings, JsonChat chat
                 var mine = new StringBuilder(request).AppendLine()
                     .Append(Fenced("existing", " what=\"the plan of the whole video\"", $"{outline.Title}\n{plan}"))
                     .Append(story ? SoFar(i) : "")
-                    .AppendLine($"Write clip {i + 1} of {planned.Count}.{(film is null ? "" : $" It shows footage {clip.Footage}, in about {Durations.WordsFor(film.Length)} words.")}")
+                    .AppendLine($"Write clip {i + 1} of {planned.Count}.{(film is null ? "" : $" It shows footage {clip.Footage}, in about {Durations.WordsFor(film.Narrated)} words{(film.Share < 1 ? ", in short sentences that each stand alone: the narrator pauses after them and a heckler answers" : "")}.")}")
                     .AppendLine(kinds.FirstOrDefault(k => k.Key == clip.Kind) is { } kind ? $"Picture type: {kind.Key}. {kind.Brief}" : "Picture type: title. visualPrompt: the title.");
                 Interlocked.Increment(ref asked);
                 try

@@ -35,23 +35,63 @@ window.poRoast = {
         return envelope;
     },
 
+    // Fuzzy-aligns each lyric line to Whisper word-level timestamps so punchlines highlight on the exact syllable.
+    alignLinesWithWords(texts, words) {
+        if (!Array.isArray(words) || !words.length || !Array.isArray(texts) || !texts.length) return null;
+        const clean = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const normWords = words.map((w) => ({ ...w, token: clean(w.text) })).filter((w) => w.token.length > 0);
+        if (!normWords.length) return null;
+        const ranges = [];
+        let cursor = 0;
+        for (const text of texts) {
+            const tokens = String(text || '').split(/\s+/).map(clean).filter(Boolean);
+            if (!tokens.length) {
+                const prevEnd = ranges.length ? ranges[ranges.length - 1].end : 0;
+                ranges.push({ start: prevEnd, end: prevEnd + 0.5 });
+                continue;
+            }
+            const first = tokens[0];
+            let matchIdx = -1;
+            const searchEnd = Math.min(normWords.length, cursor + Math.max(12, tokens.length * 3));
+            for (let i = cursor; i < searchEnd; i++) {
+                if (normWords[i].token === first || normWords[i].token.startsWith(first) || first.startsWith(normWords[i].token)) {
+                    matchIdx = i;
+                    break;
+                }
+            }
+            const startIdx = matchIdx >= 0 ? matchIdx : Math.min(cursor, normWords.length - 1);
+            const endIdx = Math.min(normWords.length - 1, startIdx + Math.max(0, tokens.length - 1));
+            ranges.push({ start: normWords[startIdx].startSeconds, end: normWords[endIdx].endSeconds });
+            cursor = Math.min(normWords.length - 1, endIdx + 1);
+        }
+        return ranges;
+    },
+
     async attach(stage, audio) {
         if (!stage || !audio) return;
         window.poRoast.detach(stage);
         const lines = [...stage.querySelectorAll('[data-line]')];
-        const ends = window.poRoast.lineEnds(lines.map((line) => line.textContent));
+        const lineTexts = lines.map((line) => line.textContent);
+        const ends = window.poRoast.lineEnds(lineTexts);
 
-        const state = { raf: 0, envelope: null, rate: 50, offset: 0, line: -1 };
+        const state = { raf: 0, envelope: null, decoded: null, lineTimes: null, lineTexts, rate: 50, offset: 0, line: -1 };
         stage._poRoast = state;
 
         const show = () => {
             const length = audio.duration || 0;
             if (!length) return;
             const { lead, sung } = window.poRoast.span(length);
-            // The line timings are an estimate; the sync slider moves them all earlier or later.
+            // The line timings are an estimate unless upgraded by Whisper word sync; the sync slider nudges them all.
             const at = audio.currentTime - state.offset;
-            const position = Math.min(1, Math.max(0, (at - lead) / sung));
-            const current = at < lead ? -1 : ends.findIndex((end) => position <= end);
+            let current = -1;
+            if (state.lineTimes && state.lineTimes.length === lines.length) {
+                for (let i = 0; i < state.lineTimes.length; i++) {
+                    if (at >= state.lineTimes[i].start) current = i;
+                }
+            } else {
+                const position = Math.min(1, Math.max(0, (at - lead) / sung));
+                current = at < lead ? -1 : ends.findIndex((end) => position <= end);
+            }
             lines.forEach((line, i) => {
                 line.classList.toggle('now', i === current);
                 line.classList.toggle('sung', current >= 0 && i < current);
@@ -59,6 +99,10 @@ window.poRoast = {
             if (current !== state.line) {
                 state.line = current;
                 window.poConcert?.line(stage, current >= 0 ? lines[current].textContent : '');
+                if (current >= 0 && window.poNebula) {
+                    const rect = stage.getBoundingClientRect();
+                    window.poNebula.burst('roast-fire', rect.left + rect.width * 0.5, rect.top + rect.height * 0.35, 18);
+                }
             }
             if (current >= 0) lines[current].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             if (state.envelope) {
@@ -79,8 +123,12 @@ window.poRoast = {
         lines.forEach((line, i) => line.addEventListener('click', () => {
             const length = audio.duration || 0;
             if (!length) return;
-            const { lead, sung } = window.poRoast.span(length);
-            audio.currentTime = Math.max(0, lead + (i === 0 ? 0 : ends[i - 1]) * sung + state.offset);
+            if (state.lineTimes && state.lineTimes[i]) {
+                audio.currentTime = Math.max(0, state.lineTimes[i].start + state.offset);
+            } else {
+                const { lead, sung } = window.poRoast.span(length);
+                audio.currentTime = Math.max(0, lead + (i === 0 ? 0 : ends[i - 1]) * sung + state.offset);
+            }
             audio.play().catch(() => { });
         }));
 
@@ -97,8 +145,54 @@ window.poRoast = {
             const decoded = await context.decodeAudioData(bytes);
             context.close();
             const envelope = window.poRoast.envelope(decoded, state.rate);
-            if (stage._poRoast === state) state.envelope = envelope;
+            if (stage._poRoast === state) {
+                state.envelope = envelope;
+                state.decoded = decoded;
+            }
         } catch { /* the lines still follow the track */ }
+    },
+
+    // Runs on-device Whisper in word-timestamp mode to lock every lyric line to exact vocal timings.
+    async syncWords(stage) {
+        const state = stage && stage._poRoast;
+        if (!state || !state.audio) return false;
+        let worker;
+        try {
+            let decoded = state.decoded;
+            if (!decoded) {
+                const bytes = await (await fetch(state.audio.currentSrc || state.audio.src, { cache: 'no-store' })).arrayBuffer();
+                const ctx = new AudioContext();
+                decoded = await ctx.decodeAudioData(bytes);
+                ctx.close();
+                state.decoded = decoded;
+            }
+            const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * 16000), 16000);
+            const src = offline.createBufferSource();
+            src.buffer = decoded;
+            src.connect(offline.destination);
+            src.start();
+            const samples = (await offline.startRendering()).getChannelData(0);
+
+            worker = new Worker('/js/local-ai/whisper-worker.js', { type: 'module' });
+            const words = await new Promise((resolve, reject) => {
+                worker.onmessage = (e) => {
+                    if (e.data.type === 'complete') resolve(e.data.words || e.data.segments || []);
+                    else if (e.data.type === 'error') reject(new Error(e.data.reason));
+                };
+                worker.onerror = (e) => reject(new Error(e.message));
+                worker.postMessage({ samples, mode: 'word' }, [samples.buffer]);
+            });
+            const aligned = window.poRoast.alignLinesWithWords(state.lineTexts, words);
+            if (!aligned) return false;
+            state.lineTimes = aligned;
+            state.show();
+            return true;
+        } catch (err) {
+            console.warn('[poRoast] Word sync failed:', err?.message ?? err);
+            return false;
+        } finally {
+            worker?.terminate();
+        }
     },
 
     offset(stage, seconds) {
@@ -158,8 +252,8 @@ window.poRoast = {
     },
 
     // Records the roast as a video: the picture, the line being delivered, and the track. It is
-    // recorded as it plays, so it takes as long as the track. The meme cut zooms and shakes with
-    // the beat and stamps the ending; the classic cut is the picture and clean type.
+    // recorded as it plays, so it takes as long as the track. The meme cut zooms with the beat
+    // (no shake) and stamps the ending; the classic cut is the picture and clean type.
     // Resolves to false when this browser cannot record, or something it needs could not be read.
     async video(imageUrl, audioUrl, lyrics, meme, progress) {
         if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return false;
@@ -196,13 +290,12 @@ window.poRoast = {
             const draw = (t) => {
                 const level = envelope[Math.min(envelope.length - 1, Math.floor(t * rate))] || 0;
                 const zoom = cover * (meme ? 1.04 + level * 0.14 : 1);
-                const shake = meme ? level * 12 : 0;
                 g.fillStyle = '#000';
                 g.fillRect(0, 0, size, size);
                 g.drawImage(
                     bitmap,
-                    (size - bitmap.width * zoom) / 2 + (Math.random() - 0.5) * shake,
-                    (size - bitmap.height * zoom) / 2 + (Math.random() - 0.5) * shake,
+                    (size - bitmap.width * zoom) / 2,
+                    (size - bitmap.height * zoom) / 2,
                     bitmap.width * zoom, bitmap.height * zoom);
 
                 if (meme) {

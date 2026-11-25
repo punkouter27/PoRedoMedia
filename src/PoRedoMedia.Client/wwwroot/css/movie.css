@@ -49,8 +49,10 @@
 /* ── A step: a form column and the main area beside it ── */
 .mv-page { min-height: 50vh; }
 .mv-loading { height: 50vh; border-radius: var(--po-radius); }
+/* The finished video: one column, no wider than reads well. */
+.mv-video { display: block; max-width: 760px; }
 .mv-two { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 1rem; align-items: start; }
-.mv-two.mv-clips, .mv-two.mv-preview, .mv-two.mv-video { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
+.mv-two.mv-clips, .mv-two.mv-preview { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
 .mv-side { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.9rem; border: 1px solid var(--po-line); border-radius: var(--po-radius); background: var(--po-glass); }
 .mv-main { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
 /* Solid behind the button (a disabled one is see-through), with a short fade above so rows slide under it. */
@@ -167,14 +169,6 @@
 .mv-time { white-space: nowrap; }
 
 /* ── Video ── */
-.mv-teasers { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-.mv-teaser { display: flex; gap: 0.6rem; width: 300px; padding: 0.6rem; border: 1px solid var(--po-line); border-radius: 10px; background: var(--po-glass); }
-.mv-teaser-poster { position: relative; flex: 0 0 99px; width: 99px; height: 176px; border-radius: 8px; background: #101828; overflow: hidden; }
-.mv-teaser-poster img { width: 100%; height: 100%; object-fit: cover; }
-.mv-teaser-hook { position: absolute; left: 0; right: 0; top: 0; padding: 6px 4px 18px; background: linear-gradient(#000000b0, transparent); color: #fff; font-size: 11px; font-weight: 700; text-align: center; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.mv-teaser-body { display: flex; flex-direction: column; flex: 1 1 auto; gap: 0.4rem; min-width: 0; }
-.mv-teaser-body .rz-textarea, .mv-moment .rz-dropdown { width: 100%; }
-.mv-moment { display: flex; flex-direction: column; gap: 0.3rem; }
 .mv-master { width: 100%; border-radius: var(--po-radius-sm); background: #000; }
 .mv-chapters { margin: 0; padding: 0.5rem; border-radius: 6px; background: color-mix(in srgb, var(--rz-text-color) 6%, transparent); font-family: Consolas, ui-monospace, monospace; font-size: 0.8rem; white-space: pre-wrap; }
 
@@ -189,11 +183,6 @@
 .mv-activity-bar .rz-progressbar { flex: 1 1 auto; height: 8px; }
 .mv-activity-bar span { flex: 0 0 3rem; text-align: right; font-variant-numeric: tabular-nums; }
 .mv-message { border-radius: 10px; box-shadow: 0 12px 34px rgb(0 0 0 / 25%); }
-.mv-player-shade { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgb(0 0 0 / 55%); }
-.mv-player { position: relative; width: min(720px, calc(100vw - 2rem)); border-radius: 10px; background: #000; overflow: hidden; line-height: 0; }
-.mv-player.upright { width: min(340px, calc(100vw - 2rem)); }
-.mv-player video { width: 100%; max-height: calc(100vh - 6rem); }
-.mv-player-close { position: absolute; right: 4px; top: 4px; color: #fff !important; background: rgb(0 0 0 / 45%) !important; }
 .mv-settings-shade { position: fixed; inset: 0; z-index: 25; background: rgb(0 0 0 / 30%); }
 .mv-settings { position: fixed; right: 0; top: 0; bottom: 0; z-index: 26; display: flex; flex-direction: column; gap: 0.5rem; width: min(400px, 100vw); padding: 1rem; background: var(--rz-base-background-color); box-shadow: -12px 0 34px rgb(0 0 0 / 25%); overflow-y: auto; }
 .mv-spend { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.85rem; }
@@ -206,14 +195,13 @@
 
 /* One column: the form above, the rest below, and the inspector no longer pinned. */
 @media (max-width: 1024px) {
-    .mv-two, .mv-two.mv-clips, .mv-two.mv-preview, .mv-two.mv-video { grid-template-columns: minmax(0, 1fr); }
+    .mv-two, .mv-two.mv-clips, .mv-two.mv-preview { grid-template-columns: minmax(0, 1fr); }
     .mv-inspector { position: static; max-height: none; }
 }
 
 @media (max-width: 720px) {
     .mv { padding: 0.5rem 0.5rem 9rem; }
     .mv-dock { bottom: calc(4.5rem + var(--po-safe-bottom)); } /* above the phone tab bar */
-    .mv-teaser { width: 100%; }
     .rz-button.po-plain.mv-card-play { opacity: 1; }
 }
 
@@ -248,3 +236,14 @@
 .mv-publish-site { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--rz-base-300); }
 .mv-publish-title { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 1rem; }
 .mv-publish-skeleton { height: 10rem; border-radius: var(--po-radius-sm); }
+
+/* YouTube: the sign-in step, and what has been uploaded and deleted. */
+.mv-yt-step { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.75rem; border: 1px solid var(--rz-primary); border-radius: 10px; background: color-mix(in srgb, var(--rz-primary) 7%, transparent); }
+.mv-yt-step > strong { display: flex; align-items: center; gap: 0.35rem; }
+.mv-yt-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.mv-yt-item { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.55rem 0.65rem; border: 1px solid var(--po-line); border-radius: 10px; background: var(--po-glass); }
+.mv-yt-item > .rzi { margin-top: 0.1rem; color: var(--po-success); }
+.mv-yt-item.deleted > .rzi { color: var(--rz-text-secondary-color); }
+.mv-yt-item.failed > .rzi { color: var(--rz-danger); }
+.mv-yt-text { display: flex; flex-direction: column; gap: 0.15rem; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.mv-yt-gone { text-decoration: line-through; color: var(--rz-text-secondary-color); }

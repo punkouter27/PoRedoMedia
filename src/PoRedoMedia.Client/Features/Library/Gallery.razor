@@ -16,16 +16,36 @@
 
 <PageBoundary OnRetry="ReloadAsync">
     <RadzenStack Gap="0.75rem">
-        <LibraryToolbar Search="@_search" Kind="@_kind" Sort="@_sort"
-                        SearchChanged="@(v => SetAsync(search: v))" KindChanged="@(v => SetAsync(kind: v))" SortChanged="@(v => SetAsync(sort: v))"
+        <LibraryToolbar Search="@_search" Kind="@_kind" Facet="@_facet" Sort="@_sort" SplitView="_splitView"
+                        SearchChanged="@(v => SetAsync(search: v))" KindChanged="@(v => SetAsync(kind: v))"
+                        FacetChanged="SetFacetAsync" SortChanged="@(v => SetAsync(sort: v))"
+                        SplitViewChanged="@(v => _splitView = v)"
                         Add="AddAsync" Picked="_picked.Count" Working="_working" ClearPicked="@(() => _picked = [])"
                         SelectAll="@(() => _picked = [.. Visible.Select(m => m.Id)])" Pin="PinPickedAsync" Download="DownloadPickedAsync" Delete="DeletePickedAsync" />
 
         <LibraryStorage @ref="_storage" Cleared="OnClearedAsync" />
 
-        <LibraryGrid Items="_items" Visible="Visible" SelectedId="@(Picking ? null : _selectedId)" Picked="_picked"
-                     Clicked="ClickAsync" Menu="@(a => OpenMenu(a.Event, a.Item))" TogglePick="TogglePick" Added="OnAddedAsync"
-                     ClearFilters="@(() => SetAsync(kind: "All", search: ""))" />
+        @if (_splitView && Selected is { } splitSelected)
+        {
+            <RadzenSplitter Style="min-height: 60vh;">
+                <RadzenSplitterPane Size="62%" Min="320px">
+                    <LibraryGrid Items="_items" Visible="Visible" SelectedId="@(Picking ? null : _selectedId)" Picked="_picked"
+                                 Clicked="ClickAsync" Menu="@(a => OpenMenu(a.Event, a.Item))" TogglePick="TogglePick" Added="OnAddedAsync"
+                                 ClearFilters="@(() => { _facet = "Any"; return SetAsync(kind: "All", search: ""); })" />
+                </RadzenSplitterPane>
+                <RadzenSplitterPane Size="38%" Min="300px" Collapsible="true">
+                    <div class="rz-p-3">
+                        <MediaPanel Media="splitSelected" Family="@(_items ?? [])" Closed="@(() => SetAsync(clearSelected: true))" />
+                    </div>
+                </RadzenSplitterPane>
+            </RadzenSplitter>
+        }
+        else
+        {
+            <LibraryGrid Items="_items" Visible="Visible" SelectedId="@(Picking ? null : _selectedId)" Picked="_picked"
+                         Clicked="ClickAsync" Menu="@(a => OpenMenu(a.Event, a.Item))" TogglePick="TogglePick" Added="OnAddedAsync"
+                         ClearFilters="@(() => { _facet = "Any"; return SetAsync(kind: "All", search: ""); })" />
+        }
     </RadzenStack>
 </PageBoundary>
 
@@ -41,8 +61,10 @@
 
     private List<MediaDto>? _items;
     private string _kind = "All";
+    private string _facet = "Any";
     private string _search = "";
     private string _sort = "Newest";
+    private bool _splitView;
     private Guid? _selectedId;
     private bool _working;
     private HashSet<Guid> _picked = [];
@@ -67,7 +89,23 @@
 
     private MediaDto? Selected => Picking ? null : _items?.FirstOrDefault(m => m.Id == _selectedId);
 
-    private List<MediaDto> Visible => [.. Order(Filter(_items ?? [], _kind, _search), _sort)];
+    private List<MediaDto> Visible => [.. Order(ApplyFacet(Filter(_items ?? [], _kind, _search), _facet), _sort)];
+
+    private static IEnumerable<MediaDto> ApplyFacet(IEnumerable<MediaDto> items, string facet) => facet switch
+    {
+        "Pinned" => items.Where(m => m.Pinned),
+        "Shared" => items.Where(m => m.Shared),
+        "Expiring" => items.Where(m => !m.Pinned && (DateTimeOffset.UtcNow - m.CreatedAt).TotalDays >= 20),
+        _ => items,
+    };
+
+    private async Task SetFacetAsync(string facet)
+    {
+        await JS.InvokeVoidAsync("poFlip.capture", ".gallery-card");
+        _facet = facet;
+        StateHasChanged();
+        await JS.InvokeVoidAsync("poFlip.play", ".gallery-card");
+    }
 
     protected override async Task OnInitializedAsync()
     {

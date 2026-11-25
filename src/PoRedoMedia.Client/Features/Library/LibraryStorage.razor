@@ -8,13 +8,15 @@
     <RadzenIcon Icon="cloud" aria-hidden="true" class="library-storage-icon" />
     @if (_usage is { } usage)
     {
-        <div class="library-storage-meter" role="meter" aria-valuemin="0" aria-valuemax="@usage.LimitBytes" aria-valuenow="@usage.UsedBytes"
-             aria-label="Storage used" title="@Breakdown(usage)">
-            <span class="@(Percent(usage) >= 90 ? "full" : "")" style="width: @(Percent(usage).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span>
-        </div>
+        <RadzenProgressBar Value="@Percent(usage)" ShowValue="false" ProgressBarStyle="@(Percent(usage) >= 90 ? ProgressBarStyle.Danger : Percent(usage) >= 70 ? ProgressBarStyle.Warning : ProgressBarStyle.Primary)"
+                           Style="min-width: 120px; max-width: 220px; flex: 1;" aria-label="Storage used" title="@Breakdown(usage)" />
         <RadzenText class="rz-m-0 library-storage-text" aria-live="polite">
             <strong>@Size(usage.LeftBytes) left</strong> · @Size(usage.UsedBytes) of @Size(usage.LimitBytes) used
         </RadzenText>
+        @if (usage.MovieBytes > 0)
+        {
+            <RadzenBadge Text="@($"Movies {Size(usage.MovieBytes)}")" BadgeStyle="BadgeStyle.Info" Variant="Variant.Outlined" />
+        }
     }
     else
     {

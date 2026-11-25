@@ -27,12 +27,15 @@ else if (Items.Count == 0)
 else
 {
     <div class="library-grid @(Picking ? "picking" : "")">
+        @{ var idx = 0; }
         @foreach (var media in Visible)
         {
             var item = media;
+            var cardIndex = idx++;
             var picked = Picked.Contains(item.Id);
             var on = Picking ? picked : item.Id == SelectedId;
-            <div class="library-card gallery-card @(on ? "selected" : "")" data-id="@item.Id" @key="item.Id"
+            <div class="library-card gallery-card po-stagger-card @(on ? "selected" : "")" data-id="@item.Id" @key="item.Id"
+                 style="--stagger-i: @cardIndex"
                  @oncontextmenu="@(e => Menu.InvokeAsync((e, item)))" @oncontextmenu:preventDefault>
                 <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat" class="po-plain library-open" aria-pressed="@(on ? "true" : "false")"
                               Click="@(() => Clicked.InvokeAsync(item))">

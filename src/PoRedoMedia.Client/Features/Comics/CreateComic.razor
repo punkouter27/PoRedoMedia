@@ -7,6 +7,8 @@
 @inject FluentValidation.IValidator<ComicRequest> Rules
 @inject AppConfigService AppConfig
 @inject DialogService Dialogs
+@inject PoRedoMedia.Client.LocalAi.LocalAiService LocalAi
+@inject IJSRuntime JS
 
 <PageTitle>Comic-ify · PoRedoMedia</PageTitle>
 
@@ -49,7 +51,7 @@
                 <MemeMixSliders Mix="_mix" MixChanged="@(m => _mix = m)" Defaults="@ComicRequest.DefaultMix" Comic="true" Roast="true" RoastOff="@(!_heckler)"
                                 Narrator="_narrator" NarratorChanged="@(n => _narrator = n)" Disabled="@Busy" IdPrefix="comic-mix" />
             </div>
-            <div class="comic-row">
+            <div class="comic-row po-sticky-hud">
                 <span class="comic-count @(_form.Conversation.Length > ComicRequest.MaxLength * 0.9 ? "comic-count-high" : null)">@_form.Conversation.Length.ToString("N0") / @ComicRequest.MaxLength.ToString("N0")</span>
                 <span class="comic-grow"></span>
                 @if (Estimate is { } cost)
@@ -61,6 +63,12 @@
                 @if (_form.Conversation.Length == 0)
                 {
                     <RadzenButton Text="Try the example" Variant="Variant.Text" Click="UseExample" disabled="@Busy" />
+                }
+                else
+                {
+                    <RadzenButton Text="@(_drafting ? "Punching up…" : "Local punch-up")" Icon="auto_fix_high" Variant="Variant.Outlined" Size="ButtonSize.Small"
+                                  IsBusy="_drafting" Disabled="@(Busy || _drafting)" Click="LocalPunchUpAsync"
+                                  title="Use the on-device Qwen2.5 comedy director to add a punchline locally at zero cost" />
                 }
                 @* Disabled while it is being sent and while a comic is made, so one press is one comic. *@
                 <RadzenButton Text="@(_starting ? "Starting…" : "Make comic")" Icon="auto_stories" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit"
@@ -118,6 +126,27 @@
     private MemeMix _mix = ComicRequest.DefaultMix;
     private NarratorChoice _narrator = NarratorChoice.Default;
     private bool _heckler = true;
+    private bool _drafting;
+
+    private async Task LocalPunchUpAsync()
+    {
+        if (_drafting || string.IsNullOrWhiteSpace(_form.Conversation))
+            return;
+
+        _drafting = true;
+        try
+        {
+            var draft = await LocalAi.DraftComedyAsync($"Add one hilarious final punchline to this conversation:\n{_form.Conversation}");
+            var line = !string.IsNullOrWhiteSpace(draft?.Reply) ? draft.Reply.Trim() : "Narrator: And that was the moment everyone knew it was over.";
+            _form.Conversation = $"{_form.Conversation.TrimEnd()}\nHeckler: {line}";
+            Changed();
+            await JS.InvokeVoidAsync("poNebula.burst", "comic-pop");
+        }
+        finally
+        {
+            _drafting = false;
+        }
+    }
 
     /// <summary>The form's one typed field; the rest of the request comes from the switches and sliders.</summary>
     private sealed class ComicForm

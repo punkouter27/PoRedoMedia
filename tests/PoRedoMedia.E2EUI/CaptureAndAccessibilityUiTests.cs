@@ -36,6 +36,22 @@ public sealed class CaptureAndAccessibilityUiTests : UiTestBase
     }
 
     [LiveServerFact]
+    public async Task A_rap_roast_plays_on_the_run_page_with_its_lyrics()
+    {
+        var page = await SignedInPageAsync("/");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Use the camera" }).ClickAsync(new() { Timeout = 30_000 });
+        await page.GetByRole(AriaRole.Button, new() { Name = "Take the photo" }).ClickAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "What should happen to this image?" })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+        await page.Locator("[data-fn=RapRoast] [role=checkbox]").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Run", Exact = true }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Done. The results are in your gallery.")).ToBeVisibleAsync(new() { Timeout = 120_000 });
+
+        await Assertions.Expect(page.Locator("figure.run-result audio[controls]")).ToHaveCountAsync(1);
+        await Assertions.Expect(page.GetByRole(AriaRole.List, new() { Name = "Lyrics. Pick a line to play from there." })).ToBeVisibleAsync();
+    }
+
+    [LiveServerFact]
     public async Task The_app_is_installable_and_its_main_pages_have_no_WCAG_AA_violations()
     {
         Directory.CreateDirectory(Shots);

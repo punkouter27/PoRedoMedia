@@ -54,9 +54,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     /// <summary>Something worth knowing that is not a failure (a film could not be heard); stays until it is closed.</summary>
     public string? Notice { get; private set; }
 
-    /// <summary>A small video to play over the page: a teaser, watched on its own.</summary>
-    public (string Url, bool Upright)? Playing { get; set; }
-
     /// <summary>Something asked for that has not come back yet, by name ("picture", "play", "tier"…), so its button can show it.</summary>
     public string? Waiting { get; private set; }
 
@@ -88,6 +85,15 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
 
     /// <summary>Who narrates the next movie, and how fast.</summary>
     public NarratorChoice Narrator { get; set; } = NarratorChoice.Default;
+
+    /// <summary>The app decides what kind of video the films make, and with it the series, pace, music, narrator and roast.</summary>
+    public bool Auto { get; set; }
+
+    /// <summary>Keep only the best parts of each film, or every film whole (<see cref="MovieLessonRequest.BestParts"/>, <see cref="MovieLessonRequest.WholeFilms"/>).</summary>
+    public string Cut { get; set; } = MovieLessonRequest.WholeFilms;
+
+    /// <summary>A full wide video, an upright Short, or the app's pick (<see cref="MovieLessonRequest.AutoFormat"/>).</summary>
+    public string Format { get; set; } = MovieLessonRequest.FullFormat;
 
     public List<MovieFilm> FilmList { get; } = [];
 
@@ -229,7 +235,6 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
             return;
         }
         Take(reply.Movie);
-        Playing = null;
         if (Show != reply.Movie.Show) await SetShowAsync(reply.Movie.Show);
         await js.InvokeVoidAsync("poMedia.write", LastKey, id);
         if (!quiet) Say($"Opened {reply.Movie.Title}.");
@@ -370,11 +375,20 @@ public sealed class MovieStore(MovieApi api, IJSRuntime js, AppSettings settings
     /// <summary>What a new movie is made from: the form's fields as they are now (checked by <c>MovieLessonRequestValidator</c>).</summary>
     public MovieLessonRequest LessonRequest() => new(Show, Kit?.Structure ?? "", Topic, Second, Number,
         [.. FilmList.Select(f => new MovieFilmDto(f.Media.Id, f.Note, f.OwnSound))], Prefs.ExportPreset,
-        string.IsNullOrWhiteSpace(RoastVoice) ? null : RoastVoice, Mix.Crude, string.IsNullOrWhiteSpace(Title) ? null : Title.Trim(), Mix.Encode(), Narrator.Encode());
+        string.IsNullOrWhiteSpace(RoastVoice) ? null : RoastVoice, Mix.Crude, string.IsNullOrWhiteSpace(Title) ? null : Title.Trim(), Mix.Encode(), Narrator.Encode(),
+        Auto, Cut, Format);
 
-    public async Task StartMovieAsync(bool whole)
+    /// <summary>"Just make it": the films alone, and the app decides everything else.</summary>
+    public MovieLessonRequest JustMakeRequest() => LessonRequest() with
     {
-        var reply = await api.StartAsync(LessonRequest(), whole);
+        Auto = true,
+        Cut = MovieLessonRequest.BestParts,
+        Format = MovieLessonRequest.AutoFormat,
+    };
+
+    public async Task StartMovieAsync(bool whole, MovieLessonRequest? request = null)
+    {
+        var reply = await api.StartAsync(request ?? LessonRequest(), whole);
         if (reply.Error is not null)
         {
             Say(null, reply.Error);

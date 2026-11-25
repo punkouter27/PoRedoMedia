@@ -87,6 +87,7 @@ try
     builder.Services.AddScoped<IValidator<MovieUploadRequest>, MovieUploadRequestValidator>();
     builder.Services.AddScoped<IValidator<PublishRequest>, PublishRequestValidator>();
     builder.Services.AddSingleton<IRenderQuota, RenderQuotaService>();
+    builder.Services.AddSingleton<PoRedoMedia.Api.Common.Ai.HybridSoundIndex>();
     builder.Services.AddSingleton<IRunRepository, RunTableRepository>();
     builder.Services.AddSingleton<IRunNotifier, RunHubNotifier>();
     builder.Services.AddSingleton<RunExecutor>();

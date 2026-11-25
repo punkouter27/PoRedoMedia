@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
+using PoRedoMedia.Shared.Models;
 
 namespace PoRedoMedia.Client.LocalAi;
 
@@ -80,6 +82,51 @@ public sealed class LocalAiService(IJSRuntime js, ILoggerFactory loggerFactory) 
         var outcome = await session.RunAsync(LocalModelRegistry.Vision, capabilities, prompt ?? string.Empty, image, progress, ct);
         _visionReady = true;
         return outcome;
+    }
+
+    /// <summary>
+    /// Detects normalized object/face bounding boxes using Florence-2 (<c>&lt;OD&gt;</c> or
+    /// <c>&lt;CAPTION_TO_PHRASE_GROUNDING&gt;</c>) so sticker overlays can aim at real subjects.
+    /// </summary>
+    public async Task<IReadOnlyList<VisionBoxDto>> DetectObjectsAsync(
+        byte[] image,
+        string? phrase = null,
+        IProgress<LocalInferenceStatus>? progress = null,
+        CancellationToken ct = default)
+    {
+        var task = string.IsNullOrWhiteSpace(phrase) ? "<OD>" : $"<CAPTION_TO_PHRASE_GROUNDING>{phrase.Trim()}";
+        try
+        {
+            var outcome = await DescribeImageAsync(image, task, progress, ct);
+            if (string.IsNullOrWhiteSpace(outcome.Text))
+                return [];
+            return JsonSerializer.Deserialize(outcome.Text, WireJson.Default.VisionBoxDtoArray) ?? [];
+        }
+        catch (Exception ex) when (ex is LocalInferenceException or JsonException or JSException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Runs the compact on-device comedy director LLM (Qwen2.5-0.5B-Instruct) for instant zero-cost
+    /// meme caption drafts, persona routing, and comic punch-up lines.
+    /// </summary>
+    public async Task<LocalDirectorDraftDto?> DraftComedyAsync(string prompt, CancellationToken ct = default)
+    {
+        var capabilities = await GetCapabilitiesAsync();
+        var device = capabilities.HasWebGpu ? "WebGpu" : "Wasm";
+        var dtype = LocalModelRegistry.TransformersDtype(DtypeVariant.Q4);
+        try
+        {
+            var json = await js.InvokeAsync<string>(
+                "poLocalAiDraft", ct, LocalModelRegistry.DirectorLlm.RepoId, dtype, device, prompt);
+            return JsonSerializer.Deserialize(json, WireJson.Default.LocalDirectorDraftDto);
+        }
+        catch (Exception ex) when (ex is JSException or JsonException or OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     public async ValueTask DisposeAsync()

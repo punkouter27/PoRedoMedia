@@ -21,6 +21,10 @@
         <RadzenLabel Text="Lyric timing" Component="roast-sync" />
         <RadzenSlider Name="roast-sync" TValue="double" Min="-3" Max="3" Step="0.1" Value="@_offset" Change="SyncAsync" />
         <output>@SyncText</output>
+        <RadzenButton Text="@(_wordSyncing ? "Syncing…" : _wordSynced ? "Word-synced" : "Word sync")" Icon="graphic_eq"
+                      Size="ButtonSize.ExtraSmall" Variant="@(_wordSynced ? Variant.Filled : Variant.Outlined)"
+                      IsBusy="_wordSyncing" Disabled="_wordSyncing" Click="WordSyncAsync"
+                      title="Align every lyric line to the vocal track using on-device Whisper word timestamps" />
     </div>
     @if (Media.ParentId is not null)
     {
@@ -52,6 +56,8 @@
     private ElementReference _audio;
     private bool _attached;
     private bool _saving;
+    private bool _wordSyncing;
+    private bool _wordSynced;
     private string _cut = "meme";
     private int? _recording;
     private double _offset;
@@ -64,6 +70,26 @@
         _offset = offset;
         if (_attached)
             await JS.InvokeVoidAsync("poRoast.offset", _stage, offset);
+    }
+
+    private async Task WordSyncAsync()
+    {
+        if (!_attached || _wordSyncing)
+            return;
+
+        _wordSyncing = true;
+        try
+        {
+            _wordSynced = await JS.InvokeAsync<bool>("poRoast.syncWords", _stage);
+            if (_wordSynced)
+                Notifications.Notify(NotificationSeverity.Success, "Lyrics word-synced", "Lines now track exact vocal timestamps.", 4000);
+            else
+                Notifications.Notify(NotificationSeverity.Warning, "Could not word-sync", "Keeping estimated line timings.", 5000);
+        }
+        finally
+        {
+            _wordSyncing = false;
+        }
     }
 
     private string PictureUrl => $"api/media/{Media.ParentId}/content";

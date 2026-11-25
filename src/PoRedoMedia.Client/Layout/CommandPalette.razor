@@ -1,0 +1,71 @@
+@* Unified Command Palette (press K or Ctrl+K): fuzzy-jump to any route or quick action. *@
+@inject NavigationManager Navigation
+@inject DialogService Dialogs
+@inject IJSRuntime JS
+
+<RadzenStack Gap="0.75rem">
+    <RadzenTextBox Value="@_query" @oninput="@(e => _query = e.Value?.ToString() ?? string.Empty)"
+                   Placeholder="Jump to a page or action…" aria-label="Search commands" class="po-fill" />
+
+    <RadzenStack Gap="0.35rem" role="list" aria-label="Matching commands">
+        @foreach (var cmd in Filtered)
+        {
+            var item = cmd;
+            <RadzenButton Text="@item.Label" Icon="@item.Icon" Variant="Variant.Text" ButtonStyle="ButtonStyle.Base"
+                          Style="justify-content: flex-start; width: 100%;" Click="@(() => RunAsync(item))" />
+        }
+        @if (!Filtered.Any())
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="rz-m-0">No matching commands.</RadzenText>
+        }
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private sealed record PaletteCommand(string Label, string Icon, string Keywords, Func<Task> Action);
+
+    private string _query = "";
+    private List<PaletteCommand> _commands = [];
+
+    protected override void OnInitialized()
+    {
+        _commands =
+        [
+            new("Create (Home)", "auto_awesome", "create home upload meme roast restyle", () => Go("")),
+            new("Library / Gallery", "photo_library", "library gallery media files", () => Go("gallery")),
+            new("Comic-ify", "auto_stories", "comic strip chat email thread", () => Go("comic")),
+            new("Create Movie", "movie", "movie video clips publish", () => Go("movie")),
+            new("System status (/diag)", "monitor_heart", "diag health status probes", () => Go("diag")),
+            new("Preview 3D audio mix", "spatial_audio", "audio mix 3d spatial sound", async () =>
+            {
+                Dialogs.Close();
+                await JS.InvokeVoidAsync("poAudioMix.previewMix", 2, 2, true);
+            }),
+            new("Trigger particle burst", "celebration", "fx particles nebula burst", async () =>
+            {
+                Dialogs.Close();
+                await JS.InvokeVoidAsync("poNebula.burst", "comic-pop");
+            }),
+            new("Keyboard shortcuts (?)", "keyboard", "shortcuts keys help", async () =>
+            {
+                Dialogs.Close();
+                await Dialogs.OpenAsync<ShortcutsHelp>("Keyboard shortcuts", [], new DialogOptions { Width = "min(30rem, calc(100vw - 1rem))", CloseDialogOnEsc = true });
+            }),
+        ];
+    }
+
+    private IEnumerable<PaletteCommand> Filtered =>
+        string.IsNullOrWhiteSpace(_query)
+            ? _commands
+            : _commands.Where(c => c.Label.Contains(_query, StringComparison.OrdinalIgnoreCase)
+                || c.Keywords.Contains(_query, StringComparison.OrdinalIgnoreCase));
+
+    private Task Go(string route)
+    {
+        Dialogs.Close();
+        Navigation.NavigateTo(route);
+        return Task.CompletedTask;
+    }
+
+    private Task RunAsync(PaletteCommand command) => command.Action();
+}

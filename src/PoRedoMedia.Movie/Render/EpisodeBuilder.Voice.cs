@@ -24,7 +24,7 @@ public sealed partial class EpisodeBuilder
                 try
                 {
                     if (Json.Read<List<WordTiming>>(await File.ReadAllTextAsync(words, ct)) is { } timings)
-                        return await WithFilmUnderAsync(clip, new Narration(audio, WavInfo.Duration(audio), timings), ct);
+                        return await WithFilmUnderAsync(clip, await TurnsAsync(clip, new Narration(audio, WavInfo.Duration(audio), timings), ct), ct);
                 }
                 catch (Exception e) when (e is JsonException or InvalidDataException)
                 {
@@ -43,13 +43,20 @@ public sealed partial class EpisodeBuilder
                     learned(Durations.WordsPerMinute = pace);
             }
             await File.WriteAllTextAsync(words, Json.Write(narration.Words), ct);
-            return await WithFilmUnderAsync(clip, narration, ct);
+            return await WithFilmUnderAsync(clip, await TurnsAsync(clip, narration, ct), ct);
         }
         finally
         {
             gate.Release();
         }
     }
+
+    /// <summary>
+    /// For a clip that takes turns with a roast: the narration spread across its whole film, with pauses after its
+    /// sentences for the roast to answer in. The narration as recorded otherwise.
+    /// </summary>
+    private async Task<Narration> TurnsAsync(Clip clip, Narration narration, CancellationToken ct) =>
+        clip.TakesTurns && FilmUnder(clip) is { } film ? await PausedAsync(narration, await ffmpeg.ProbeDurationAsync(film, ct), ct) : narration;
 
     /// <summary>The film whose own sound plays quietly under the clip's narration; null when nothing plays under it.</summary>
     private static string? FilmUnder(Clip clip) =>

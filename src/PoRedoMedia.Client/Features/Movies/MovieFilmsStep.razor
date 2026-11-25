@@ -16,9 +16,10 @@
         <h2 class="mv-section">@(Store.Movie is null ? "Your films" : "Make another movie")</h2>
         <div class="mv-field">
             <RadzenLabel Text="Kind of video" Component="mv-kind" />
-            <RadzenSelectBar Name="mv-kind" class="mv-kind" TValue="string" Value="@Store.Show" Change="@(show => Store.SetShowAsync(show))" Disabled="Store.IsWorking" Size="ButtonSize.Small"
-                             title="General: a movie about anything. Robot lesson: an episode of the R1 series. Kids' video: your child playing, told for young children and uploaded as made for kids. Each has its own intro, outro and look, under Channel & intro. Switching costs nothing.">
+            <RadzenSelectBar Name="mv-kind" class="mv-kind" TValue="string" Value="@(Store.Auto ? "Auto" : Store.Show)" Change="@(kind => PickKindAsync(kind))" Disabled="Store.IsWorking" Size="ButtonSize.Small"
+                             title="Auto: the films are watched and the app decides what kind of video they make (kids, pets, a trip, a party, sport, a how-to…), and from that the series, pace, music, narrator and roast. General: a movie about anything. Robot lesson: an episode of the R1 series. Kids' video: your child playing, told for young children and uploaded as made for kids. Each has its own intro, outro and look, under Channel & intro. Switching costs nothing.">
                 <Items>
+                    <RadzenSelectBarItem Text="Auto" Value="@("Auto")" />
                     @foreach (var show in config.Shows)
                     {
                         <RadzenSelectBarItem Text="@show.Label" Value="@show.Value" />
@@ -88,6 +89,31 @@
             </span>
         }
         <FieldErrors Errors="_errors" For="Films" />
+        <div class="mv-row mv-top">
+            <div class="mv-field">
+                <RadzenLabel Text="Use" Component="mv-cut" />
+                <RadzenSelectBar Name="mv-cut" TValue="string" Value="@Store.Cut" Change="@(cut => { Store.Cut = cut; Store.Notify(); })" Disabled="Store.IsWorking" Size="ButtonSize.Small"
+                                 title="Best parts: each film is watched and only its good stretches are kept (several from one film if it has them), without dead air, fumbling or repeats, at a shot length that suits the kind of video. Whole films: every film plays from start to end.">
+                    <Items>
+                        <RadzenSelectBarItem Text="Best parts" Value="@MovieLessonRequest.BestParts" />
+                        <RadzenSelectBarItem Text="Whole films" Value="@MovieLessonRequest.WholeFilms" />
+                    </Items>
+                </RadzenSelectBar>
+                <FieldErrors Errors="_errors" For="Cut" />
+            </div>
+            <div class="mv-field">
+                <RadzenLabel Text="Format" Component="mv-format" />
+                <RadzenSelectBar Name="mv-format" TValue="string" Value="@Store.Format" Change="@(format => { Store.Format = format; Store.Notify(); })" Disabled="Store.IsWorking" Size="ButtonSize.Small"
+                                 title="Full video: wide (16:9), as long as the films need. Short: upright (9:16) and under a minute, keeping the best parts that fit. Auto: a Short when most films are upright and their best parts fit one, otherwise a full video.">
+                    <Items>
+                        <RadzenSelectBarItem Text="Auto" Value="@MovieLessonRequest.AutoFormat" />
+                        <RadzenSelectBarItem Text="Full video" Value="@MovieLessonRequest.FullFormat" />
+                        <RadzenSelectBarItem Text="Short" Value="@MovieLessonRequest.ShortFormat" />
+                    </Items>
+                </RadzenSelectBar>
+                <FieldErrors Errors="_errors" For="Format" />
+            </div>
+        </div>
         @foreach (var film in Store.FilmList)
         {
             var row = film;
@@ -128,7 +154,11 @@
             </div>
         }
 
-        @if (config.Memes)
+        @if (config.Memes && Store.Auto)
+        {
+            <p class="mv-quiet mv-auto-note">Auto picks the narrator, the roast and the music once it has watched your films. Pick a kind of video above to choose them yourself.</p>
+        }
+        else if (config.Memes)
         {
             <MovieRoastOptions Voices="config.RoastVoices" Voice="@Store.RoastVoice" VoiceChanged="@(v => { Store.RoastVoice = v; Store.Notify(); })"
                                Mix="@Store.Mix" MixChanged="@(mix => { Store.Mix = mix; Store.CrudeRoast = mix.Crude; Store.Notify(); })" Defaults="@MemeMix.For(Store.Show)"
@@ -142,7 +172,10 @@
                     <RadzenIcon Icon="arrow_upward" aria-hidden="true" />Add at least one video clip under Your video clips to continue.
                 </a>
             }
-            <RadzenButton Text="Make the video from my films" Icon="movie" ButtonStyle="ButtonStyle.Primary"
+            <RadzenButton Text="Just make it" Icon="auto_awesome" ButtonStyle="ButtonStyle.Primary"
+                          Disabled="@(_making || Store.IsWorking || !config.Ffmpeg || Store.FilmList.Count == 0)" IsBusy="_making" Click="JustMakeAsync" class="mv-wide"
+                          title="No settings: the films are watched and listened to, the app decides what kind of video they make, keeps their best parts, puts them in order, picks the narrator, roast and music, cuts on the beat, and looks the clips over before the final render. You are told what it costs first." />
+            <RadzenButton Text="Make the video from my films" Icon="movie" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined"
                           Disabled="@(_making || Store.IsWorking || !config.Ffmpeg || Store.FilmList.Count == 0 || TimeSpan.FromTicks(Store.FilmList.Sum(f => f.Length.Ticks)) > MaxMovie)" IsBusy="_making" Click="MakeAsync" class="mv-wide"
                           title="Make the whole video from the films above in one go: each film is watched, given a voice-over that fits its length, put through Meme-ify, and the films are joined between the series' intro and outro, rendered and put in your Library. You are told what it does and costs first." />
         </div>
@@ -315,6 +348,36 @@
             + await MovieDialogs.RunsLeftAsync(Runs);
         if (await MovieDialogs.ConfirmSpendAsync(Dialogs, Store, "Make the video from your films?", plan, "Make it", config.Memes ? n * config.MemePrice : 0))
             await Store.StartMovieAsync(true);
+    }
+
+    private async Task PickKindAsync(string kind)
+    {
+        Store.Auto = kind == "Auto";
+        if (Store.Auto) Store.Notify();
+        else await Store.SetShowAsync(kind);
+    }
+
+    /// <summary>"Just make it": no settings are asked for; the cost is still said first.</summary>
+    private async Task JustMakeAsync()
+    {
+        if (_making) return;
+        _making = true;
+        try
+        {
+            var n = Store.FilmList.Count;
+            var config = Store.Config!;
+            // Best parts can make more clips than there are films: each is meme-ified, so the price is a range.
+            var most = Math.Min(config.MaxFilms, Math.Max(n, n * 3));
+            var memes = !config.Memes ? "" : $" Each kept moment goes through Meme-ify, about {MovieDialogs.Money(config.MemePrice)} each: {MovieDialogs.Money(n * config.MemePrice)} to {MovieDialogs.Money(most * config.MemePrice)} for {(n == 1 ? "this film" : $"these {n} films")}.";
+            var plan = $"Watches and listens to your {(n == 1 ? "film" : $"{n} films")}, decides what kind of video they make, keeps the best parts and puts them in order, chooses the narrator, roast and music, narrates the quiet parts and lets people who talk be heard, cuts on the beat, and looks the clips over before the final render.{memes} Episode #{Store.Number}. You can stop it at any point."
+                + await MovieDialogs.RunsLeftAsync(Runs);
+            if (await MovieDialogs.ConfirmSpendAsync(Dialogs, Store, "Just make it?", plan, "Make it", config.Memes ? n * config.MemePrice : 0))
+                await Store.StartMovieAsync(true, Store.JustMakeRequest());
+        }
+        finally
+        {
+            _making = false;
+        }
     }
 
     private async Task OpenAsync(MovieSummaryDto item)

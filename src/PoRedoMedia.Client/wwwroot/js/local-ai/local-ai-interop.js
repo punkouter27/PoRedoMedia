@@ -9,6 +9,30 @@
 const workers = {};
 const staged = new Map();
 const WORKER_SCRIPT = '/js/local-ai/transformers-worker.js';
+let llmWorker = null;
+let llmSeq = 0;
+
+/** Runs a single prompt through the local comedy director LLM worker and resolves to a JSON string. */
+window.poLocalAiDraft = function (repoId, dtype, device, prompt) {
+    return new Promise((resolve, reject) => {
+        try {
+            llmWorker ??= new Worker('/js/local-ai/llm-worker.js', { type: 'module' });
+        } catch (err) {
+            reject(err);
+            return;
+        }
+        const id = ++llmSeq;
+        const onMessage = (event) => {
+            const data = event.data || {};
+            if (data.id !== id) return;
+            llmWorker.removeEventListener('message', onMessage);
+            if (data.ok) resolve(data.text || '{}');
+            else reject(new Error(data.reason || 'Local LLM failed'));
+        };
+        llmWorker.addEventListener('message', onMessage);
+        llmWorker.postMessage({ id, repoId, dtype, device, prompt });
+    });
+};
 
 /**
  * A run's picture, handed over before the run starts through [JSImport] (LocalAiBytes.cs) as a

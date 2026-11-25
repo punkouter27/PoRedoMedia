@@ -27,37 +27,39 @@ const progress_callback = (p) => {
     }
 };
 
-async function hear(samples, webgpu) {
+async function hear(samples, webgpu, wordMode) {
     const transcriber = await pipeline('automatic-speech-recognition', webgpu ? 'onnx-community/whisper-base' : 'Xenova/whisper-tiny', {
         // The encoder loses accuracy when quantised; the decoder does not, and is most of the download.
         ...(webgpu ? { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } } : { dtype: 'q8' }),
         progress_callback,
     });
     self.postMessage({ type: 'status', percent: -1 });
-    return transcriber(samples, { return_timestamps: true, chunk_length_s: 30, stride_length_s: 5 });
+    return transcriber(samples, { return_timestamps: wordMode ? 'word' : true, chunk_length_s: 30, stride_length_s: 5 });
 }
 
 self.onmessage = async (event) => {
+    const wordMode = event.data?.mode === 'word';
     try {
         // Some GPUs offer WebGPU but fail to load or run the model; the CPU then hears it with tiny.
         // The samples are sliced so a failed GPU attempt cannot leave them detached.
         let result;
         if (await gpu()) {
             try {
-                result = await hear(event.data.samples.slice(), true);
+                result = await hear(event.data.samples.slice(), true, wordMode);
             } catch (err) {
                 console.warn('[whisper] WebGPU failed, hearing it on the CPU instead:', err?.message ?? err);
             }
         }
-        result ??= await hear(event.data.samples, false);
+        result ??= await hear(event.data.samples, false, wordMode);
         const segments = (result.chunks || [])
             .filter((c) => c.text && c.text.trim() && c.timestamp && c.timestamp[0] !== null)
             .map((c) => ({
                 startSeconds: c.timestamp[0],
                 // The last chunk of a clip can come back without an end.
-                endSeconds: c.timestamp[1] ?? c.timestamp[0] + 3,
+                endSeconds: c.timestamp[1] ?? c.timestamp[0] + (wordMode ? 0.35 : 3),
                 text: c.text.trim(),
             }));
+        self.postMessage({ type: 'complete', segments, words: wordMode ? segments : undefined });
         self.postMessage({ type: 'complete', segments });
     } catch (err) {
         self.postMessage({ type: 'error', reason: err?.message ?? String(err) });

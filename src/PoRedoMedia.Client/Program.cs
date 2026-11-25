@@ -35,6 +35,8 @@ builder.Services.AddScoped<UiStore>();
 builder.Services.AddScoped<Shortcuts>();
 builder.Services.AddScoped<AppSettings>();
 builder.Services.AddScoped<LocalAiService>();
+builder.Services.AddScoped<MarkovTastePredictor>();
+builder.Services.AddScoped<BehavioralTasteModel>();
 builder.Services.AddScoped<MovieApi>();
 builder.Services.AddScoped<MovieStore>();
 builder.Services.AddScoped<ComicApi>();

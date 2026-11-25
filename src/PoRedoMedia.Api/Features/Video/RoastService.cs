@@ -156,6 +156,12 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
     private const string ComicDelivery =
         "A brash stand-up comedian mid-set at a roast: loud, fast, incredulous, mocking. Land hard on the last words of the line.";
 
+    /// <summary>
+    /// The comic's voice: one no narrator uses (they speak as ash, coral or onyx, see NarratorVoices), so over a movie
+    /// the heckler is plainly someone else. As ash it sounded like the narrator carrying on.
+    /// </summary>
+    internal const string ComicVoice = "verse";
+
     private const string RapStyle =
         "Aggressive old-school boom-bap diss track. One male rapper, vocals loud and clear up front, hard drums. About 25 seconds.";
 
@@ -460,7 +466,7 @@ public sealed partial class RoastService : IVideoRoast, IDisposable
             var deployment = AiFoundryClient.Setting(_config, "AiFoundry:TtsDeployment");
             request = new(HttpMethod.Post, $"{endpoint}/openai/deployments/{deployment}/audio/speech?api-version={SpeechApiVersion}")
             {
-                Content = JsonContent.Create(new { model = deployment, input = text, voice = "ash", instructions = ComicDelivery, response_format = "mp3" }),
+                Content = JsonContent.Create(new { model = deployment, input = text, voice = ComicVoice, instructions = ComicDelivery, response_format = "mp3" }),
             };
             request.Headers.Add("api-key", key);
         }

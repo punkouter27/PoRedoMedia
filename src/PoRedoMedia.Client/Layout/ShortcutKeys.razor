@@ -29,6 +29,9 @@
             case "?":
                 await Dialogs.OpenAsync<ShortcutsHelp>("Keyboard shortcuts", [], new DialogOptions { Width = "min(30rem, calc(100vw - 1rem))", CloseDialogOnEsc = true });
                 break;
+            case "k" or "K":
+                await Dialogs.OpenAsync<CommandPalette>("Command palette", [], new DialogOptions { Width = "min(32rem, calc(100vw - 1rem))", CloseDialogOnEsc = true });
+                break;
             case "u" or "U":
                 // On a page with nothing to add media to, the place that has it.
                 Navigation.NavigateTo("");

@@ -38,6 +38,49 @@
             <span>@Summary(report.Checks)</span>
         </div>
 
+        <RadzenRow Gap="0.5rem" class="rz-mb-2">
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard Variant="Variant.Outlined" class="rz-p-3">
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-m-0">Healthy</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="rz-m-0">@report.Checks.Count(c => c.Status == "Healthy")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard Variant="Variant.Outlined" class="rz-p-3">
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-m-0">Degraded</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="rz-m-0">@report.Checks.Count(c => c.Status is "Degraded" or "Unhealthy")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard Variant="Variant.Outlined" class="rz-p-3">
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-m-0">Off</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="rz-m-0">@report.Checks.Count(c => c.Status == "Off")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard Variant="Variant.Outlined" class="rz-p-3">
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-m-0">Slowest probe</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" class="rz-m-0">@Ms(report.Checks.Where(c => c.Status != "Off").Select(c => c.LatencyMs).DefaultIfEmpty(0).Max())</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        @if (report.Checks.Any(c => c.Status != "Off" && c.LatencyMs > 0))
+        {
+            <RadzenAccordion class="rz-mb-2">
+                <Items>
+                    <RadzenAccordionItem Text="Probe latency breakdown (ms)" Icon="bar_chart">
+                        <RadzenChart Style="height: 220px;">
+                            <RadzenBarSeries Data="@report.Checks.Where(c => c.Status != "Off").OrderByDescending(c => c.LatencyMs).Take(8)"
+                                             CategoryProperty="Label" ValueProperty="LatencyMs" Title="Latency (ms)" />
+                            <RadzenValueAxis Min="0" />
+                            <RadzenLegend Visible="false" />
+                        </RadzenChart>
+                    </RadzenAccordionItem>
+                </Items>
+            </RadzenAccordion>
+        }
+
         <section class="po-diag__group" aria-labelledby="diag-api">
             <h2 id="diag-api" class="diag-group">API</h2>
             @Rows(report.Checks.Where(c => c.Group == "api"))

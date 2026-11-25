@@ -28,7 +28,22 @@
         }
         else
         {
-            <MediaView Media="Media" Class="media-preview" />
+            <div @ref="_previewHost" class="media-preview-host">
+                <MediaView Media="Media" Class="media-preview" />
+            </div>
+            @if (Media.Kind is MediaKind.Image or MediaKind.Video)
+            {
+                <RadzenSelectBar TValue="string" Value="@_shader" Change="SetShaderAsync" Size="ButtonSize.ExtraSmall" aria-label="Live shader preview">
+                    <Items>
+                        <RadzenSelectBarItem Text="Normal" Value="@("none")" />
+                        <RadzenSelectBarItem Text="DeepFry" Value="@("deepfry")" />
+                        <RadzenSelectBarItem Text="Zoom" Value="@("zoom")" />
+                        <RadzenSelectBarItem Text="VHS" Value="@("vhs")" />
+                        <RadzenSelectBarItem Text="Comic" Value="@("comichalftone")" />
+                        <RadzenSelectBarItem Text="CRT" Value="@("crt")" />
+                    </Items>
+                </RadzenSelectBar>
+            }
             @if (Media.Text is not null)
             {
                 <pre class="media-text" tabindex="0">@Media.Text</pre>
@@ -111,6 +126,16 @@
     private bool _busy;
     private bool _comparing;
     private ShareLinkDto? _link;
+    private ElementReference _previewHost;
+    private string _shader = "none";
+
+    private async Task SetShaderAsync(string effect)
+    {
+        _shader = effect;
+        await JS.InvokeVoidAsync("poMediaShaders.apply", _previewHost, effect);
+        if (effect != "none")
+            await JS.InvokeVoidAsync("poNebula.burst", "laser-sparks");
+    }
 
     /// <summary>The actions only some items have, offered in the "More" menu.</summary>
     private List<ContextMenuItem> MoreItems

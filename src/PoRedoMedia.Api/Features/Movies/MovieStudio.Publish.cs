@@ -221,9 +221,13 @@ public sealed partial class MovieStudio
         CheckLength(open);
         job.Phase = (from + span * 0.1, span * 0.4);
         var memeFailures = await MemeifyAsync(job, open, ct);
+        // A movie the app put together is looked over before it is joined: an unusable clip is taken out.
+        memeFailures.AddRange(await CheckClipsAsync(job, open, ct));
         job.Phase = (from + span * 0.5, span * 0.45);
         var (episode, brand) = (open.Episode, BrandOf(open));
         var shown = await ShowtimeAsync(job, open, WithMemes(open), ct);
+        if (open.Episode.AutoEdit)
+            shown = await OnTheBeatAsync(job, open, shown, ct);
         var video = await engine.Builder.ExportAsync(shown, open.Folder, preset, brand, Rendering(job), ct);
         job.Made = true;
         job.Phase = (from + span * 0.95, span * 0.05);
@@ -296,7 +300,7 @@ public sealed partial class MovieStudio
         var show = BeatPlan.ShowOf(open.Episode.Structure);
         var tags = publish.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var hashtags = notes?.Hashtags is { Count: > 0 } given ? given : [.. tags.Take(5)];
-        return new PackageInfo(publish.Title, publish.Description, tags, hashtags, BrandOf(open).Kit.ChannelName.Trim(), show == Show.Kids,
+        return new PackageInfo(publish.Title, publish.Description, tags, hashtags, BrandOf(open).Kit.ChannelName.Trim(), false, // never made for kids (the owner's choice)
             show == Show.Robot ? "28" : "22");
     }
 
@@ -426,12 +430,22 @@ public sealed partial class MovieStudio
         {
             var refused = Start("Deleting from YouTube", open.Id, open.Folder, async (job, ct) =>
             {
-                Report(job, "Signing in to Google", 0.05);
-                var token = await youTube.TokenAsync(code, pending.Redirect, pending.Verifier, ct);
-                Report(job, "Deleting the video", 0.5);
-                await youTube.DeleteAsync(token, doomed, ct);
+                var link = YouTubeLinks.Watch(doomed);
+                try
+                {
+                    Report(job, "Signed in. Getting Google's permission to delete", 0.05);
+                    var token = await youTube.TokenAsync(code, pending.Redirect, pending.Verifier, ct);
+                    Report(job, $"Deleting {link}", 0.5);
+                    await youTube.DeleteAsync(token, doomed, ct);
+                }
+                catch (Exception e) when (e is not OperationCanceledException)
+                {
+                    Logged(open, new YouTubeEventDto("failed", link, "", "", DateTimeOffset.Now, Problem: $"Not deleted: {Plain(e)}"));
+                    throw;
+                }
                 Forget(open, doomed);
-                job.Message = $"Deleted {YouTubeLinks.Watch(doomed)} from your channel.";
+                Logged(open, new YouTubeEventDto("deleted", link, TitleOf(open, link), "", DateTimeOffset.Now));
+                job.Message = $"Deleted {link} from your channel at {DateTimeOffset.Now:HH:mm}. It is gone for good, with its views and comments.";
             });
             return refused ?? "Signed in. The video is being deleted; you can close this tab and go back to PoRedoMedia.";
         }
@@ -445,7 +459,8 @@ public sealed partial class MovieStudio
             var tags = pending.Request.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             UploadDetails Details(string title, string description) => new(title, description, tags, privacy, pending.Request.PublishAt)
             {
-                MadeForKids = show == Show.Kids,
+                // Every video goes up as not made for kids, as the owner chose (2026-11-24): comments and notifications stay on.
+                MadeForKids = false,
                 Category = show == Show.Robot ? "28" : "22",
             };
 
@@ -453,8 +468,20 @@ public sealed partial class MovieStudio
             {
                 var video = EpisodeBuilder.LatestMaster(open.Folder) ?? throw new InvalidOperationException("The finished video is not in the export folder any more. Render it again.");
                 var title = pending.Request.Title.Trim() is { Length: > 0 } typed ? typed : open.Episode.Title;
-                var id = await youTube.UploadAsync(token, video, Details(title, pending.Request.Description), new Sink<double>(p => Report(job, "Sending the video", 0.02 + 0.93 * p)), ct);
+                var size = new FileInfo(video).Length / (1024.0 * 1024);
+                string id;
+                try
+                {
+                    id = await youTube.UploadAsync(token, video, Details(title, pending.Request.Description),
+                        new Sink<double>(p => Report(job, FormattableString.Invariant($"Sending the video to YouTube: {p * size:0} of {size:0} MB"), 0.02 + 0.93 * p)), ct);
+                }
+                catch (Exception e) when (e is not OperationCanceledException)
+                {
+                    Logged(open, new YouTubeEventDto("failed", "", title, seen, DateTimeOffset.Now, Problem: $"Not uploaded: {Plain(e)}"));
+                    throw;
+                }
                 open.VideoLink = YouTubeLinks.Watch(id);
+                Report(job, "Uploaded. Setting the thumbnail", 0.95);
                 var problems = new List<string>();
                 var thumbnail = Path.Combine(open.Folder, "export", EpisodeBuilder.ThumbnailName);
                 if (File.Exists(thumbnail))
@@ -468,21 +495,27 @@ public sealed partial class MovieStudio
                     }
                 // The old video goes only once the new one is safely up: an upload that fails leaves the channel as it was.
                 var replaced = "";
+                string? oldLink = null;
                 if (replace is { } old && old != id)
                 {
-                    Report(job, "Deleting the video it replaces", 0.97);
+                    oldLink = YouTubeLinks.Watch(old);
+                    Report(job, $"Deleting the video it replaces: {oldLink}", 0.97);
                     try
                     {
                         await youTube.DeleteAsync(token, old, ct);
-                        replaced = $", replacing {YouTubeLinks.Watch(old)} (deleted)";
+                        Forget(open, old);
+                        Logged(open, new YouTubeEventDto("deleted", oldLink, TitleOf(open, oldLink), "", DateTimeOffset.Now, Problem: $"Replaced by {open.VideoLink}"));
+                        replaced = $" It replaced {oldLink}, which is deleted.";
                     }
                     catch (InvalidOperationException e)
                     {
-                        problems.Add($"The new video is up, but {YouTubeLinks.Watch(old)} was not deleted: {e.Message} Delete it in YouTube Studio.");
+                        problems.Add($"The new video is up, but {oldLink} was not deleted: {e.Message} Delete it in YouTube Studio.");
+                        oldLink = null;
                     }
                 }
+                Logged(open, new YouTubeEventDto("uploaded", open.VideoLink, title, seen, DateTimeOffset.Now, oldLink, problems.Count > 0 ? string.Join(' ', problems) : null));
                 if (problems.Count > 0) job.Error = string.Join(' ', problems);
-                job.Message = $"Uploaded, {seen}: {open.VideoLink}{replaced}";
+                job.Message = $"Uploaded “{title}” at {DateTimeOffset.Now:HH:mm}, {seen}: {open.VideoLink}.{replaced} YouTube may take a few minutes to finish processing it.";
                 return;
             }
 
@@ -500,6 +533,54 @@ public sealed partial class MovieStudio
             job.Message = $"Uploaded {Count(links.Count, "Short")}, {seen}.";
         });
         return problem ?? "Signed in. The upload has started; you can close this tab and go back to PoRedoMedia.";
+    }
+
+    /// <summary>Where a movie's YouTube history is kept: beside it, so it outlasts the tab and a restart.</summary>
+    private static string YouTubeLogOf(OpenMovie open) => Path.Combine(open.Folder, "youtube.json");
+
+    private static readonly Lock YouTubeLogGate = new();
+
+    /// <summary>The history is a wire type (it goes to the page as it is), so it is read and written with the wire's JSON.</summary>
+    private static readonly System.Text.Json.JsonSerializerOptions YouTubeJson = Json.Knowing(new(), WireJson.Default);
+
+    /// <summary>What has been done on YouTube for the movie, oldest first.</summary>
+    internal static List<YouTubeEventDto> YouTubeLog(OpenMovie open)
+    {
+        lock (YouTubeLogGate) return [.. JsonFile.Load<YouTubeEventDto[]>(YouTubeLogOf(open), [], YouTubeJson)];
+    }
+
+    /// <summary>
+    /// Adds to the history. Never fails the job it is called from: by then the thing it records has happened on YouTube,
+    /// and saying the upload failed because its note could not be written would be wrong.
+    /// </summary>
+    private static void Logged(OpenMovie open, YouTubeEventDto done)
+    {
+        try
+        {
+            lock (YouTubeLogGate)
+            {
+                var log = JsonFile.Load<YouTubeEventDto[]>(YouTubeLogOf(open), [], YouTubeJson);
+                JsonFile.Save(YouTubeLogOf(open), log.Append(done).TakeLast(50).ToArray(), YouTubeJson);
+            }
+        }
+        catch (Exception e) when (e is NotSupportedException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            // The history is a convenience; what happened is still in the job's message.
+        }
+    }
+
+    /// <summary>The title a video was uploaded with from here, or empty for one uploaded elsewhere.</summary>
+    private static string TitleOf(OpenMovie open, string link) =>
+        YouTubeLog(open).LastOrDefault(e => e.Kind == "uploaded" && YouTubeLinks.VideoId(e.Link) == YouTubeLinks.VideoId(link))?.Title ?? "";
+
+    /// <summary>
+    /// The movie's video on YouTube now: the last one uploaded from here that has not been deleted since; null for none.
+    /// Read from the history, so it is still known after a restart.
+    /// </summary>
+    internal static string? LiveVideo(IReadOnlyList<YouTubeEventDto> log)
+    {
+        var deleted = log.Where(e => e.Kind == "deleted").Select(e => YouTubeLinks.VideoId(e.Link)).ToHashSet();
+        return log.LastOrDefault(e => e.Kind == "uploaded" && !deleted.Contains(YouTubeLinks.VideoId(e.Link)))?.Link;
     }
 
     /// <summary>A deleted video is no longer offered as the movie's link.</summary>
@@ -581,7 +662,8 @@ public sealed partial class MovieStudio
         var description = string.Join("\n\n", new[] { notes?.Description, chapters.Trim(), notes is null ? null : string.Join(' ', notes.Hashtags) }.Where(part => !string.IsNullOrWhiteSpace(part)));
         var thumbnail = Path.Combine(open.Folder, "export", EpisodeBuilder.ThumbnailName);
         var size = master is null ? null : string.Create(CultureInfo.InvariantCulture, $"{new FileInfo(master).Length / 1_048_576.0:0.0} MB");
+        var youTube = YouTubeLog(open);
         return new MoviePublishDto(Link(open, master), master is null ? null : Path.GetFileName(master), size, title, description, string.Join(", ", notes?.Tags ?? []), chapters,
-            Link(open, thumbnail), [.. open.ThumbnailChoices.Where(File.Exists).Select(Temp)], [.. TeaserFiles(open.Folder).Select(f => Link(open, f)!)], open.VideoLink);
+            Link(open, thumbnail), [.. open.ThumbnailChoices.Where(File.Exists).Select(Temp)], [.. TeaserFiles(open.Folder).Select(f => Link(open, f)!)], open.VideoLink ?? LiveVideo(youTube), [.. youTube]);
     }
 }

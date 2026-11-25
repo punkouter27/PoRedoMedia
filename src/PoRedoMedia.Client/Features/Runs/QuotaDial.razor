@@ -1,9 +1,16 @@
-@* Runs left today, as a ring that empties. Radzen's circular bar drops its accessible name, so
-   the dial is drawn here: the custom property carries the value, the stylesheet the look. *@
+@* Runs left today, rendered with RadzenArcGauge while keeping an accessible outer role="img" label. *@
 
 <span class="po-dial" role="img" aria-label="@($"{Quota.Remaining} of {Quota.Limit} runs left today")"
-      style="--left: @((100.0 * Quota.Remaining / Quota.Limit).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%">
-    <span aria-hidden="true">@Quota.Remaining</span>
+      style="--left: @((100.0 * Quota.Remaining / Math.Max(1, Quota.Limit)).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%">
+    <RadzenArcGauge Style="width: 48px; height: 48px;" aria-hidden="true">
+        <RadzenArcGaugeScale Min="0" Max="@Math.Max(1, Quota.Limit)" StartAngle="-140" EndAngle="140">
+            <RadzenArcGaugeScaleValue Value="@Quota.Remaining" ShowValue="true">
+                <Template Context="pointer">
+                    <span style="font-size: 0.75rem; font-weight: 600;">@Quota.Remaining</span>
+                </Template>
+            </RadzenArcGaugeScaleValue>
+        </RadzenArcGaugeScale>
+    </RadzenArcGauge>
 </span>
 
 @code {

@@ -17,6 +17,16 @@ public static class LocalModelRegistry
         VariantChain: [DtypeVariant.Q4, DtypeVariant.F16, DtypeVariant.F32],
         ApproxDownloadMb: 230);
 
+    /// <summary>
+    /// Compact instruction LLM for instant local meme caption drafts, comic punch-ups, and persona routing.
+    /// </summary>
+    public static LocalModelDescriptor DirectorLlm { get; } = new(
+        Id: "qwen25-05b-instruct",
+        DisplayName: "Qwen2.5 0.5B Instruct",
+        RepoId: "onnx-community/Qwen2.5-0.5B-Instruct",
+        VariantChain: [DtypeVariant.Q4, DtypeVariant.F16, DtypeVariant.F32],
+        ApproxDownloadMb: 320);
+
     /// <summary>Maps a variant to the transformers.js <c>dtype</c> string.</summary>
     public static string TransformersDtype(DtypeVariant variant) => variant switch
     {

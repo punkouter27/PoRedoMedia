@@ -83,6 +83,11 @@
     width: 100%;
 }
 
+/* A roast's track, lyrics and controls need the whole row. */
+.run-result--roast {
+    grid-column: 1 / -1;
+}
+
 .media-text {
     margin: 0;
     max-height: 16rem;

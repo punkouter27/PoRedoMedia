@@ -59,47 +59,12 @@ public sealed class CreateMovieUiTests : UiTestBase
     }
 
     [LiveServerFact(NeedsFFmpeg = true)]
-    public async Task Publish_connects_youtube_checks_the_dialog_and_sends_the_movie_then_removes_it()
-    {
-        // The Test server's YouTube and TikTok are stand-ins (Features/Publishing/FakePublishers): nothing leaves it.
-        var page = await SignedInPageAsync("/movie");
-        await page.SetViewportSizeAsync(390, 844);
-        // With no clip yet the upload is already open.
-        await Assertions.Expect(page.Locator(".mv-add-films input[type=file]")).ToHaveCountAsync(1, new() { Timeout = 30_000 });
-        await page.SetInputFilesAsync(".mv-add-films input[type=file]", new FilePayload { Name = "porch.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(6) });
-        await Assertions.Expect(page.Locator(".mv-film")).ToHaveCountAsync(1, new() { Timeout = 60_000 });
-        await page.GetByRole(AriaRole.Button, new() { Name = "Make the video from my films" }).ClickAsync();
-        await page.GetByRole(AriaRole.Button, new() { Name = "Make it" }).ClickAsync();
-        await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 240_000 });
-
-        // Not connected yet: the dialog offers Connect, which goes through the site's sign-in and comes back.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
-        var dialog = page.GetByRole(AriaRole.Dialog);
-        await dialog.GetByRole(AriaRole.Button, new() { Name = "Connect YouTube" }).ClickAsync();
-        await Assertions.Expect(page.GetByText("YouTube is connected")).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 30_000 });
-
-        // Nothing picked is said under the field, and nothing is sent.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
-        await dialog.GetByText("Publish to YouTube").ClickAsync(); // un-tick it
-        await dialog.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
-        await Assertions.Expect(dialog.Locator(".po-field-error")).ToHaveTextAsync("Pick at least one place to publish to.");
-        await ShotAsync(page, "4-publish-dialog");
-
-        // Ticked again: it goes, the link is given, and the movie is removed from the server.
-        await dialog.GetByText("Publish to YouTube").ClickAsync();
-        await dialog.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
-        await Assertions.Expect(page.GetByText("https://youtu.be/")).ToBeVisibleAsync(new() { Timeout = 120_000 });
-        await Assertions.Expect(page.GetByText("No movies yet.")).ToBeVisibleAsync(new() { Timeout = 30_000 });
-    }
-
-    [LiveServerFact(NeedsFFmpeg = true)]
-    public async Task Films_with_notes_become_a_whole_video_that_can_be_cut_into_teasers()
+    public async Task Films_with_notes_become_a_whole_video()
     {
         var page = await SignedInPageAsync("/movie");
         await page.SetViewportSizeAsync(1440, 900);
 
-        // Two films, chosen together; long enough to narrate over and to cut a ten-second teaser from.
+        // Two films, chosen together; long enough to narrate over.
         // With no clip yet the upload is already open.
         await Assertions.Expect(page.Locator(".mv-add-films input[type=file]")).ToHaveCountAsync(1, new() { Timeout = 30_000 });
         await page.SetInputFilesAsync(".mv-add-films input[type=file]",
@@ -119,12 +84,35 @@ public sealed class CreateMovieUiTests : UiTestBase
         await page.GetByRole(AriaRole.Button, new() { Name = "Make it" }).ClickAsync();
         await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 240_000 });
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Render again" })).ToBeVisibleAsync();
+        // No teasers section any more (removed 2026-11-24).
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Suggest teasers" })).ToHaveCountAsync(0);
+        await ShotAsync(page, "5-finished");
+    }
 
-        // Teasers: suggested, then rendered upright.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Suggest teasers" }).ClickAsync();
-        await Assertions.Expect(page.Locator(".mv-teaser").First).ToBeVisibleAsync(new() { Timeout = 60_000 });
-        await page.GetByRole(AriaRole.Button, new() { NameRegex = new("^Render \\d teasers?$") }).ClickAsync();
-        await Assertions.Expect(page.GetByText("Rendered teasers")).ToBeVisibleAsync(new() { Timeout = 180_000 });
-        await ShotAsync(page, "5-teasers");
+    [LiveServerFact(NeedsFFmpeg = true)]
+    public async Task Just_make_it_decides_everything_from_the_films_alone()
+    {
+        var page = await SignedInPageAsync("/movie");
+        await page.SetViewportSizeAsync(1440, 900);
+        await Assertions.Expect(page.Locator(".mv-add-films input[type=file]")).ToHaveCountAsync(1, new() { Timeout = 30_000 });
+        await page.SetInputFilesAsync(".mv-add-films input[type=file]",
+        [
+            new FilePayload { Name = "beach.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(9) },
+            new FilePayload { Name = "pier.mp4", MimeType = "video/mp4", Buffer = await CreateVideoUiTests.ClipAsync(7) },
+        ]);
+        await Assertions.Expect(page.Locator(".mv-film")).ToHaveCountAsync(2, new() { Timeout = 90_000 });
+
+        // Auto hands the narrator, roast and music to the app.
+        await page.Locator(".mv-kind").GetByText("Auto", new() { Exact = true }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Auto picks the narrator, the roast and the music")).ToBeVisibleAsync();
+
+        // One button, no settings: it still says what it does and costs first.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Just make it" }).ClickAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Alertdialog)).ToContainTextAsync("decides what kind of video they make");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Make it" }).ClickAsync();
+        await Assertions.Expect(page.GetByLabel("The finished video")).ToBeVisibleAsync(new() { Timeout = 240_000 });
+        // The plan is said with the finished video. The stand-in AI watches nothing, so it is an everyday video of the whole films.
+        await Assertions.Expect(page.GetByText("Everyday video, about", new() { Exact = false })).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await ShotAsync(page, "6-just-made");
     }
 }

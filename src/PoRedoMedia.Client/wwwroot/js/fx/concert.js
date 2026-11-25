@@ -146,10 +146,7 @@ window.poConcert = (() => {
                 window.poSfx?.playAt('micdrop', state.host);
                 window.poFx.haptic([30, 30, 60]);
                 state.kickAge = 0;
-                state.punch = 1.4;
-                state.host.classList.remove('shake');
-                void state.host.offsetWidth;
-                state.host.classList.add('shake');
+                state.punch = 1.4; // no screen shake: it was annoying
             }
             m.y = floor;
             m.vy = Math.abs(m.vy) < 90 ? 0 : -m.vy * 0.42;

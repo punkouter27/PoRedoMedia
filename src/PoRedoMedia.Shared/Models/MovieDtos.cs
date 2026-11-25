@@ -76,7 +76,19 @@ public sealed record MovieTeaserDto(string Hook, bool Keep, bool Fill, MovieTeas
 /// <summary>What goes with the finished video when it is uploaded.</summary>
 public sealed record MoviePublishDto(
     string? MasterUrl, string? MasterName, string? MasterSize, string Title, string Description, string Tags, string Chapters,
-    string? ThumbnailUrl, string[] ThumbnailChoices, string[] TeaserUrls, string? VideoLink);
+    string? ThumbnailUrl, string[] ThumbnailChoices, string[] TeaserUrls, string? VideoLink, YouTubeEventDto[]? YouTube = null);
+
+/// <summary>
+/// One thing done on YouTube for a movie, newest last: kept beside the movie, so what is on the channel is known after
+/// the tab is closed or the server restarted.
+/// </summary>
+/// <param name="Kind">"uploaded", "deleted" or "failed".</param>
+/// <param name="Link">The video's link (for "failed", the one the job was about, if any).</param>
+/// <param name="Title">The title it was uploaded with; empty for a delete.</param>
+/// <param name="Privacy">Who can watch it as uploaded ("private", "unlisted", "public", or "private until …").</param>
+/// <param name="Replaced">For an upload that replaced a video: that video's link.</param>
+/// <param name="Problem">What went wrong, or what only partly worked (a thumbnail not set, the old video not deleted).</param>
+public sealed record YouTubeEventDto(string Kind, string Link, string Title, string Privacy, DateTimeOffset At, string? Replaced = null, string? Problem = null);
 
 /// <summary>A movie as it is now: its script, its clips, and what has been made of it.</summary>
 /// <param name="PicturesToMake">Clips still waiting for a picture.</param>
@@ -102,9 +114,21 @@ public sealed record MovieReply(MovieDto? Movie, string? Status = null, string? 
 public sealed record MovieFilmDto(Guid MediaId, string Note, bool OwnSound);
 
 /// <summary>What a new movie is written from. A typed <paramref name="Title"/> replaces the one the script writer gives it.</summary>
+/// <param name="Auto">
+/// The films are watched and the app decides what kind of video they make, and from that the series, its shape, the
+/// pace, the music, the narrator and the roast; <paramref name="Show"/>, <paramref name="Structure"/> and the roast and
+/// narrator choices are then not used.
+/// </param>
+/// <param name="Cut">"best": only the best parts of each film are kept; "whole" (or null): every film whole.</param>
+/// <param name="Format">"full": a wide video; "short": an upright Short under a minute; "auto" (or null): a Short when most films are upright and their best parts fit one.</param>
 public sealed record MovieLessonRequest(
     string Show, string Structure, string Topic, string Second, int Number, MovieFilmDto[] Films, string? ExportPreset = null,
-    string? RoastVoice = null, bool CrudeRoast = false, string? Title = null, string? Mix = null, string? Narrator = null);
+    string? RoastVoice = null, bool CrudeRoast = false, string? Title = null, string? Mix = null, string? Narrator = null,
+    bool Auto = false, string? Cut = null, string? Format = null)
+{
+    public const string BestParts = "best", WholeFilms = "whole";
+    public const string FullFormat = "full", ShortFormat = "short", AutoFormat = "auto";
+}
 
 /// <summary>What a model saw in one film.</summary>
 public sealed record MovieWatchReply(string? Note, string? Timeline, string? Error);

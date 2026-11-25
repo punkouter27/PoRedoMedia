@@ -2,14 +2,14 @@ using System.Globalization;
 
 namespace PoRedoMedia.Movie.Render;
 
-// The cuts a movie made of films gets around its best moment: a cold open before the intro, and a slow replay.
+// The cuts a movie made of films gets around its best moment: a slow replay.
 public static partial class FfmpegArgs
 {
     /// <summary>How much slower the replay runs than the moment did.</summary>
     public const double ReplaySlowdown = 2.0;
 
     /// <summary>
-    /// A stretch of a film with its own sound and a label in the corner ("COMING UP", read from
+    /// A stretch of a film with its own sound and a label in the corner ("REPLAY", read from
     /// <paramref name="labelFile"/> in the working folder, beside <see cref="TitleFontFile"/>), at its own speed or slowed
     /// down by <paramref name="slowdown"/>. Slowed, the picture is pushed in a little and the sound drops an octave with
     /// the speed, the way a slow-motion replay sounds. A film with no sound gives silence.
